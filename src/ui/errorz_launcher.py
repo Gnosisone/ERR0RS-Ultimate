@@ -100,6 +100,17 @@ except Exception as e:
     BAS_ENGINE = False
     print(f"[ERR0RS] BAS engine unavailable: {e}")
 
+# ── Blue Team Toolkit ──────────────────────────────────────────────────────────
+try:
+    from src.security.blue_team import (
+        handle_blue_team_request, auto_harden, generate_report, pcap_interpreter
+    )
+    BLUE_TEAM_ENGINE = True
+    print("[ERR0RS] Blue Team toolkit ready — auto_harden / generate_report / pcap_interpreter")
+except Exception as e:
+    BLUE_TEAM_ENGINE = False
+    print(f"[ERR0RS] Blue Team toolkit unavailable: {e}")
+
 # ── Compliance Mapper ─────────────────────────────────────────────────────────
 try:
     from src.tools.threat.compliance_mapper import handle_compliance_request
@@ -245,7 +256,9 @@ def route_command(cmd: str) -> dict:
     # ── RAG knowledge base query ──────────────────────────────────────────
     _rag_triggers = RAG_TRIGGERS if _LANG_LOADED else []
     if any(t in lower for t in _rag_triggers):
-        return _query_brain_mode(cmd, "rag_analyst")    if lower.strip() in [b.lower() for b in _bare_tools] and TEACH_ENGINE:
+        return _query_brain_mode(cmd, "rag_analyst")
+
+    if lower.strip() in [b.lower() for b in _bare_tools] and TEACH_ENGINE:
         return handle_teach_request(lower.strip())
 
     # ── Tool execution ────────────────────────────────────────────────────
@@ -282,6 +295,24 @@ def route_command(cmd: str) -> dict:
 
     # ── Report ────────────────────────────────────────────────────────────
     if any(x in lower for x in _report_triggers):
+        if BLUE_TEAM_ENGINE:
+            result = generate_report(hours=1, include_harden=True)
+            fmt    = result.get("format", "html")
+            path   = result.get("path", "")
+            count  = result.get("finding_count", 0)
+            return {
+                "status": "success",
+                "stdout": (
+                    f"[ERR0RS] Security Audit Report generated\n"
+                    f"  Format:   {fmt.upper()}\n"
+                    f"  Findings: {count}\n"
+                    f"  Path:     {path}\n"
+                    f"  Note:     {result.get('note','')}\n\n"
+                    f"Open in browser: {path}"
+                ),
+                "path":   path,
+                "format": fmt,
+            }
         result = run_shell(f"cd {ROOT_DIR} && python3 demo_report.py 2>&1", timeout=30)
         if result["returncode"] == 0:
             result["stdout"] = "Report generated → /tmp/errorz_report.html\n" + result["stdout"]
@@ -713,6 +744,40 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 else:
                     self._json({"status":"error","error":"Compliance mapper not loaded"})
 
+            elif self.path == "/api/blue_team":
+                # auto_harden / generate_report / pcap_interpreter
+                if BLUE_TEAM_ENGINE:
+                    self._json(handle_blue_team_request(payload))
+                else:
+                    self._json({"status":"error","error":"Blue Team toolkit not loaded"})
+
+            elif self.path == "/api/harden":
+                # Convenience alias: POST {"finding": "port 3306 open"} → remediation cmd
+                if BLUE_TEAM_ENGINE:
+                    finding = payload.get("finding", "").strip()
+                    if not finding:
+                        self._json({"status":"error","error":"No finding provided"})
+                    else:
+                        result = auto_harden(finding,
+                                             prefer_ufw=payload.get("prefer_ufw", True))
+                        self._json({"status":"ok", **result})
+                else:
+                    self._json({"status":"error","error":"Blue Team toolkit not loaded"})
+
+            elif self.path == "/api/report":
+                # Convenience alias: POST {"hours": 1, "client_name": "ACME"} → PDF audit
+                if BLUE_TEAM_ENGINE:
+                    result = generate_report(
+                        hours         = payload.get("hours", 1),
+                        output_path   = payload.get("output_path"),
+                        client_name   = payload.get("client_name", "Confidential"),
+                        tester_name   = payload.get("tester_name", "ERR0RS"),
+                        include_harden= payload.get("include_harden", True),
+                    )
+                    self._json({"status":"ok", **result})
+                else:
+                    self._json({"status":"error","error":"Blue Team toolkit not loaded"})
+
             elif self.path == "/api/soc":
                 action = payload.get("action","").strip()
                 soc_cmds = {
@@ -730,7 +795,16 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 }
                 cmd = soc_cmds.get(action)
                 if cmd:
-                    self._json(run_shell(cmd, timeout=15))
+                    result = run_shell(cmd, timeout=15)
+                    # Auto-attach hardening recommendation if blue team engine available
+                    if BLUE_TEAM_ENGINE and result.get("stdout"):
+                        harden = auto_harden(action.replace("-", " ") + " " + result["stdout"][:200])
+                        if harden.get("command"):
+                            result["harden_cmd"]      = harden["command"]
+                            result["harden_severity"] = harden["severity"]
+                            result["harden_note"]     = harden["note"]
+                            result["cis_ref"]         = harden.get("cis")
+                    self._json(result)
                 else:
                     self._json({"status":"error","error":f"Unknown SOC action: {action}"})
 

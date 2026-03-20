@@ -1,0 +1,923 @@
+#!/usr/bin/env python3
+"""
+ERR0RS ULTIMATE — Main Launcher v3.0
+WebSocket live terminal + HTTP API + inline education + interactive PTY
+
+What's new in v3.0:
+  - WebSocket /ws/terminal  → live streaming process output
+  - Interactive stdin       → type INTO running tools from browser
+  - Inline education        → [ERR0RS] annotations on scan results
+  - Intent parser           → natural language → execute+teach mode
+  - HTTP fallback           → all v2.1 endpoints still work
+
+Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
+"""
+
+import os, sys, json, time, asyncio, threading, subprocess, webbrowser
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+
+# ── Language Expansion Layer ──────────────────────────────────────────────
+try:
+    from src.core.language_layer import (
+        ROUTE_TEACH_TRIGGERS, ROUTE_TOOL_MAP, BARE_TOOLS,
+        SOC_TRIGGERS, REPORT_TRIGGERS, STATUS_TRIGGERS,
+        ROCKETGOD_TRIGGERS, BADUSB_TRIGGERS, OLLAMA_TRIGGERS, MCP_TRIGGERS,
+        PURPLE_TEAM_TRIGGERS, RAG_TRIGGERS,
+        classify_command, resolve_tool_alias, get_soc_action,
+    )
+    _LANG_LOADED = True
+    print("[ERR0RS] Language expansion layer loaded")
+except ImportError as _le:
+    _LANG_LOADED = False
+    PURPLE_TEAM_TRIGGERS = []
+    RAG_TRIGGERS = []
+    print(f"[ERR0RS] Language layer fallback: {_le}")
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+UI_DIR   = Path(__file__).resolve().parent / "web"
+SRC_DIR  = ROOT_DIR / "src"
+
+if str(ROOT_DIR) not in sys.path: sys.path.insert(0, str(ROOT_DIR))
+if str(SRC_DIR)  not in sys.path: sys.path.insert(0, str(SRC_DIR))
+
+HOST     = os.getenv("ERRZ_HOST", "127.0.0.1")
+HTTP_PORT = int(os.getenv("ERRZ_PORT",    "8765"))
+WS_PORT   = int(os.getenv("ERRZ_WS_PORT", "8766"))
+
+# ── Framework import ──────────────────────────────────────────────────────────
+try:
+    from src.core.tool_executor import ToolExecutor
+    from src.ai.natural_language import NaturalLanguageInterface
+    FRAMEWORK_LOADED = True
+    print("[ERR0RS] Framework loaded")
+except Exception as e:
+    FRAMEWORK_LOADED = False
+    print(f"[ERR0RS] Framework dev mode: {e}")
+
+# ── Live terminal engine ──────────────────────────────────────────────────────
+try:
+    from src.core.live_terminal import LiveProcess, parse_intent, build_command
+    LIVE_TERMINAL = True
+    print("[ERR0RS] Live terminal engine ready")
+except Exception as e:
+    LIVE_TERMINAL = False
+    print(f"[ERR0RS] Live terminal unavailable: {e}")
+
+# ── Smart Wizard ──────────────────────────────────────────────────────────────
+try:
+    from src.core.smart_wizard import detect_wizard, build_wizard_response, apply_target
+    WIZARD_ENGINE = True
+    print("[ERR0RS] Smart Wizard engine ready")
+except Exception as e:
+    WIZARD_ENGINE = False
+    print(f"[ERR0RS] Smart Wizard unavailable: {e}")
+
+# ── Flipper Zero Studio ───────────────────────────────────────────────────────
+try:
+    from src.tools.badusb_studio.flipper_studio import handle_flipper_request
+    FLIPPER_ENGINE = True
+    print("[ERR0RS] Flipper Zero Studio ready")
+except Exception as e:
+    FLIPPER_ENGINE = False
+    print(f"[ERR0RS] Flipper Studio unavailable: {e}")
+
+# ── ERR0RS Native Brain (replaces mr7 entirely — 100% local) ─────────────────
+try:
+    from src.ai.errz_brain import handle_brain_request, auto_route, BRAIN_MODES
+    BRAIN_ENGINE = True
+    print("[ERR0RS] Native AI Brain ready — 5 modes, zero cloud dependency")
+except Exception as e:
+    BRAIN_ENGINE = False
+    print(f"[ERR0RS] Brain engine unavailable: {e}")
+
+# ── BAS Engine ────────────────────────────────────────────────────────────────
+try:
+    from src.tools.breach.bas_engine import handle_bas_request
+    BAS_ENGINE = True
+    print("[ERR0RS] BAS engine ready")
+except Exception as e:
+    BAS_ENGINE = False
+    print(f"[ERR0RS] BAS engine unavailable: {e}")
+
+# ── Compliance Mapper ─────────────────────────────────────────────────────────
+try:
+    from src.tools.threat.compliance_mapper import handle_compliance_request
+    COMPLIANCE_ENGINE = True
+    print("[ERR0RS] Compliance mapper ready")
+except Exception as e:
+    COMPLIANCE_ENGINE = False
+    print(f"[ERR0RS] Compliance mapper unavailable: {e}")
+
+# ── Teach engine ─────────────────────────────────────────────────────────────
+try:
+    from src.education.teach_engine import handle_teach_request, find_lesson
+    TEACH_ENGINE = True
+    print("[ERR0RS] Teach engine ready")
+except Exception as e:
+    TEACH_ENGINE = False
+    print(f"[ERR0RS] Teach engine unavailable: {e}")
+
+# ── websockets library ────────────────────────────────────────────────────────
+try:
+    import websockets
+    WEBSOCKETS_OK = True
+except ImportError:
+    WEBSOCKETS_OK = False
+    print("[ERR0RS] websockets not installed — run: pip3 install websockets")
+
+# Active processes registry: session_id → LiveProcess
+_active_processes = {}
+_ws_clients       = {}   # session_id → websocket
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SHELL UTILITIES
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_shell(cmd: str, timeout: int = 60) -> dict:
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True,
+                                text=True, timeout=timeout)
+        return {"stdout": result.stdout, "stderr": result.stderr,
+                "returncode": result.returncode, "command": cmd,
+                "status": "success" if result.returncode == 0 else "error"}
+    except subprocess.TimeoutExpired:
+        return {"stdout": "", "stderr": f"Timed out after {timeout}s",
+                "returncode": -1, "command": cmd, "status": "timeout"}
+    except Exception as e:
+        return {"stdout": "", "stderr": str(e),
+                "returncode": -1, "command": cmd, "status": "error"}
+
+
+def run_tool_async(tool: str, target: str, params: dict) -> dict:
+    async def _run():
+        executor = ToolExecutor()
+        result   = await executor.run(tool, target, params)
+        return {"tool": result.tool_name, "command": result.command,
+                "status": result.status.value, "stdout": result.stdout,
+                "stderr": result.stderr, "returncode": result.return_code,
+                "duration_ms": result.duration_ms, "findings": result.findings,
+                "error": result.error}
+    try:
+        loop = asyncio.new_event_loop()
+        return loop.run_until_complete(_run())
+    except Exception as e:
+        return {"status": "error", "error": str(e), "tool": tool}
+    finally:
+        loop.close()
+
+
+def query_ollama(prompt: str) -> dict:
+    import urllib.request
+    try:
+        body = json.dumps({"model": "llama3.2",
+            "prompt": f"You are ERR0RS, an AI penetration testing assistant. {prompt}",
+            "stream": False}).encode()
+        req = urllib.request.Request("http://localhost:11434/api/generate",
+            data=body, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
+            return {"stdout": data.get("response", ""), "status": "success", "source": "ollama"}
+    except Exception as e:
+        return {"stdout": (
+            f"[ERR0RS] Ollama offline: {e}\n\n"
+            "Built-in lessons (no Ollama needed):\n"
+            "  teach me sqlmap    teach me nmap      teach me gobuster\n"
+            "  teach me hydra     teach me metasploit teach me hashcat\n"
+            "  teach me nikto     teach me nuclei     teach me privesc\n"
+            "  teach me xss       teach me burp suite teach me wireshark\n\n"
+            "Shell: $ whoami | $ nmap -sV target | use --teach flag for inline education"
+        ), "status": "error", "source": "ollama"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COMMAND ROUTER  (HTTP path — non-streaming fallback)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def route_command(cmd: str) -> dict:
+    lower = cmd.lower().strip()
+
+    # ── WIZARD ENGINE — intercept vague commands first ────────────────────
+    if WIZARD_ENGINE:
+        wizard_key = detect_wizard(cmd)
+        if wizard_key:
+            wizard = build_wizard_response(wizard_key)
+            if wizard:
+                return {"status": "wizard", **wizard}
+
+    # ── Use Language Layer classifier if available ────────────────────────
+    _teach_triggers  = ROUTE_TEACH_TRIGGERS if _LANG_LOADED else [
+        "teach me","how do i","how to use","how does","explain","what is","what are",
+        "tell me about","how do you use","learn","help me learn","show me how","guide me",
+        "tutorial","how to","walk me through","i want to learn","how can i use"]
+    _bare_tools      = BARE_TOOLS if _LANG_LOADED else [
+        "sqlmap","nikto","gobuster","hydra","hashcat","aircrack","nuclei",
+        "subfinder","metasploit","meterpreter","wireshark","burp","burp suite",
+        "privilege escalation","privesc","xss","sql injection","sqli","nmap"]
+    _tool_map        = ROUTE_TOOL_MAP if _LANG_LOADED else {
+        "nmap":"nmap","scan":"nmap","nikto":"nikto","gobuster":"gobuster",
+        "dirbust":"gobuster","sqlmap":"sqlmap","sqli":"sqlmap",
+        "hydra":"hydra","brute":"hydra","subfinder":"subfinder",
+        "subdomain":"subfinder","nuclei":"nuclei","amass":"amass",
+        "metasploit":"metasploit","msf":"metasploit","hashcat":"hashcat","crack":"hashcat"}
+    _report_triggers = REPORT_TRIGGERS if _LANG_LOADED else ["report","generate report","debrief"]
+    _status_triggers = STATUS_TRIGGERS if _LANG_LOADED else ["status","sysinfo","uname","whoami"]
+    _rg_triggers     = ROCKETGOD_TRIGGERS if _LANG_LOADED else [
+        "rocketgod","hackrf","rf jammer","jammer","protopirate",
+        "rolling code","keyfob","sub file","subghz scan","wigle",
+        "wardriv","radio scanner","keeloq","flipper sd","rg toolbox"]
+    _bu_triggers     = BADUSB_TRIGGERS if _LANG_LOADED else [
+        "flipper","badusb","ducky","duckyscript","reverse shell",
+        "evil portal","captive portal","sd card","generate script"]
+    _ollama_triggers = OLLAMA_TRIGGERS if _LANG_LOADED else ["ollama","models","ai status"]
+    _mcp_triggers    = MCP_TRIGGERS    if _LANG_LOADED else ["mcp","kali tools"]
+
+    # ── Teach / Learn / Explain ───────────────────────────────────────────
+    if any(t in lower for t in _teach_triggers):
+        if TEACH_ENGINE:
+            return handle_teach_request(cmd)
+
+    # ── Purple Team loop — Red + Blue + Remediation ───────────────────────
+    _pt_triggers = PURPLE_TEAM_TRIGGERS if _LANG_LOADED else []
+    if any(t in lower for t in _pt_triggers):
+        return _query_brain_mode(cmd, "purple_team")
+
+    # ── RAG knowledge base query ──────────────────────────────────────────
+    _rag_triggers = RAG_TRIGGERS if _LANG_LOADED else []
+    if any(t in lower for t in _rag_triggers):
+        return _query_brain_mode(cmd, "rag_analyst")    if lower.strip() in [b.lower() for b in _bare_tools] and TEACH_ENGINE:
+        return handle_teach_request(lower.strip())
+
+    # ── Tool execution ────────────────────────────────────────────────────
+    parts  = cmd.strip().split()
+    verb   = parts[0].lower() if parts else ""
+    target = parts[1] if len(parts) > 1 else ""
+    # Also try language layer resolve for natural phrases
+    resolved_tool = (resolve_tool_alias(lower) if _LANG_LOADED else None) or _tool_map.get(verb)
+    if resolved_tool and target:
+        tool = resolved_tool
+        if FRAMEWORK_LOADED:
+            return run_tool_async(tool, target, {})
+        cmds = {
+            "nmap":         f"nmap -sV -sC --top-ports 1000 {target}",
+            "nikto":        f"nikto -h {target}",
+            "gobuster":     f"gobuster dir -u http://{target} -w /usr/share/wordlists/dirb/common.txt",
+            "sqlmap":       f"sqlmap -u http://{target} --batch --dbs",
+            "hydra":        f"hydra -l root -P /usr/share/wordlists/rockyou.txt {target} ssh",
+            "subfinder":    f"subfinder -d {target}",
+            "nuclei":       f"nuclei -u http://{target}",
+            "amass":        f"amass enum -d {target}",
+            "metasploit":   f"msfconsole -q -x 'search type:exploit target:{target}; exit'",
+            "hashcat":      f"hashcat -m 0 -a 0 {target} /usr/share/wordlists/rockyou.txt",
+            "wpscan":       f"wpscan --url http://{target} --enumerate p,u",
+            "crackmapexec": f"crackmapexec smb {target}",
+            "enum4linux":   f"enum4linux -a {target}",
+            "ffuf":         f"ffuf -u http://{target}/FUZZ -w /usr/share/wordlists/dirb/common.txt",
+        }
+        return run_shell(cmds.get(tool, f"{tool} {target}"), timeout=120)
+
+    # ── System info ───────────────────────────────────────────────────────
+    if any(x in lower for x in _status_triggers):
+        return run_shell("uname -a && whoami && ip addr show 2>/dev/null | grep inet")
+
+    # ── Report ────────────────────────────────────────────────────────────
+    if any(x in lower for x in _report_triggers):
+        result = run_shell(f"cd {ROOT_DIR} && python3 demo_report.py 2>&1", timeout=30)
+        if result["returncode"] == 0:
+            result["stdout"] = "Report generated → /tmp/errorz_report.html\n" + result["stdout"]
+        return result
+
+    # ── MCP / Ollama ──────────────────────────────────────────────────────
+    if any(x in lower for x in _mcp_triggers):
+        return run_shell("mcp-server --list-tools 2>/dev/null || echo 'mcp-kali-server not installed'")
+    if any(x in lower for x in _ollama_triggers):
+        return run_shell("ollama list 2>/dev/null || echo 'Ollama not running'")
+
+    # ── Raw shell ─────────────────────────────────────────────────────────
+    if cmd.startswith("$") or cmd.startswith("!"):
+        return run_shell(cmd[1:].strip(), timeout=60)
+
+    # ── RocketGod ─────────────────────────────────────────────────────────
+    if any(t in lower for t in _rg_triggers):
+        try:
+            from src.tools.rocketgod import handle_rocketgod_request
+            if any(x in lower for x in ["jammer","jam"]):
+                r = handle_rocketgod_request({"action":"jammer_modes"})
+                out = "\n".join([f"  [{k}] {v}" for k,v in r.get("modes",{}).items()])
+                return {"stdout": f"[RocketGod] RF Jammer Modes:\n{out}", "status":"success"}
+            elif any(x in lower for x in ["proto","rolling code","keyfob"]):
+                r = handle_rocketgod_request({"action":"protopirate"})
+                return {"stdout": f"ProtoPirate: {', '.join(r.get('protocols',[]))}", "status":"success"}
+            elif "hackrf" in lower:
+                r = handle_rocketgod_request({"action":"hackrf"})
+                return {"stdout": f"HackRF: {r.get('description','')} @ {r.get('path','')}", "status":"success"}
+            else:
+                r = handle_rocketgod_request({"action":"search","prompt":cmd})
+                results = r.get("results",[])
+                out = "\n".join([f"  [{x['repo']}] {x['description']}" for x in results])
+                return {"stdout": f"[RocketGod Search: {cmd}]\n{out or 'No results'}", "status":"success"}
+        except Exception:
+            pass
+
+    # ── BadUSB ────────────────────────────────────────────────────────────
+    if any(t in lower for t in _bu_triggers):
+        try:
+            from src.tools.badusb import nlp_to_flipper
+            return nlp_to_flipper(cmd)
+        except Exception:
+            pass
+
+    # ── Teach engine second pass ──────────────────────────────────────────
+    if TEACH_ENGINE:
+        lesson = find_lesson(cmd)
+        if lesson:
+            from src.education.teach_engine import format_lesson
+            return {"stdout": format_lesson(lesson), "status":"success", "source":"errz_builtin"}
+
+    # ── ERR0RS Native Brain fallback (replaces Ollama direct + mr7) ─────────
+    return _query_brain(cmd)
+
+
+def _query_brain(prompt: str) -> dict:
+    """Route through ERR0RS Native Brain — auto-selects the best mode."""
+    if BRAIN_ENGINE:
+        result = handle_brain_request({"action": "ask", "prompt": prompt, "mode": "auto"})
+        mode_name = result.get("mode_name", "ERR0RS Brain")
+        icon = result.get("icon", "🧠")
+        return {
+            "status": result.get("status", "error"),
+            "stdout": f"[{icon} {mode_name}]\n\n{result.get('stdout', result.get('error', 'No response'))}",
+            "source": "errz_brain_local",
+        }
+    return query_ollama(prompt)
+
+
+def _query_brain_mode(prompt: str, mode: str) -> dict:
+    """Route through ERR0RS Native Brain with a specific forced mode."""
+    if BRAIN_ENGINE:
+        result = handle_brain_request({"action": "ask", "prompt": prompt, "mode": mode})
+        mode_name = result.get("mode_name", mode)
+        icon = result.get("icon", "🧠")
+        return {
+            "status": result.get("status", "error"),
+            "stdout": f"[{icon} {mode_name}]\n\n{result.get('stdout', result.get('error', 'No response'))}",
+            "source": "errz_brain_local",
+            "mode": mode,
+        }
+    return query_ollama(prompt)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# WEBSOCKET SERVER — live terminal streaming
+# ═══════════════════════════════════════════════════════════════════════════
+
+async def ws_terminal_handler(websocket):
+    """
+    WebSocket handler for live terminal sessions.
+
+    Protocol (JSON messages):
+      CLIENT → SERVER:
+        {"type": "run",    "command": "nmap 192.168.1.1", "teach": true}
+        {"type": "stdin",  "data": "yes\n"}
+        {"type": "key",    "data": "\x03"}   ← Ctrl+C
+        {"type": "kill"}
+
+      SERVER → CLIENT:
+        {"type": "system",     "data": "[ERR0RS] Spawned: nmap ..."}
+        {"type": "output",     "data": "PORT   STATE  SERVICE"}
+        {"type": "teach",      "data": "[ERR0RS] Port 22 = SSH ..."}
+        {"type": "teach_block","data": "=====\n[ERR0RS TEACHES]..."}
+        {"type": "error",      "data": "PTY fork failed"}
+        {"type": "done",       "data": "[ERR0RS] Process complete."}
+    """
+    session_id = id(websocket)
+    _ws_clients[session_id] = websocket
+    proc = None
+
+    try:
+        await websocket.send(json.dumps({
+            "type": "system",
+            "data": f"[ERR0RS] WebSocket connected. Session {session_id}\n"
+                    "[ERR0RS] Type commands below. Add '--teach' for inline education.\n"
+                    "[ERR0RS] Use $ prefix for raw shell. Ctrl+C to stop running tools."
+        }))
+
+        async for message in websocket:
+            try:
+                msg = json.loads(message)
+            except Exception:
+                continue
+
+            mtype = msg.get("type", "run")
+
+            # ── Stdin forwarding to running process ───────────────────────
+            if mtype == "stdin":
+                if proc and proc.is_running:
+                    proc.send_input(msg.get("data", ""))
+                continue
+
+            # ── Raw key (Ctrl+C etc) ──────────────────────────────────────
+            if mtype == "key":
+                if proc and proc.is_running:
+                    data = msg.get("data", "")
+                    proc.send_raw(data.encode("utf-8", errors="replace"))
+                continue
+
+            # ── Kill current process ──────────────────────────────────────
+            if mtype == "kill":
+                if proc and proc.is_running:
+                    proc.terminate()
+                    await websocket.send(json.dumps({"type":"system","data":"[ERR0RS] Process killed."}))
+                continue
+
+            # ── Run a command ─────────────────────────────────────────────
+            if mtype == "run":
+                raw_cmd   = msg.get("command", "").strip()
+                teach_flag = msg.get("teach", False) or "--teach" in raw_cmd or "-t" in raw_cmd.split()
+
+                # Clean --teach flag from command
+                clean_cmd = raw_cmd.replace("--teach", "").replace(" -t ", " ").strip()
+
+                # Kill any existing process
+                if proc and proc.is_running:
+                    proc.terminate()
+
+                # Parse intent
+                if LIVE_TERMINAL:
+                    intent = parse_intent(clean_cmd)
+                else:
+                    intent = {"tool": None, "target": None, "raw_cmd": clean_cmd,
+                              "execute": True, "teach": teach_flag, "mode": "execute"}
+
+                # Teach-only mode
+                if intent["mode"] == "teach" and not intent["execute"]:
+                    if TEACH_ENGINE:
+                        result = handle_teach_request(clean_cmd)
+                        await websocket.send(json.dumps({
+                            "type": "teach_block",
+                            "data": result["stdout"]
+                        }))
+                    continue
+
+                # Build actual command
+                if intent.get("raw_cmd"):
+                    final_cmd = intent["raw_cmd"]
+                    tool      = ""
+                elif intent["tool"] and intent["target"] and LIVE_TERMINAL:
+                    final_cmd = build_command(intent["tool"], intent["target"])
+                    tool      = intent["tool"]
+                elif intent["tool"] and LIVE_TERMINAL:
+                    # Tool with no target — teach instead
+                    if TEACH_ENGINE:
+                        result = handle_teach_request(intent["tool"])
+                        await websocket.send(json.dumps({"type":"teach_block","data":result["stdout"]}))
+                        await websocket.send(json.dumps({"type":"system",
+                            "data":"[ERR0RS] Provide a target to run this tool. Example: nmap 192.168.1.1"}))
+                    continue
+                else:
+                    # Not a tool command — route through normal handler
+                    result = route_command(clean_cmd)
+                    await websocket.send(json.dumps({
+                        "type": "output",
+                        "data": result.get("stdout") or result.get("error") or "No output"
+                    }))
+                    continue
+
+                # Emit the command being run
+                await websocket.send(json.dumps({
+                    "type": "system",
+                    "data": f"[ERR0RS] Running: {final_cmd}"
+                }))
+
+                # Teach mode: emit full lesson BEFORE running
+                if (teach_flag or intent.get("teach")) and TEACH_ENGINE and tool:
+                    result = handle_teach_request(tool)
+                    await websocket.send(json.dumps({
+                        "type": "teach_block",
+                        "data": result["stdout"]
+                    }))
+                    await websocket.send(json.dumps({
+                        "type": "system",
+                        "data": "[ERR0RS] Lesson complete. Now running the actual tool...\n" + "="*54
+                    }))
+
+                # Spawn with PTY if available (Linux/Kali)
+                if LIVE_TERMINAL:
+                    def on_output(event):
+                        # Thread-safe send back to websocket
+                        try:
+                            loop = asyncio.new_event_loop()
+                            loop.run_until_complete(websocket.send(json.dumps(event)))
+                            loop.close()
+                        except Exception:
+                            pass
+
+                    proc = LiveProcess(
+                        command=final_cmd,
+                        tool=tool,
+                        target=intent.get("target") or "",
+                        output_callback=on_output,
+                        teach_mode=(teach_flag or intent.get("teach", False))
+                    )
+                    proc.start()
+
+                else:
+                    # Fallback: non-streaming shell (Windows dev mode)
+                    result = run_shell(final_cmd, timeout=120)
+                    for line in result["stdout"].split("\n"):
+                        if line.strip():
+                            await websocket.send(json.dumps({"type":"output","data":line}))
+                    await websocket.send(json.dumps({"type":"system","data":"[ERR0RS] Done (non-streaming mode)."}))
+
+    except Exception as e:
+        try:
+            await websocket.send(json.dumps({"type":"error","data":str(e)}))
+        except Exception:
+            pass
+    finally:
+        if proc and proc.is_running:
+            proc.terminate()
+        _ws_clients.pop(session_id, None)
+
+
+def start_ws_server():
+    """Start the WebSocket server in its own thread/event loop"""
+    if not WEBSOCKETS_OK:
+        print("[ERR0RS] WebSocket server disabled — pip3 install websockets")
+        return
+
+    async def _serve():
+        async with websockets.serve(ws_terminal_handler, HOST, WS_PORT):
+            print(f"[ERR0RS] WebSocket terminal → ws://{HOST}:{WS_PORT}")
+            await asyncio.Future()  # run forever
+
+    def _thread():
+        asyncio.run(_serve())
+
+    t = threading.Thread(target=_thread, daemon=True)
+    t.start()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HTTP SERVER — all original endpoints preserved + new /api/ws_info
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ERR0RSHandler(SimpleHTTPRequestHandler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(UI_DIR.resolve()), **kwargs)
+
+    def log_message(self, format, *args): pass
+
+    def log_error(self, format, *args):
+        msg = format % args if args else str(format)
+        if any(x in msg for x in ["BrokenPipe","Errno 32","Errno 104"]): return
+        print(f"[ERR0RS] {msg}")
+
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin",  "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200); self.end_headers()
+
+    def do_GET(self):
+        try:
+            if self.path == "/api/status":   self._json(self._status())
+            elif self.path == "/api/phases": self._json(self._phases())
+            elif self.path == "/api/tools":  self._json(self._tools_list())
+            elif self.path == "/api/ws_info":
+                self._json({"ws_url": f"ws://{HOST}:{WS_PORT}",
+                            "ws_available": WEBSOCKETS_OK,
+                            "live_terminal": LIVE_TERMINAL})
+            elif self.path == "/api/payload_studio/snippets":
+                self._payload_snippets()
+            else: super().do_GET()
+        except (BrokenPipeError, ConnectionResetError): pass
+
+    def do_POST(self):
+        try:
+            length  = int(self.headers.get("Content-Length", 0))
+            body    = self.rfile.read(length)
+            payload = json.loads(body) if body else {}
+
+            if self.path == "/api/command":
+                cmd = payload.get("command","").strip()
+                self._json(route_command(cmd) if cmd else {"error":"empty command"})
+
+            elif self.path == "/api/tool":
+                tool   = payload.get("tool","").strip()
+                target = payload.get("target","").strip()
+                params = payload.get("params",{})
+                if not tool: self._json({"error":"no tool"}); return
+                self._json(run_tool_async(tool,target,params) if FRAMEWORK_LOADED and target
+                           else run_shell(f"{tool} {target}", timeout=120))
+
+            elif self.path == "/api/shell":
+                cmd     = payload.get("cmd","").strip()
+                timeout = payload.get("timeout",60)
+                self._json(run_shell(cmd,timeout) if cmd else {"error":"no cmd"})
+
+            elif self.path == "/api/teach":
+                query = payload.get("query","").strip()
+                if TEACH_ENGINE:
+                    self._json(handle_teach_request(query))
+                else:
+                    self._json({"status":"error","stdout":"Teach engine not loaded"})
+
+            elif self.path == "/api/payload_studio/explain":
+                line  = payload.get("line","").strip()
+                self._json(self._explain_line(line))
+
+            elif self.path == "/api/payload_studio/suggest":
+                code  = payload.get("code","")
+                plat  = payload.get("platform","windows")
+                last  = payload.get("last_line","")
+                self._json(self._get_suggestions(code, plat, last))
+
+            elif self.path == "/api/payload_studio/validate":
+                code  = payload.get("code","")
+                self._json(self._validate_ducky(code))
+
+            elif self.path == "/api/rocketgod":
+                try:
+                    from src.tools.rocketgod import handle_rocketgod_request
+                    self._json(handle_rocketgod_request(payload))
+                except Exception as e:
+                    self._json({"status":"error","error":str(e)})
+
+            elif self.path == "/api/badusb":
+                try:
+                    from src.tools.badusb import route_badusb
+                    self._json(route_badusb(payload))
+                except Exception as e:
+                    self._json({"status":"error","error":str(e)})
+
+            elif self.path == "/api/ollama":
+                self._json(query_ollama(payload.get("prompt","").strip()))
+
+            elif self.path == "/api/wizard":
+                # Direct wizard request: { "tool": "nmap" }  OR  { "command": "scan for open ports" }
+                tool = payload.get("tool", "").strip().lower()
+                cmd  = payload.get("command", "").strip()
+                if WIZARD_ENGINE:
+                    if tool:
+                        w = build_wizard_response(tool)
+                    elif cmd:
+                        key = detect_wizard(cmd)
+                        w   = build_wizard_response(key) if key else None
+                    else:
+                        w = None
+                    if w:
+                        self._json({"status": "wizard", **w})
+                    else:
+                        self._json({"status": "error", "error": f"No wizard for: {tool or cmd}"})
+                else:
+                    self._json({"status": "error", "error": "Wizard engine not loaded"})
+
+            elif self.path == "/api/wizard/run":
+                # Execute a wizard option: { "tool": "nmap", "cmd": "nmap -F {target}", "target": "192.168.1.1" }
+                tool   = payload.get("tool", "").strip()
+                cmd    = payload.get("cmd", "").strip()
+                target = payload.get("target", "").strip()
+                if WIZARD_ENGINE and cmd:
+                    final_cmd = apply_target(cmd, target) if target else cmd
+                    self._json(run_shell(final_cmd, timeout=120))
+                else:
+                    self._json({"status": "error", "error": "Missing cmd or wizard engine not loaded"})
+
+            elif self.path == "/api/flipper":
+                if FLIPPER_ENGINE:
+                    self._json(handle_flipper_request(payload))
+                else:
+                    self._json({"status":"error","error":"Flipper Studio not loaded"})
+
+            elif self.path == "/api/brain":
+                # ERR0RS Native AI Brain — replaces mr7 entirely, 100% local
+                if BRAIN_ENGINE:
+                    self._json(handle_brain_request(payload))
+                else:
+                    self._json({"status":"error","error":"Brain engine not loaded — check Ollama"})
+
+            elif self.path == "/api/bas":
+                if BAS_ENGINE:
+                    self._json(handle_bas_request(payload))
+                else:
+                    self._json({"status":"error","error":"BAS engine not loaded"})
+
+            elif self.path == "/api/compliance":
+                if COMPLIANCE_ENGINE:
+                    self._json(handle_compliance_request(payload))
+                else:
+                    self._json({"status":"error","error":"Compliance mapper not loaded"})
+
+            elif self.path == "/api/soc":
+                action = payload.get("action","").strip()
+                soc_cmds = {
+                    "failed-logins": "grep 'Failed password' /var/log/auth.log 2>/dev/null | tail -30 || journalctl _SYSTEMD_UNIT=sshd 2>/dev/null | grep Failed | tail -30",
+                    "active-conns":  "ss -tulpn && netstat -an 2>/dev/null | grep ESTABLISHED | head -30",
+                    "open-ports":    "ss -tulpn | grep LISTEN",
+                    "running-procs": "ps aux --sort=-%cpu | head -30",
+                    "log-tail":      "tail -n 50 /var/log/auth.log /var/log/syslog 2>/dev/null || journalctl -n 50",
+                    "who-online":    "who && last | head -20 && w",
+                    "sudo-log":      "grep sudo /var/log/auth.log 2>/dev/null | tail -20 || journalctl | grep sudo | tail -20",
+                    "firewall-rules":"iptables -L -n -v 2>/dev/null || ufw status verbose 2>/dev/null",
+                    "cron-jobs":     "crontab -l 2>/dev/null; ls -la /etc/cron* 2>/dev/null",
+                    "dns-cache":     "resolvectl statistics 2>/dev/null; cat /etc/hosts",
+                    "volatility":    "volatility3 --info 2>/dev/null || echo 'volatility3 not installed'",
+                }
+                cmd = soc_cmds.get(action)
+                if cmd:
+                    self._json(run_shell(cmd, timeout=15))
+                else:
+                    self._json({"status":"error","error":f"Unknown SOC action: {action}"})
+
+            else:
+                self.send_response(404); self.end_headers()
+
+        except (BrokenPipeError, ConnectionResetError): pass
+        except Exception as e:
+            try: self._json({"error":str(e)}, code=500)
+            except Exception: pass
+
+    def _json(self, data: dict, code: int = 200):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type","application/json")
+        self.send_header("Content-Length",str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    # ── Payload Studio helpers ────────────────────────
+    def _payload_snippets(self):
+        try:
+            from src.tools.payload_studio.snippets import SNIPPETS
+            self._json({"status":"ok","snippets":SNIPPETS})
+        except Exception as e:
+            self._json({"status":"error","error":str(e)})
+
+    def _explain_line(self, line: str) -> dict:
+        try:
+            from src.tools.payload_studio.payload_engine import get_line_explanation
+            return {"status":"ok","explanation":get_line_explanation(line)}
+        except Exception as e:
+            return {"status":"error","error":str(e)}
+
+    def _get_suggestions(self, code: str, platform: str, last_line: str) -> dict:
+        try:
+            from src.tools.payload_studio.payload_engine import get_suggestions
+            sugs = get_suggestions(code, platform, last_line)
+            return {"status":"ok","suggestions":sugs}
+        except Exception as e:
+            return {"status":"error","suggestions":[]}
+
+    def _validate_ducky(self, code: str) -> dict:
+        valid_cmds = {"REM","STRING","STRINGLN","DELAY","GUI","CTRL","ALT","SHIFT",
+                      "ENTER","BACKSPACE","TAB","ESCAPE","DELETE","UPARROW","DOWNARROW",
+                      "LEFTARROW","RIGHTARROW","HOME","END","PAGEUP","PAGEDOWN",
+                      "CAPSLOCK","PRINTSCREEN","MENU","SPACE","WAIT_FOR_BUTTON_PRESS",
+                      "HOLD","RELEASE","REPEAT","VAR","IF","WHILE","DEFINE",
+                      "DEFAULT_DELAY","LOCALE","F1","F2","F3","F4","F5","F6",
+                      "F7","F8","F9","F10","F11","F12"}
+        errors = []
+        for i, line in enumerate(code.split("\n"), 1):
+            t = line.strip()
+            if not t: continue
+            cmd = t.split()[0].upper()
+            if cmd not in valid_cmds:
+                errors.append({"line":i,"msg":f"Unknown command: {cmd}"})
+            if cmd == "DELAY":
+                parts = t.split()
+                if len(parts) < 2 or not parts[1].isdigit():
+                    errors.append({"line":i,"msg":"DELAY requires a number (e.g. DELAY 500)"})
+        return {"status":"ok","valid":len(errors)==0,"errors":errors,"line_count":len(code.split("\n"))}
+
+    def _status(self) -> dict:
+        import urllib.request as ur
+        ollama_ok, ollama_models = False, []
+        try:
+            with ur.urlopen("http://localhost:11434/api/tags", timeout=2) as r:
+                data = json.loads(r.read())
+                ollama_models = [m["name"] for m in data.get("models",[])]
+                ollama_ok = bool(ollama_models)
+        except Exception: pass
+        mcp_ok = subprocess.run(["which","mcp-server"],capture_output=True).returncode == 0
+        return {"version":"3.0","framework":FRAMEWORK_LOADED,"ollama":ollama_ok,
+                "ollama_models":ollama_models,"mcp":mcp_ok,"shell_access":True,
+                "live_terminal":LIVE_TERMINAL,"websocket":WEBSOCKETS_OK,
+                "ws_port":WS_PORT,"uptime":_uptime(),"platform":_platform()}
+
+    def _phases(self) -> dict:
+        return {"phases":[
+            {"id":1,"name":"RECON","status":"done"},
+            {"id":2,"name":"SCANNING","status":"active"},
+            {"id":3,"name":"ENUMERATION","status":"pending"},
+            {"id":4,"name":"EXPLOITATION","status":"pending"},
+            {"id":5,"name":"POST-EXPLOIT","status":"pending"},
+            {"id":6,"name":"REPORTING","status":"pending"},
+        ]}
+
+    def _tools_list(self) -> dict:
+        tools = ["nmap","nikto","gobuster","sqlmap","hydra","hashcat",
+                 "subfinder","nuclei","amass","metasploit","wpscan",
+                 "crackmapexec","enum4linux","dirb","ffuf","wfuzz"]
+        available = []
+        for t in tools:
+            binary = "msfconsole" if t == "metasploit" else t
+            available.append({"name":t,
+                "available":subprocess.run(["which",binary],capture_output=True).returncode==0})
+        return {"tools":available}
+
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+def _uptime() -> str:
+    try:
+        with open("/proc/uptime") as f:
+            secs = int(float(f.read().split()[0]))
+        h,r = divmod(secs,3600); m,s = divmod(r,60)
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    except Exception: return "N/A"
+
+def _platform() -> str:
+    try:
+        with open("/proc/cpuinfo") as f:
+            if "Raspberry Pi" in f.read(): return "Raspberry Pi 5 16GB"
+    except Exception: pass
+    return "Kali Linux"
+
+def check_ollama():
+    import urllib.request, json as j
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags",timeout=2) as r:
+            models = [m["name"] for m in j.loads(r.read()).get("models",[])]
+            if models: print(f"[ERR0RS] Ollama connected: {', '.join(models)}"); return True
+        print("[ERR0RS] Ollama running but no models → ollama pull llama3.2")
+    except Exception:
+        print("[ERR0RS] Ollama offline → sudo systemctl start ollama && ollama pull llama3.2")
+    return False
+
+def check_ws_deps():
+    if not WEBSOCKETS_OK:
+        print("[ERR0RS] Install WebSocket support → pip3 install websockets")
+        return False
+    print(f"[ERR0RS] WebSocket ready → ws://{HOST}:{WS_PORT}")
+    return True
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BOOT
+# ═══════════════════════════════════════════════════════════════════════════
+
+def start_server():
+    if not UI_DIR.exists() or not (UI_DIR/"index.html").exists():
+        print(f"[ERR0RS] ERROR: UI not found at {UI_DIR}"); sys.exit(1)
+
+    server = HTTPServer((HOST, HTTP_PORT), ERR0RSHandler)
+    url    = f"http://{HOST}:{HTTP_PORT}"
+    print(f"[ERR0RS] Dashboard   → {url}")
+    print(f"[ERR0RS] HTTP API    → {url}/api/command")
+    print(f"[ERR0RS] Teach API   → {url}/api/teach")
+    print(f"[ERR0RS] Shell API   → {url}/api/shell")
+    if WEBSOCKETS_OK:
+        print(f"[ERR0RS] Live Term   → ws://{HOST}:{WS_PORT}")
+    print(f"[ERR0RS] Ctrl+C to stop\n")
+
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    start_ws_server()
+    try: webbrowser.open(url)
+    except Exception: pass
+    try: t.join()
+    except KeyboardInterrupt:
+        print("\n[ERR0RS] Shutdown. Stay safe operator.")
+        server.shutdown()
+
+
+def main():
+    O='\033[0;33m'; Y='\033[1;33m'; R='\033[0;31m'; C='\033[0;36m'; N='\033[0m'
+    print(f"""
+{O}  ███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗{N}
+{O}  ██╔════╝██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝{N}
+{Y}  █████╗  ██████╔╝██████╔╝██║   ██║██████╔╝███████╗{N}
+{Y}  ██╔══╝  ██╔══██╗██╔══██╗██║   ██║██╔══██╗╚════██║{N}
+{R}  ███████╗██║  ██║██║  ██║╚██████╔╝██║  ██║███████║{N}
+{R}  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝{N}
+{C}        AI PENTEST ASSISTANT + INSTRUCTOR  v3.0{N}
+{O}  ═══════════════════════════════════════════════════{N}
+  {C}Root:{N}       {ROOT_DIR}
+  {C}HTTP:{N}       http://{HOST}:{HTTP_PORT}
+  {C}WebSocket:{N}  ws://{HOST}:{WS_PORT}
+  {C}Live Term:{N}  {'YES - PTY streaming' if LIVE_TERMINAL else 'NO - install on Linux'}
+  {C}WebSockets:{N} {'YES' if WEBSOCKETS_OK else 'NO - pip3 install websockets'}
+  {C}Teach Engine:{N}{'YES - 13 topics offline' if TEACH_ENGINE else 'NO'}
+{O}  ═══════════════════════════════════════════════════{N}
+""")
+    check_ollama()
+    check_ws_deps()
+    start_server()
+
+
+if __name__ == "__main__":
+    main()

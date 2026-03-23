@@ -886,6 +886,90 @@ ATTCK_KEYWORD_MAP: dict[str, str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# BLOCK 12 — NEW MODULE TRIGGERS
+# Cloud Security, CTF Solver, OPSEC Mode, Post-Exploitation, Lateral Movement
+# Wireless, Social Engineering
+# ═══════════════════════════════════════════════════════════════════════════
+
+CLOUD_TRIGGERS: list[str] = [
+    "cloud security", "aws enum", "aws iam", "aws s3", "azure enum",
+    "azure rbac", "gcp enum", "gcp iam", "cloud audit", "cloud pentest",
+    "validate aws keys", "aws keys", "leaked aws", "s3 bucket audit",
+    "prowler scan", "cloud misconfiguration", "cloud credentials",
+    "enumerate cloud", "cloud recon", "azure storage", "gcs bucket",
+    "iam enum", "cloud security posture", "aws whoami", "gcp whoami",
+    "azure whoami", "cloud privilege escalation", "cloud privesc",
+]
+
+CTF_TRIGGERS: list[str] = [
+    "ctf", "capture the flag", "ctf mode", "ctf solver",
+    "ctf web", "ctf pwn", "ctf crypto", "ctf forensics", "ctf rev",
+    "ctf reversing", "solve ctf", "help me with ctf",
+    "binary exploitation", "buffer overflow", "rop chain",
+    "format string vulnerability", "heap exploitation", "pwntools",
+    "ctf challenge", "ctf writeup", "ctf hint",
+    "crypto challenge", "forensics challenge", "reversing challenge",
+    "web challenge", "pwn challenge",
+]
+
+OPSEC_TRIGGERS: list[str] = [
+    "opsec", "operational security", "opsec mode", "opsec check",
+    "stay anonymous", "anonymity", "hide my ip", "proxychains",
+    "tor setup", "tor routing", "mac spoof", "mac address spoof",
+    "vpn tor", "vpn chain", "persona management", "sock puppet",
+    "fake identity", "cover tracks", "covering tracks", "anti forensics",
+    "anti-forensics", "timestomp", "log wipe", "clear logs",
+    "opsec checklist", "pre engagement checklist", "post engagement cleanup",
+    "operational security", "tradecraft", "exfil opsec",
+    "avoid detection", "evade logging", "engagement hygiene",
+]
+
+POSTEX_TRIGGERS: list[str] = [
+    "post exploitation", "post-exploitation", "postex",
+    "situational awareness", "persistence", "establish persistence",
+    "credential harvest", "harvest credentials", "laZagne", "mimikatz",
+    "pivot", "pivoting", "ssh tunnel", "socks proxy", "chisel",
+    "port forward", "covering tracks", "clear bash history",
+    "timestomping", "postex module", "after exploitation",
+]
+
+PRIVESC_TRIGGERS: list[str] = [
+    "privilege escalation", "privesc", "priv esc", "escalate privileges",
+    "become root", "get root", "linux privesc", "windows privesc",
+    "suid", "sudo abuse", "sudo -l", "unquoted service path",
+    "alwaysinstallelevated", "token impersonation", "juicy potato",
+    "sweet potato", "printspoofer", "winpeas", "linpeas",
+    "dll hijack", "writable passwd", "capabilities abuse",
+    "docker escape", "lxc escape", "cron privesc",
+]
+
+LATERAL_TRIGGERS: list[str] = [
+    "lateral movement", "lateral move", "move laterally",
+    "pass the hash", "pth attack", "psexec", "wmiexec", "dcomexec",
+    "crackmapexec", "cme smb", "smb spray", "kerberoasting",
+    "kerberoast", "asreproast", "dcsync", "bloodhound",
+    "impacket", "secretsdump", "pass the ticket", "overpass the hash",
+    "spread through network", "pivot to domain",
+]
+
+WIRELESS_TRIGGERS: list[str] = [
+    "wireless attack", "wifi attack", "wifi hack", "wpa crack",
+    "wpa2 crack", "aircrack", "airodump", "monitor mode",
+    "deauth attack", "deauthentication", "evil twin", "pmkid",
+    "handshake capture", "wifi recon", "wireless recon",
+    "airmon-ng", "aireplay-ng", "wifi pineapple",
+]
+
+SOCIAL_TRIGGERS: list[str] = [
+    "social engineering", "phishing", "spear phishing", "vishing",
+    "pretexting", "email harvesting", "osint email", "linkedin recon",
+    "theharvester", "phishing template", "credential harvesting page",
+    "fake login page", "se attack", "human hacking",
+    "mfa bypass", "mfa fatigue", "help desk impersonation",
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # BLOCK 9 — HELPER FUNCTIONS
 # Utility functions that use the vocab above
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1024,6 +1108,38 @@ def classify_command(text: str) -> str:
     # System status
     if any(t in lower for t in STATUS_TRIGGERS):
         return 'status'
+
+    # Cloud security
+    if any(t in lower for t in CLOUD_TRIGGERS):
+        return 'cloud'
+
+    # CTF solver
+    if any(t in lower for t in CTF_TRIGGERS):
+        return 'ctf'
+
+    # OPSEC mode
+    if any(t in lower for t in OPSEC_TRIGGERS):
+        return 'opsec'
+
+    # Post-exploitation
+    if any(t in lower for t in POSTEX_TRIGGERS):
+        return 'postex'
+
+    # Privilege escalation
+    if any(t in lower for t in PRIVESC_TRIGGERS):
+        return 'privesc'
+
+    # Lateral movement
+    if any(t in lower for t in LATERAL_TRIGGERS):
+        return 'lateral'
+
+    # Wireless attacks
+    if any(t in lower for t in WIRELESS_TRIGGERS):
+        return 'wireless'
+
+    # Social engineering
+    if any(t in lower for t in SOCIAL_TRIGGERS):
+        return 'social'
 
     # RocketGod RF tools
     if any(t in lower for t in ROCKETGOD_TRIGGERS):

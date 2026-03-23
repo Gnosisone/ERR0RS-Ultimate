@@ -100,6 +100,62 @@ except Exception as e:
     BAS_ENGINE = False
     print(f"[ERR0RS] BAS engine unavailable: {e}")
 
+# ── Post-Exploitation Suite ───────────────────────────────────────────────────
+try:
+    from src.tools.postex.postex_module import run_postex
+    from src.tools.postex.privesc_module import run_privesc
+    from src.tools.postex.lateral_movement import run_lateral
+    POSTEX_ENGINE = True
+    print("[ERR0RS] Post-exploitation suite ready")
+except Exception as e:
+    POSTEX_ENGINE = False
+    print(f"[ERR0RS] Post-exploitation suite unavailable: {e}")
+
+# ── Wireless Attack Module ────────────────────────────────────────────────────
+try:
+    from src.tools.wireless.wireless_module import run_wireless
+    WIRELESS_ENGINE = True
+    print("[ERR0RS] Wireless module ready")
+except Exception as e:
+    WIRELESS_ENGINE = False
+    print(f"[ERR0RS] Wireless module unavailable: {e}")
+
+# ── Social Engineering Module ─────────────────────────────────────────────────
+try:
+    from src.tools.social.social_module import run_social
+    SOCIAL_ENGINE = True
+    print("[ERR0RS] Social engineering module ready")
+except Exception as e:
+    SOCIAL_ENGINE = False
+    print(f"[ERR0RS] Social engineering module unavailable: {e}")
+
+# ── Cloud Security Module ─────────────────────────────────────────────────────
+try:
+    from src.tools.cloud.cloud_module import run_cloud
+    CLOUD_ENGINE = True
+    print("[ERR0RS] Cloud security module ready")
+except Exception as e:
+    CLOUD_ENGINE = False
+    print(f"[ERR0RS] Cloud security module unavailable: {e}")
+
+# ── CTF Solver ────────────────────────────────────────────────────────────────
+try:
+    from src.tools.ctf.ctf_solver import run_ctf
+    CTF_ENGINE = True
+    print("[ERR0RS] CTF Solver ready")
+except Exception as e:
+    CTF_ENGINE = False
+    print(f"[ERR0RS] CTF Solver unavailable: {e}")
+
+# ── OPSEC Mode ────────────────────────────────────────────────────────────────
+try:
+    from src.tools.opsec.opsec_module import run_opsec
+    OPSEC_ENGINE = True
+    print("[ERR0RS] OPSEC mode ready")
+except Exception as e:
+    OPSEC_ENGINE = False
+    print(f"[ERR0RS] OPSEC mode unavailable: {e}")
+
 # ── Blue Team Toolkit ──────────────────────────────────────────────────────────
 try:
     from src.security.blue_team import (
@@ -358,6 +414,169 @@ def route_command(cmd: str) -> dict:
         except Exception:
             pass
 
+    # ── Post-Exploitation Module ──────────────────────────────────────────
+    _postex_triggers = [
+        "postex", "post ex", "post-ex", "post exploitation", "post-exploitation",
+        "situational awareness", "i have a shell", "got a shell", "after shell",
+        "what do i do after", "maintain access", "cron job", "ssh key persist",
+        "chisel tunnel", "socks proxy", "lazagne", "shell history", "env creds",
+        "timestomp", "clear history", "clear logs", "covering tracks",
+    ]
+    if any(t in lower for t in _postex_triggers):
+        try:
+            from src.tools.postex.postex_module import PostExController
+            ctrl   = PostExController()
+            action = _extract_postex_action(lower)
+            result = ctrl.run(action)
+            out = f"[💀 POST-EX: {result.technique}]\n\n"
+            out += f"Command : {result.command}\n\n"
+            if result.output:
+                out += f"{result.output}\n\n"
+            if result.teach:
+                out += f"[TEACH] {result.teach}\n\n"
+            if result.defend:
+                out += f"[DEFEND] {result.defend}"
+            return {"stdout": out, "status": "success" if result.success else "info", "source": "postex"}
+        except Exception as e:
+            pass
+
+    # ── Privilege Escalation Module ───────────────────────────────────────
+    _privesc_triggers = [
+        "privesc", "privilege escalation", "escalate", "get root", "get system",
+        "become root", "linpeas", "winpeas", "suid", "sudo exploit",
+        "token impersonation", "potato attack", "seimpersonate",
+        "alwaysinstallelevated", "unquoted service", "docker group",
+    ]
+    if any(t in lower for t in _privesc_triggers):
+        try:
+            from src.tools.postex.privesc_module import PrivescController
+            ctrl   = PrivescController()
+            action = _extract_privesc_action(lower)
+            result = ctrl.run(action)
+            vuln_icon = "🔴" if result.vulnerable else "⚪"
+            out = f"[⬆️  PRIVESC: {result.technique}]\n\n"
+            out += f"Command    : {result.command}\n"
+            out += f"Vulnerable : {vuln_icon} {result.vulnerable}\n\n"
+            if result.output:
+                out += f"{result.output[:800]}\n\n"
+            if result.exploit_cmd and result.vulnerable:
+                out += f"[EXPLOIT]  {result.exploit_cmd}\n\n"
+            if result.teach:
+                out += f"[TEACH]  {result.teach}\n\n"
+            if result.defend:
+                out += f"[DEFEND] {result.defend}"
+            return {"stdout": out, "status": "success", "source": "privesc"}
+        except Exception as e:
+            pass
+
+    # ── Lateral Movement Module ───────────────────────────────────────────
+    _lateral_triggers = [
+        "lateral movement", "lateral move", "pass the hash", "pth attack",
+        "kerberoast", "dcsync", "bloodhound", "psexec", "wmiexec",
+        "smb spray", "password spray", "spread through network", "move laterally",
+    ]
+    if any(t in lower for t in _lateral_triggers):
+        try:
+            from src.tools.postex.lateral_movement import LateralMovementController
+            ctrl   = LateralMovementController()
+            action = _extract_lateral_action(lower)
+            result = ctrl.run(action, {"target": target or "192.168.1.0/24"})
+            out = f"[🔀 LATERAL: {result.technique}]\n\n"
+            out += f"Command : {result.command}\n\n"
+            if result.teach:
+                out += f"[TEACH]  {result.teach}\n\n"
+            if result.defend:
+                out += f"[DEFEND] {result.defend}"
+            return {"stdout": out, "status": "success", "source": "lateral"}
+        except Exception as e:
+            pass
+
+    # ── Wireless Module ───────────────────────────────────────────────────
+    _wireless_triggers = [
+        "wireless pentest", "wifi pentest", "evil twin", "pmkid attack",
+        "deauth clients", "crack handshake", "monitor mode", "airodump",
+        "wpa crack", "wpa2 crack", "rogue ap", "handshake capture",
+    ]
+    if any(t in lower for t in _wireless_triggers):
+        try:
+            from src.tools.wireless.wireless_module import WirelessModule
+            w      = WirelessModule()
+            action = _extract_wireless_action(lower)
+            result = w.run(action, {"interface": "wlan0", "mon_interface": "wlan0mon"})
+            out = f"[📡 WIRELESS: {result.technique}]\n\n"
+            out += f"Command : {result.command}\n\n"
+            if result.teach:
+                out += f"[TEACH]  {result.teach}\n\n"
+            if result.defend:
+                out += f"[DEFEND] {result.defend}"
+            return {"stdout": out, "status": "success", "source": "wireless"}
+        except Exception as e:
+            pass
+
+    # ── Social Engineering Module ─────────────────────────────────────────
+    _social_triggers = [
+        "social engineering", "phishing email", "spear phish", "phishing template",
+        "email campaign", "harvest emails", "vishing", "pretexting",
+        "linkedin recon", "email harvest",
+    ]
+    if any(t in lower for t in _social_triggers):
+        try:
+            from src.tools.social.social_module import SocialEngineeringController
+            ctrl   = SocialEngineeringController()
+            action = _extract_social_action(lower)
+            params = {}
+            if target:
+                if "." in target:
+                    params["domain"] = target
+                else:
+                    params["company"] = target
+            result = ctrl.run(action, params)
+            out = f"[🎭 SOCIAL ENG: {result.technique}]\n\n{result.output}"
+            if result.teach:
+                out += f"\n\n[TEACH]  {result.teach}"
+            if result.defend:
+                out += f"\n\n[DEFEND] {result.defend}"
+            return {"stdout": out, "status": "success", "source": "social"}
+        except Exception as e:
+            pass
+
+    # ── Cloud Security Module ─────────────────────────────────────────────
+    _cloud_triggers = [
+        "cloud security", "aws enum", "aws iam", "aws s3", "azure enum",
+        "azure rbac", "gcp enum", "gcp iam", "cloud audit", "cloud pentest",
+        "validate aws keys", "aws keys", "leaked aws", "s3 bucket",
+        "prowler scan", "cloud misconfiguration", "cloud credentials",
+        "enumerate cloud", "cloud recon", "azure storage", "gcs bucket",
+        "iam enum", "aws whoami", "gcp whoami", "azure whoami",
+    ]
+    if any(t in lower for t in _cloud_triggers):
+        if CLOUD_ENGINE:
+            action = _extract_cloud_action(lower)
+            return {"stdout": run_cloud(action), "status": "success", "source": "cloud"}
+
+    # ── CTF Solver Mode ───────────────────────────────────────────────────
+    _ctf_triggers = [
+        "ctf", "capture the flag", "ctf mode", "ctf solver",
+        "ctf web", "ctf pwn", "ctf crypto", "ctf forensics", "ctf rev",
+        "solve ctf", "help me with ctf", "ctf challenge",
+    ]
+    if any(t in lower for t in _ctf_triggers):
+        if CTF_ENGINE:
+            category = _extract_ctf_category(lower)
+            return {"stdout": run_ctf(category), "status": "success", "source": "ctf"}
+
+    # ── OPSEC Mode ────────────────────────────────────────────────────────
+    _opsec_triggers = [
+        "opsec", "operational security", "stay anonymous", "anonymity",
+        "proxychains", "tor setup", "mac spoof", "vpn tor", "persona management",
+        "sock puppet", "cover tracks", "anti forensics", "anti-forensics",
+        "opsec checklist", "tradecraft", "avoid detection", "engagement hygiene",
+    ]
+    if any(t in lower for t in _opsec_triggers):
+        if OPSEC_ENGINE:
+            topic = _extract_opsec_topic(lower)
+            return {"stdout": run_opsec(topic), "status": "success", "source": "opsec"}
+
     # ── Teach engine second pass ──────────────────────────────────────────
     if TEACH_ENGINE:
         lesson = find_lesson(cmd)
@@ -367,6 +586,127 @@ def route_command(cmd: str) -> dict:
 
     # ── ERR0RS Native Brain fallback (replaces Ollama direct + mr7) ─────────
     return _query_brain(cmd)
+
+
+def _extract_postex_action(lower: str) -> str:
+    """Map natural language to a PostExController action key."""
+    mapping = {
+        ("lazagne", "credential harvest", "cred harvest"):                "lazagne",
+        ("shadow", "/etc/shadow"):                                        "shadow",
+        ("shell history", "bash history", "history files"):               "history",
+        ("env cred", "environment variable", "env var"):                  "env_creds",
+        ("process arg", "proc cred"):                                     "proc_creds",
+        ("network map", "arp table", "network info", "ip addr"):          "network",
+        ("domain enum", "active directory", "domain admin"):              "domain",
+        ("sensitive file", "hunt file", "find credential file"):         "sensitive_files",
+        ("sysinfo", "system info", "os version"):                         "sysinfo",
+        ("cron", "crontab"):                                              "cron",
+        ("ssh key", "authorized key"):                                    "ssh_key",
+        ("systemd", "service persist"):                                   "systemd",
+        ("cleanup", "remove artifact"):                                   "cleanup",
+        ("socks", "socks5", "dynamic proxy"):                             "socks",
+        ("ssh forward", "port forward", "local forward"):                 "ssh_forward",
+        ("chisel server", "chisel attacker"):                             "chisel_server",
+        ("chisel client", "chisel target"):                               "chisel_client",
+        ("portfwd", "meterpreter pivot"):                                 "portfwd",
+        ("clear history", "bash history clear"):                          "clear_history",
+        ("clear auth", "auth log", "clear log"):                          "clear_auth",
+        ("timestomp",):                                                   "timestomp",
+        ("full report", "situational awareness", "full awareness"):       "full_report",
+        ("pivot", "pivoting"):                                            "socks",
+        ("persist", "maintain access"):                                   "cron",
+        ("whoami", "who am i", "current user"):                           "whoami",
+    }
+    for keywords, action in mapping.items():
+        if any(k in lower for k in keywords):
+            return action
+    return "full_report"
+
+
+def _extract_privesc_action(lower: str) -> str:
+    """Map natural language to a PrivescController action key."""
+    if any(k in lower for k in ("linpeas",)):           return "linpeas"
+    if any(k in lower for k in ("winpeas",)):           return "winpeas"
+    if any(k in lower for k in ("suid", "gtfobins")):   return "suid"
+    if any(k in lower for k in ("sudo",)):              return "sudo"
+    if any(k in lower for k in ("passwd", "/etc/pass")): return "etc_passwd"
+    if any(k in lower for k in ("capabilit", "getcap")): return "caps"
+    if any(k in lower for k in ("docker",)):            return "docker"
+    if any(k in lower for k in ("alwaysinstall", "msi")): return "aie"
+    if any(k in lower for k in ("unquoted",)):          return "unquoted"
+    if any(k in lower for k in ("potato", "seimpersonat", "impersonat")): return "seimpersonate"
+    return "all"
+
+
+def _extract_lateral_action(lower: str) -> str:
+    """Map natural language to a LateralMovementController action key."""
+    if any(k in lower for k in ("pass the hash", "pth")):          return "pth"
+    if any(k in lower for k in ("psexec",)):                        return "psexec"
+    if any(k in lower for k in ("wmiexec", "wmi exec")):            return "wmiexec"
+    if any(k in lower for k in ("kerberoast",)):                    return "kerberoast"
+    if any(k in lower for k in ("dcsync", "dc sync")):              return "dcsync"
+    if any(k in lower for k in ("bloodhound",)):                    return "bloodhound"
+    return "smb_spray"
+
+
+def _extract_wireless_action(lower: str) -> str:
+    """Map natural language to a WirelessModule action key."""
+    if any(k in lower for k in ("monitor mode", "enable monitor")):   return "monitor_on"
+    if any(k in lower for k in ("scan", "airodump", "discover")):      return "scan"
+    if any(k in lower for k in ("capture", "targeted")):               return "capture"
+    if any(k in lower for k in ("deauth", "disconnect")):              return "deauth"
+    if any(k in lower for k in ("crack", "wpa crack", "handshake crack")): return "crack"
+    if any(k in lower for k in ("pmkid",)):                            return "pmkid"
+    if any(k in lower for k in ("evil twin", "rogue ap", "fake ap")):  return "evil_twin"
+    return "scan"
+
+
+def _extract_social_action(lower: str) -> str:
+    """Map natural language to a SocialEngineeringController action key."""
+    if any(k in lower for k in ("harvest email", "find email")):       return "harvest_emails"
+    if any(k in lower for k in ("linkedin",)):                         return "linkedin_recon"
+    if any(k in lower for k in ("list template", "show template")):    return "list_templates"
+    if any(k in lower for k in ("spear phish", "targeted phish")):     return "spear_phish"
+    if any(k in lower for k in ("vishing", "voice phish", "helpdesk call")): return "vishing_helpdesk"
+    if any(k in lower for k in ("password reset", "reset vishing")):   return "vishing_reset"
+    return "phish_template"
+
+
+def _extract_cloud_action(lower: str) -> str:
+    """Map natural language to a cloud_module action key."""
+    if any(k in lower for k in ("aws whoami", "aws identity", "caller identity")): return "aws_whoami"
+    if any(k in lower for k in ("aws iam", "iam enum", "list users", "list roles")): return "aws_iam"
+    if any(k in lower for k in ("s3", "s3 bucket", "bucket audit")):               return "aws_s3"
+    if any(k in lower for k in ("prowler",)):                                       return "aws_prowler"
+    if any(k in lower for k in ("azure whoami", "azure identity")):                 return "azure_whoami"
+    if any(k in lower for k in ("azure rbac", "role assignment")):                  return "azure_rbac"
+    if any(k in lower for k in ("azure storage", "blob storage")):                  return "azure_storage"
+    if any(k in lower for k in ("gcp whoami", "gcp identity")):                     return "gcp_whoami"
+    if any(k in lower for k in ("gcp iam",)):                                       return "gcp_iam"
+    if any(k in lower for k in ("gcs bucket", "gcp storage")):                      return "gcp_storage"
+    return ""  # show full menu
+
+
+def _extract_ctf_category(lower: str) -> str:
+    """Map natural language to a CTF category."""
+    if any(k in lower for k in ("web", "sqli", "xss", "ssti", "lfi", "jwt")):         return "web"
+    if any(k in lower for k in ("pwn", "binary", "bof", "buffer overflow", "rop")):   return "pwn"
+    if any(k in lower for k in ("crypto", "cryptography", "rsa", "xor", "hash")):     return "crypto"
+    if any(k in lower for k in ("forensics", "forensic", "steg", "pcap", "memory")):  return "forensics"
+    if any(k in lower for k in ("rev", "reversing", "reverse engineering", "ghidra")): return "rev"
+    return ""  # show full menu
+
+
+def _extract_opsec_topic(lower: str) -> str:
+    """Map natural language to an OPSEC topic."""
+    if any(k in lower for k in ("tor", "proxychains")):                                 return "tor"
+    if any(k in lower for k in ("mac spoof", "mac address")):                           return "mac"
+    if any(k in lower for k in ("vpn", "whonix", "mullvad")):                           return "vpn"
+    if any(k in lower for k in ("persona", "sock puppet", "fake identity")):             return "persona"
+    if any(k in lower for k in ("anti forensics", "anti-forensics", "timestomp",
+                                 "cover tracks", "log wipe", "clear log")):              return "antiforensics"
+    if any(k in lower for k in ("checklist", "pre engagement", "post engagement")):      return "checklist"
+    return ""  # show full menu
 
 
 def _query_brain(prompt: str) -> dict:

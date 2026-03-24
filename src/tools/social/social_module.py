@@ -451,6 +451,25 @@ SE_WIZARD_MENU = {
     ]
 }
 
+# ─────────────────────────────────────────────────────────────────────
+# MODULE-LEVEL ALIAS — required by errorz_launcher.py availability check
+# ─────────────────────────────────────────────────────────────────────
+_se_controller = SocialEngineeringController()
+
+def run_social(action: str, params: dict = None) -> dict:
+    """Top-level entry point called by errorz_launcher.py."""
+    result = _se_controller.run(action, params or {})
+    return {
+        "status":    "success" if result.success else "error",
+        "technique": result.technique,
+        "command":   getattr(result, "command", ""),
+        "stdout":    result.output,
+        "stderr":    getattr(result, "error", ""),
+        "teach":     result.teach,
+        "defend":    result.defend,
+        "content":   getattr(result, "content", ""),
+    }
+
 if __name__ == "__main__":
     ctrl = SocialEngineeringController()
     print("[ERR0RS] Social Engineering Module OK")

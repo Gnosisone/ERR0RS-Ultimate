@@ -33,7 +33,8 @@ class WirelessResult:
 
 def _run(cmd: str, timeout: int = 30) -> tuple:
     try:
-        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout,
+                           encoding='utf-8', errors='replace')
         return p.stdout.strip(), p.stderr.strip(), p.returncode
     except subprocess.TimeoutExpired:
         return "", f"Timeout after {timeout}s", 1
@@ -351,6 +352,24 @@ WIRELESS_WIZARD_MENU = {
 
 # Alias — make the class importable as WirelessModule directly
 WirelessController = WirelessModule
+
+# ─────────────────────────────────────────────────────────────────────
+# MODULE-LEVEL ALIAS — required by errorz_launcher.py availability check
+# ─────────────────────────────────────────────────────────────────────
+_wireless_controller = WirelessModule()
+
+def run_wireless(action: str, params: dict = None) -> dict:
+    """Top-level entry point called by errorz_launcher.py."""
+    result = _wireless_controller.run(action, params or {})
+    return {
+        "status":    "success" if result.success else "error",
+        "technique": result.technique,
+        "command":   result.command,
+        "stdout":    result.output,
+        "stderr":    result.error,
+        "teach":     result.teach,
+        "defend":    result.defend,
+    }
 
 if __name__ == "__main__":
     w = WirelessModule()

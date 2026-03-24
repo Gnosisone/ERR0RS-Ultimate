@@ -17,6 +17,12 @@ import os, sys, json, time, asyncio, threading, subprocess, webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
+# ── UTF-8 stdout/stderr (fixes Windows cp1252 charmap errors) ─────────────
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # ── Language Expansion Layer ──────────────────────────────────────────────
 try:
     from src.core.language_layer import (
@@ -239,6 +245,28 @@ try:
 except Exception as e:
     TEACH_ENGINE = False
     print(f"[ERR0RS] Teach engine unavailable: {e}")
+
+# ── Flipper Zero Evolution Engine ─────────────────────────────────────────────
+try:
+    from src.tools.flipper.flipper_evolution import (
+        run_flipper_evolution, FlipperEvolution, EVOLUTION_LEVELS, FLIPPER_WIZARD_MENU
+    )
+    _flipper_evo = FlipperEvolution()
+    FLIPPER_ENGINE = True
+    print("[ERR0RS] Flipper Evolution Engine ready — plug in your Flipper to evolve it!")
+    # Start background watcher — auto-evolves when Flipper is plugged in
+    import threading as _threading
+    def _flipper_cb(step):
+        print(f"[ERR0RS] FLIPPER [{step.status.upper()}] {step.name}  +{step.xp_reward} XP")
+    _ft = _threading.Thread(
+        target=_flipper_evo.auto_evolve_on_connect,
+        kwargs={"poll_interval": 5, "callback": _flipper_cb},
+        daemon=True, name="flipper-watcher"
+    )
+    _ft.start()
+except Exception as e:
+    FLIPPER_ENGINE = False
+    print(f"[ERR0RS] Flipper Evolution Engine unavailable: {e}")
 
 # ── websockets library ────────────────────────────────────────────────────────
 try:
@@ -1195,10 +1223,23 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json({"status": "error", "error": "Missing cmd or wizard engine not loaded"})
 
             elif self.path == "/api/flipper":
-                if FLIPPER_ENGINE:
+                action = payload.get("action", "studio")
+                # Route evolution actions to the new Evolution Engine
+                if action in ("evolve","detect","status","watch","level_up","upgrade"):
+                    self._json(run_flipper_evolution(action, payload))
+                elif FLIPPER_ENGINE:
+                    # Legacy: BadUSB studio actions go to the old handler
                     self._json(handle_flipper_request(payload))
                 else:
-                    self._json({"status":"error","error":"Flipper Studio not loaded"})
+                    self._json({"status":"error","error":"Flipper engine not loaded"})
+
+            elif self.path == "/api/flipper/evolve":
+                # Convenience endpoint — always runs full evolution
+                self._json(run_flipper_evolution("evolve", payload))
+
+            elif self.path == "/api/flipper/status":
+                # Quick status poll for the UI dashboard
+                self._json(run_flipper_evolution("status", payload))
 
             elif self.path == "/api/brain":
                 # ERR0RS Native AI Brain — replaces mr7 entirely, 100% local
@@ -1423,7 +1464,22 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
         return {"version":"3.0","framework":FRAMEWORK_LOADED,"ollama":ollama_ok,
                 "ollama_models":ollama_models,"mcp":mcp_ok,"shell_access":True,
                 "live_terminal":LIVE_TERMINAL,"websocket":WEBSOCKETS_OK,
-                "ws_port":WS_PORT,"uptime":_uptime(),"platform":_platform()}
+                "ws_port":WS_PORT,"uptime":_uptime(),"platform":_platform(),
+                "campaign_engine":  CAMPAIGN_ENGINE,
+                "killchain_engine": KILLCHAIN_ENGINE,
+                "pro_reporter":     PRO_REPORTER,
+                "cred_engine":      CRED_ENGINE,
+                "se_engine":        SE_ENGINE,
+                "ai_threat_engine": AI_THREAT_ENGINE,
+                "postex_engine":    POSTEX_ENGINE,
+                "wireless_engine":  WIRELESS_ENGINE,
+                "social_engine":    SOCIAL_ENGINE,
+                "cloud_engine":     CLOUD_ENGINE,
+                "ctf_engine":       CTF_ENGINE,
+                "opsec_engine":     OPSEC_ENGINE,
+                "blue_team_engine": BLUE_TEAM_ENGINE,
+                "teach_engine":     TEACH_ENGINE,
+                "flipper_engine":   FLIPPER_ENGINE if 'FLIPPER_ENGINE' in globals() else False}
 
     def _phases(self) -> dict:
         return {"phases":[

@@ -48,7 +48,8 @@ def _run(cmd: str, timeout: int = 30) -> tuple:
     """Run shell command. Returns (stdout, stderr, returncode)."""
     try:
         proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=timeout
+            cmd, shell=True, capture_output=True, text=True, timeout=timeout,
+            encoding='utf-8', errors='replace'
         )
         return proc.stdout.strip(), proc.stderr.strip(), proc.returncode
     except subprocess.TimeoutExpired:
@@ -707,6 +708,24 @@ POSTEX_WIZARD_MENU = {
         {"key": "23", "label": "Cleanup — Remove All ERR0RS Artifacts", "action": "cleanup"},
     ]
 }
+
+# ─────────────────────────────────────────────────────────────────────
+# MODULE-LEVEL ALIAS — required by errorz_launcher.py availability check
+# ─────────────────────────────────────────────────────────────────────
+_postex_controller = PostExController()
+
+def run_postex(action: str, params: dict = None) -> dict:
+    """Top-level entry point called by errorz_launcher.py."""
+    result = _postex_controller.run(action, params or {})
+    return {
+        "status":    "success" if result.success else "error",
+        "technique": result.technique,
+        "command":   result.command,
+        "stdout":    result.output,
+        "stderr":    result.error,
+        "teach":     result.teach,
+        "defend":    result.defend,
+    }
 
 if __name__ == "__main__":
     ctrl = PostExController()

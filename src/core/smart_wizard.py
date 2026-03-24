@@ -733,6 +733,26 @@ WIZARDS = {
     ]
   },
 
+  # ══════════════════════════════════════════════════════════════════════════
+  # FLIPPER ZERO EVOLUTION
+  # ══════════════════════════════════════════════════════════════════════════
+  "flipper": {
+    "tool":    "flipper",
+    "title":   "🐬 FLIPPER ZERO EVOLUTION ENGINE",
+    "speech":  "Plug in your Flipper and let ERR0RS evolve it to maximum power. Each session earns XP and levels it up!",
+    "needs_target": False,
+    "target_hint":  "N/A — Flipper is auto-detected via USB",
+    "options": [
+      {"label": "🔌 Detect Flipper (check if connected)",         "desc": "Auto-detect Flipper Zero via USB serial / SD card mount.",           "cmd": "flipper detect",  "teach": "ERR0RS checks COM ports (Windows) or /dev/ttyACM0 (Linux) for Flipper."},
+      {"label": "⚡ Full Evolution Sequence (all 10 levels)",     "desc": "Backup → Firmware → SubGHz → NFC → IR → BadUSB → WiFi → Community → Config → Report.", "cmd": "flipper evolve",  "teach": "Each step earns XP. Complete all 10 to reach MAX POWER happy state."},
+      {"label": "📊 Show Evolution Status + XP Level",           "desc": "See your current level, XP bar, and completed steps.",               "cmd": "flipper status",  "teach": "XP persists between sessions. Each reconnect can unlock new levels."},
+      {"label": "🔄 Start Auto-Evolve Watcher (background)",     "desc": "Monitor USB — evolve automatically every time Flipper is plugged in.", "cmd": "flipper watch",   "teach": "Background thread polls every 5s. Plug in = instant evolution."},
+      {"label": "📡 SubGHz Database Sync only",                  "desc": "Sync all SubGHz .sub files from UberGuidoZ + Rocketgod packs.",       "cmd": "flipper subghz",  "teach": "Covers garage doors, key fobs, gate remotes, weather stations."},
+      {"label": "💀 BadUSB Payload Sync only",                   "desc": "Sync full ERR0RS + Jakoby + UberGuidoZ BadUSB payload library.",      "cmd": "flipper badusb",  "teach": "Flipper BadUSB = Rubber Ducky in your pocket. Deadly on unlocked machines."},
+      {"label": "🌐 WiFi Dev Board — Arm & Ready",               "desc": "Install Marauder firmware guide + evil portal templates.",            "cmd": "flipper wifi",    "teach": "Marauder turns dev board into full WiFi attack suite: deauth, PMKID, beacon spam."},
+    ]
+  },
+
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -979,6 +999,27 @@ WIZARD_TRIGGERS: dict[str, str] = {
   "check smb":               "enum4linux",
   "list shares":             "enum4linux",
   "enumerate shares":        "enum4linux",
+
+  # FLIPPER ZERO EVOLUTION
+  "flipper":                 "flipper",
+  "flipper zero":            "flipper",
+  "evolve flipper":          "flipper",
+  "flipper evolution":       "flipper",
+  "level up flipper":        "flipper",
+  "upgrade flipper":         "flipper",
+  "flipper status":          "flipper",
+  "flipper xp":              "flipper",
+  "plug in flipper":         "flipper",
+  "connect flipper":         "flipper",
+  "sync flipper":            "flipper",
+  "arm flipper":             "flipper",
+  "flipper badusb":          "flipper",
+  "flipper subghz":          "flipper",
+  "flipper wifi":            "flipper",
+  "make flipper happy":      "flipper",
+  "flipper happy state":     "flipper",
+  "maximize flipper":        "flipper",
+  "what level is my flipper":"flipper",
 }
 
 

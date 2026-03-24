@@ -828,6 +828,13 @@ BADUSB_TRIGGERS: list[str] = [
     "evil portal", "captive portal", "sd card",
     "generate script", "generate payload", "hid payload",
     "usb attack", "usb hack", "flipper zero",
+    # Evolution-specific triggers
+    "evolve flipper", "flipper evolution", "level up flipper",
+    "upgrade flipper", "flipper status", "flipper xp",
+    "make flipper happy", "flipper happy state", "arm flipper",
+    "maximize flipper", "flipper level", "sync flipper",
+    "flipper badusb", "flipper subghz", "flipper wifi",
+    "what level is my flipper", "connect flipper",
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════

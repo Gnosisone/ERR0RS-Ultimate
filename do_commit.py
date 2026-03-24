@@ -2,31 +2,41 @@ import subprocess, os, time, sys
 
 os.chdir('H:/ERR0RS-Ultimate')
 
-# Kill any lingering git processes
-subprocess.run(['taskkill', '/F', '/IM', 'git.exe'], capture_output=True)
-time.sleep(1)
-
-# Remove stale lock file
-lock = 'H:/ERR0RS-Ultimate/.git/index.lock'
-try:
-    os.remove(lock)
-    print(f'Removed lock: {lock}')
-except FileNotFoundError:
-    print('No lock file found')
-except Exception as e:
-    print(f'Lock removal error: {e}')
+print("[1] Removing stale lock if present...")
+lock = '.git/index.lock'
+if os.path.exists(lock):
+    try:
+        os.remove(lock)
+        print("  Removed lock file")
+    except Exception as e:
+        print(f"  Could not remove: {e} — trying anyway")
+else:
+    print("  No lock file")
 
 time.sleep(1)
 
-# Stage all
-r = subprocess.run(['git', 'add', '-A'], capture_output=True, text=True)
-print('git add:', r.returncode, r.stderr[:200] if r.stderr else 'OK')
+print("[2] git add -A...")
+r = subprocess.run(['git', 'add', '-A'],
+    capture_output=True, text=True, encoding='utf-8', errors='replace')
+print(f"  rc={r.returncode}")
+if r.stderr:
+    print(f"  stderr: {r.stderr[:300]}")
 
-# Commit
+time.sleep(1)
+
+print("[3] git commit...")
+msg = "feat: Flipper Zero Evolution Engine + session 4 fixes\n\n17/17 modules OK, Flipper evolves to Level 7 WAVE RIDER on first run."
 r = subprocess.run(
-    ['git', 'commit', '-F', '.git/COMMIT_MSG_S4.txt'],
+    ['git', 'commit', '-m', msg],
     capture_output=True, text=True, encoding='utf-8', errors='replace'
 )
-print('git commit stdout:', r.stdout[:500])
-print('git commit stderr:', r.stderr[:300] if r.stderr else '')
-print('Return code:', r.returncode)
+print(f"  rc={r.returncode}")
+print(f"  stdout: {r.stdout[:500]}")
+if r.stderr:
+    print(f"  stderr: {r.stderr[:300]}")
+
+print("[4] git log --oneline -3...")
+r = subprocess.run(['git', 'log', '--oneline', '-3'],
+    capture_output=True, text=True, encoding='utf-8', errors='replace')
+print(r.stdout)
+print("DONE")

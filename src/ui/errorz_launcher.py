@@ -1226,7 +1226,10 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 action = payload.get("action", "studio")
                 # Route evolution actions to the new Evolution Engine
                 if action in ("evolve","detect","status","watch","level_up","upgrade"):
-                    self._json(run_flipper_evolution(action, payload))
+                    if FLIPPER_ENGINE:
+                        self._json(run_flipper_evolution(action, payload))
+                    else:
+                        self._json({"status":"error","error":"Flipper Evolution Engine not loaded — check flipper_evolution.py"})
                 elif FLIPPER_ENGINE:
                     # Legacy: BadUSB studio actions go to the old handler
                     self._json(handle_flipper_request(payload))
@@ -1235,11 +1238,17 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
 
             elif self.path == "/api/flipper/evolve":
                 # Convenience endpoint — always runs full evolution
-                self._json(run_flipper_evolution("evolve", payload))
+                if FLIPPER_ENGINE:
+                    self._json(run_flipper_evolution("evolve", payload))
+                else:
+                    self._json({"status":"error","error":"Flipper Evolution Engine not loaded"})
 
             elif self.path == "/api/flipper/status":
                 # Quick status poll for the UI dashboard
-                self._json(run_flipper_evolution("status", payload))
+                if FLIPPER_ENGINE:
+                    self._json(run_flipper_evolution("status", payload))
+                else:
+                    self._json({"status":"ok","flipper_connected":False,"engine_loaded":False})
 
             elif self.path == "/api/brain":
                 # ERR0RS Native AI Brain — replaces mr7 entirely, 100% local

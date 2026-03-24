@@ -162,7 +162,17 @@ Built by Gary Holden Schneider (Eros) | GitHub: Gnosisone"""
 
 # ── Agent Factory ────────────────────────────────────────────────────────────
 
-from src.ai.agents.vuln_chain import VulnChainAgent
+try:
+    from src.ai.agents.vuln_chain import VulnChainAgent
+except Exception as _vuln_err:
+    # vuln_chain.py failed to import — create a stub so the rest of the
+    # agents package still loads. The launcher will surface the real error.
+    class VulnChainAgent(BaseAgent):  # type: ignore[no-redef]
+        SYSTEM_PROMPT = "VulnChainAgent unavailable — check vuln_chain.py"
+        def ask(self, question: str, context: str = "", max_tokens: int = 1024) -> str:
+            return (f"[ERR0RS] VulnChainAgent failed to load: {_vuln_err}\n"
+                    "Run: python -c \"from src.ai.agents.vuln_chain import VulnChainAgent\" "
+                    "to see the full traceback.")
 
 AGENT_REGISTRY = {
     "red_team":       RedTeamAgent,

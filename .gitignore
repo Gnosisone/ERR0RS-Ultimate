@@ -182,3 +182,5 @@ cython_debug/
 
 # Claude AI internal session files - never commit these
 .claude/
+# Flipper SD output — large binaries, never commit
+src/output/

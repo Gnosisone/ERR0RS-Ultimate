@@ -93,10 +93,25 @@
     .eh-right { display:flex; gap:6px; }
 
     /* Code editor area */
-    #code-wrap { flex:1; position:relative; overflow:hidden; }
-    #code-editor { width:100%; height:100%; background:#000; border:none; outline:none; color:#d4b8ff; font-family:'Share Tech Mono',monospace; font-size:.72rem; line-height:1.6; padding:12px 14px 12px 54px; resize:none; caret-color:var(--green); overflow-y:auto; }
+    #code-wrap { flex:1; position:relative; overflow:hidden; background:#000; }
+    #code-editor { width:100%; height:100%; background:transparent; border:none; outline:none; color:transparent; font-family:'Share Tech Mono',monospace; font-size:.72rem; line-height:1.6; padding:12px 14px 12px 54px; resize:none; caret-color:var(--green); overflow-y:auto; position:relative; z-index:2; }
     #code-editor::-webkit-scrollbar { width:4px; }
     #code-editor::-webkit-scrollbar-thumb { background:var(--purple-lo); }
+    #code-editor::selection { background:rgba(123,47,190,.5); color:#fff; }
+
+    /* Syntax highlight overlay */
+    #highlight-layer { position:absolute; top:0; left:0; right:0; bottom:0; padding:12px 14px 12px 54px; font-family:'Share Tech Mono',monospace; font-size:.72rem; line-height:1.6; white-space:pre-wrap; word-wrap:break-word; overflow:hidden; pointer-events:none; color:#d4b8ff; background:transparent; z-index:1; border:none; margin:0; }
+    .ph-red { color:var(--red); background:rgba(255,34,85,.18); border-radius:2px; font-weight:bold; }
+
+    /* Server spin-up panel */
+    #server-panel { padding:8px 12px; flex-shrink:0; }
+    .srv-type { font-size:.62rem; color:var(--amber); margin-bottom:4px; }
+    .srv-cmd  { font-size:.55rem; color:var(--text-dim); background:rgba(0,0,0,.5); padding:3px 7px; border-radius:3px; margin-bottom:6px; font-family:'Share Tech Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #srv-status { font-size:.55rem; text-align:center; min-height:16px; margin-top:4px; }
+    .srv-btn { width:100%; padding:6px; font-family:'Orbitron',monospace; font-size:.46rem; letter-spacing:2px; cursor:pointer; border-radius:4px; border:1px solid var(--amber); color:var(--amber); background:rgba(255,170,0,.08); transition:all .2s; }
+    .srv-btn:hover { filter:brightness(1.4); }
+    .srv-btn.running { border-color:var(--green); color:var(--green); background:rgba(57,255,20,.08); cursor:default; }
+    .srv-btn.none { border-color:var(--text-dim); color:var(--text-dim); background:transparent; cursor:default; }
 
     /* Line numbers */
     #line-nums { position:absolute; left:0; top:0; bottom:0; width:46px; background:#02000d; border-right:1px solid var(--border); padding:12px 6px; overflow:hidden; pointer-events:none; display:flex; flex-direction:column; gap:0; }
@@ -208,6 +223,7 @@
     <!-- Editor + line numbers -->
     <div id="code-wrap">
       <div id="line-nums"></div>
+      <div id="highlight-layer"></div>
       <textarea id="code-editor"
         spellcheck="false"
         autocorrect="off"
@@ -268,6 +284,16 @@
     <div class="rp-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
       <div class="rp-title">📖 DUCKY CHEATSHEET</div>
       <div id="cheatsheet"></div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title">⚡ AUTO SERVER</div>
+      <div id="server-panel">
+        <div class="srv-type" id="srv-type">No payload loaded</div>
+        <div class="srv-cmd"  id="srv-cmd">—</div>
+        <button class="srv-btn none" id="srv-btn" onclick="spinUpServer()">SPIN UP SERVER</button>
+        <div id="srv-status"></div>
+      </div>
     </div>
 
     <div id="deploy-section">
@@ -631,10 +657,112 @@ let currentCategory = 'all';
 let teachMode       = false;
 let suggestIdx      = -1;
 let suggestItems    = [];
+let currentServer   = null;  // { type, port, cmd, label }
 
-const editor   = document.getElementById('code-editor');
-const sugBox   = document.getElementById('suggest-box');
-const lineNums = document.getElementById('line-nums');
+const editor      = document.getElementById('code-editor');
+const sugBox      = document.getElementById('suggest-box');
+const lineNums    = document.getElementById('line-nums');
+const hlLayer     = document.getElementById('highlight-layer');
+
+// ══════════════════════════════════════════════════════════
+// PLACEHOLDER HIGHLIGHT OVERLAY
+// Placeholders that require user-supplied values are shown
+// in red inside the editor.
+// ══════════════════════════════════════════════════════════
+const PLACEHOLDER_RE = /\b(ATTACKER_IP|LPORT|WEBHOOK_URL|DROPBOX_TOKEN|NETWORK_NAME|API_KEY|SSH_KEY|YOUR_\w+|USERNAME|PASSWORD|P@ssw0rd123)\b/g;
+
+function syncHighlightLayer() {
+  // Escape HTML entities first, then wrap placeholders
+  const raw = editor.value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const highlighted = raw.replace(PLACEHOLDER_RE,
+    '<span class="ph-red">$1</span>');
+  // Trailing newline keeps heights in sync
+  hlLayer.innerHTML = highlighted + ' ';
+  hlLayer.scrollTop = editor.scrollTop;
+}
+
+editor.addEventListener('scroll', () => { hlLayer.scrollTop = editor.scrollTop; });
+
+// ══════════════════════════════════════════════════════════
+// AUTO SERVER DETECTION + SPIN-UP
+// ══════════════════════════════════════════════════════════
+function detectRequiredServer(code) {
+  // Extract first 4-5 digit port number from code
+  const portM = code.match(/\b(4\d{3}|[1-9]\d{3,4})\b/);
+  const port  = portM ? portM[1] : '4444';
+
+  if (/\/dev\/tcp|Net\.Sockets\.TCPClient|bash.*>&|reverse.*shell/i.test(code)) {
+    return { type:'nc_listener',  port, label:'Netcat Reverse-Shell Listener',
+             cmd:`nc -lvnp ${port}` };
+  }
+  if (/DownloadString|Invoke-WebRequest|wget |curl.*http.*ATTACKER_IP|IEX\(/i.test(code)) {
+    return { type:'http_server', port:'8080', label:'HTTP Payload Server',
+             cmd:'python3 -m http.server 8080' };
+  }
+  return null;
+}
+
+function renderServerPanel(info) {
+  const typeEl  = document.getElementById('srv-type');
+  const cmdEl   = document.getElementById('srv-cmd');
+  const btnEl   = document.getElementById('srv-btn');
+  const statEl  = document.getElementById('srv-status');
+  if (!info) {
+    typeEl.textContent = 'No server needed';
+    cmdEl.textContent  = '—';
+    btnEl.textContent  = 'NO SERVER REQUIRED';
+    btnEl.className    = 'srv-btn none';
+    statEl.textContent = '';
+    currentServer = null;
+    return;
+  }
+  currentServer = info;
+  typeEl.textContent = info.label;
+  cmdEl.textContent  = info.cmd;
+  btnEl.textContent  = '⚡ SPIN UP SERVER';
+  btnEl.className    = 'srv-btn';
+  statEl.style.color = 'var(--text-dim)';
+  statEl.textContent = 'Click to start listener on this machine';
+}
+
+function spinUpServer() {
+  if (!currentServer) return;
+  const btn  = document.getElementById('srv-btn');
+  const stat = document.getElementById('srv-status');
+  if (btn.classList.contains('running')) return;
+
+  btn.textContent = 'STARTING...';
+  btn.className   = 'srv-btn';
+
+  fetch('/api/payload_studio/spin_server', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ type: currentServer.type, port: currentServer.port }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.status === 'ok') {
+      btn.textContent  = `✅ RUNNING ON :${d.port}  (PID ${d.pid})`;
+      btn.className    = 'srv-btn running';
+      stat.style.color = 'var(--green)';
+      stat.textContent = `${d.cmd}`;
+    } else {
+      btn.textContent  = '⚡ SPIN UP SERVER';
+      btn.className    = 'srv-btn';
+      stat.style.color = 'var(--red)';
+      stat.textContent = `Error: ${d.error}`;
+    }
+  })
+  .catch(err => {
+    btn.textContent  = '⚡ SPIN UP SERVER';
+    btn.className    = 'srv-btn';
+    stat.style.color = 'var(--red)';
+    stat.textContent = 'Backend unreachable — is ERR0RS server running?';
+  });
+}
 
 // ══════════════════════════════════════════════════════════
 // PLATFORM SWITCHER
@@ -726,6 +854,10 @@ function insertSnippet(id) {
   if (card) card.classList.add('active');
 
   if (teachMode) showTeachForSnippet(snip);
+
+  // Auto server detection: detect what listener this snippet needs
+  const serverInfo = detectRequiredServer(snip.code);
+  renderServerPanel(serverInfo);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -737,6 +869,7 @@ function onEditorInput() {
   updateStatusBar();
   explainCurrentLine();
   triggerSuggestions();
+  syncHighlightLayer();
 }
 
 function onEditorKey(e) {
@@ -1165,6 +1298,7 @@ buildCheatsheet();
 setPlatform('windows');
 updateTargetInfo();
 updateLineNumbers();
+renderServerPanel(null);
 
 // Default starter content
 editor.value = `REM ═══════════════════════════════════════
@@ -1177,6 +1311,7 @@ REM ═════════════════════════�
 DELAY 2000
 `;
 onEditorInput();
+syncHighlightLayer();
 editor.focus();
 </script>
 

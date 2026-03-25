@@ -268,6 +268,9 @@ except Exception as e:
     FLIPPER_ENGINE = False
     print(f"[ERR0RS] Flipper Evolution Engine unavailable: {e}")
 
+# ── Active listener/server processes (payload studio auto-spin-up) ─────────────
+_ACTIVE_SERVERS: dict = {}  # type → subprocess.Popen
+
 # ── websockets library ────────────────────────────────────────────────────────
 try:
     import websockets
@@ -1175,6 +1178,13 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 code  = payload.get("code","")
                 self._json(self._validate_ducky(code))
 
+            elif self.path == "/api/payload_studio/spin_server":
+                self._json(self._spin_server(payload))
+
+            elif self.path == "/api/payload_studio/stop_server":
+                stype = payload.get("type","")
+                self._json(self._stop_server(stype))
+
             elif self.path == "/api/rocketgod":
                 try:
                     from src.tools.rocketgod import handle_rocketgod_request
@@ -1459,6 +1469,63 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 if len(parts) < 2 or not parts[1].isdigit():
                     errors.append({"line":i,"msg":"DELAY requires a number (e.g. DELAY 500)"})
         return {"status":"ok","valid":len(errors)==0,"errors":errors,"line_count":len(code.split("\n"))}
+
+    def _spin_server(self, payload: dict) -> dict:
+        """Start a listener or HTTP server for a BadUSB/Flipper payload."""
+        server_type = payload.get("type", "")
+        port        = str(payload.get("port", "4444"))
+
+        SERVER_CONFIGS = {
+            "nc_listener": {
+                "cmd":   ["nc", "-lvnp", port],
+                "label": f"Netcat reverse-shell listener on :{port}",
+            },
+            "http_server": {
+                "cmd":   ["python3", "-m", "http.server", port],
+                "label": f"Python HTTP payload server on :{port}",
+            },
+        }
+
+        cfg = SERVER_CONFIGS.get(server_type)
+        if not cfg:
+            return {"status": "error", "error": f"Unknown server type: {server_type}"}
+
+        # Kill previous instance of same type if still alive
+        old = _ACTIVE_SERVERS.get(server_type)
+        if old and old.poll() is None:
+            old.terminate()
+
+        try:
+            proc = subprocess.Popen(
+                cfg["cmd"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            _ACTIVE_SERVERS[server_type] = proc
+            return {
+                "status": "ok",
+                "type":   server_type,
+                "port":   port,
+                "pid":    proc.pid,
+                "label":  cfg["label"],
+                "cmd":    " ".join(cfg["cmd"]),
+            }
+        except FileNotFoundError:
+            return {"status": "error", "error": f"'{cfg['cmd'][0]}' not found — is it installed?"}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
+    def _stop_server(self, server_type: str) -> dict:
+        proc = _ACTIVE_SERVERS.get(server_type)
+        if not proc:
+            return {"status": "error", "error": "No active server of that type"}
+        try:
+            proc.terminate()
+            _ACTIVE_SERVERS.pop(server_type, None)
+            return {"status": "ok", "stopped": server_type}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
 
     def _status(self) -> dict:
         import urllib.request as ur

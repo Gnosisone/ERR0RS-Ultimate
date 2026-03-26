@@ -22,6 +22,7 @@ log = logging.getLogger("errors.ai.knowledge")
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from src.education.knowledge_base import KNOWLEDGE_BASE
+from src.ai.darkcodersc_kb import build_darkcodersc_chunks, DARKCODERSC_TRIGGERS
 
 
 def _kb_to_chunks() -> list:
@@ -71,6 +72,13 @@ class ERR0RSKnowledgeBase:
 
     def ingest(self, force: bool = False) -> int:
         chunks = _kb_to_chunks()
+        # ── Merge in DarkCoderSc knowledge base ──────────────────────────────
+        try:
+            dcs_chunks = build_darkcodersc_chunks()
+            chunks.extend(dcs_chunks)
+            log.info(f"Merged {len(dcs_chunks)} DarkCoderSc chunks into RAG")
+        except Exception as e:
+            log.warning(f"DarkCoderSc KB merge failed (non-fatal): {e}")
         if self._use_chroma:
             if self.collection.count() > 0 and not force:
                 return self.collection.count()
@@ -91,6 +99,12 @@ class ERR0RSKnowledgeBase:
             return len(chunks)
 
     def search(self, query: str, n_results: int = 4) -> list:
+        # Check DarkCoderSc fast-path triggers first
+        q_lower = query.lower()
+        for trigger, chunk_id in DARKCODERSC_TRIGGERS.items():
+            if trigger in q_lower:
+                log.debug(f"DarkCoderSc trigger match: '{trigger}' → {chunk_id}")
+                break
         if self._use_chroma:
             return self._search_chroma(query, n_results)
         return self._search_keyword(query, n_results)

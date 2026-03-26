@@ -106,3 +106,24 @@
 [submodule "knowledge/mobile/beerus-android"]
 	path = knowledge/mobile/beerus-android
 	url = https://github.com/hakaioffsec/beerus-android.git
+[submodule "knowledge/c2/SubSeven"]
+	path = knowledge/c2/SubSeven
+	url = https://github.com/DarkCoderSc/SubSeven.git
+[submodule "knowledge/c2/OptixGate"]
+	path = knowledge/c2/OptixGate
+	url = https://github.com/DarkCoderSc/OptixGate.git
+[submodule "knowledge/c2/PowerRemoteShell"]
+	path = knowledge/c2/PowerRemoteShell
+	url = https://github.com/DarkCoderSc/PowerRemoteShell.git
+[submodule "knowledge/evasion/inno-shellcode-example"]
+	path = knowledge/evasion/inno-shellcode-example
+	url = https://github.com/DarkCoderSc/inno-shellcode-example.git
+[submodule "knowledge/windows/run-as"]
+	path = knowledge/windows/run-as
+	url = https://github.com/DarkCoderSc/run-as.git
+[submodule "knowledge/c2/Sub7Fun"]
+	path = knowledge/c2/Sub7Fun
+	url = https://github.com/DarkCoderSc/Sub7Fun.git
+[submodule "knowledge/c2/PowerRemoteDesktop_LogonUI"]
+	path = knowledge/c2/PowerRemoteDesktop_LogonUI
+	url = https://github.com/DarkCoderSc/PowerRemoteDesktop_LogonUI.git

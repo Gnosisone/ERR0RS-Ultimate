@@ -177,40 +177,42 @@ setup_desktop() {
   echo -e "\n${CYAN}[5/5] Setting up desktop integration...${NC}"
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-  # Create desktop launcher
-  DESKTOP_DIR="$HOME/Desktop"
-  mkdir -p "$DESKTOP_DIR" 2>/dev/null || true
-
-  cat > "$DESKTOP_DIR/ERR0RS.desktop" << EOF
+  # Run dedicated desktop icon installer
+  if [ -f "$SCRIPT_DIR/scripts/install_desktop_icon.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/install_desktop_icon.sh"
+  else
+    # Fallback if script not found
+    DESKTOP_DIR="${XDG_DESKTOP_DIR:-$HOME/Desktop}"
+    mkdir -p "$DESKTOP_DIR"
+    ICON_PATH="$SCRIPT_DIR/assets/icons/err0rs.png"
+    [ ! -f "$ICON_PATH" ] && ICON_PATH="$SCRIPT_DIR/assets/icons/err0rs.svg"
+    cat > "$DESKTOP_DIR/ERR0RS-Ultimate.desktop" << DEOF
 [Desktop Entry]
+Version=1.1
 Type=Application
-Name=3RR0RZ Virtual Assistant
-Comment=AI-Powered Penetration Testing Assistant
-Exec=bash -c "cd $SCRIPT_DIR && python3 src/ui/errorz_launcher.py"
-Terminal=false
-Categories=Security;Network;
-EOF
-  chmod +x "$DESKTOP_DIR/ERR0RS.desktop" 2>/dev/null || true
+Name=ERR0RS Ultimate
+GenericName=AI Penetration Testing Platform
+Comment=AI-powered pentesting — MetasploitMCP | Kali 2026.1 | Local LLM
+Exec=bash -c "cd $SCRIPT_DIR && bash start_err0rs.sh"
+Icon=$ICON_PATH
+Terminal=true
+StartupNotify=true
+Categories=Security;Network;System;
+Keywords=pentest;hacking;metasploit;kali;offensive;ai;
+DEOF
+    chmod +x "$DESKTOP_DIR/ERR0RS-Ultimate.desktop"
+    gio set "$DESKTOP_DIR/ERR0RS-Ultimate.desktop" metadata::trusted true 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Desktop shortcut created"
+  fi
 
-  # System-wide app entry
-  cat > /usr/share/applications/errorz.desktop << EOF
-[Desktop Entry]
-Type=Application
-Name=3RR0RZ Virtual Assistant
-Comment=AI-Powered Red Team Assistant — ERR0RS ULTIMATE
-Exec=bash -c "cd $SCRIPT_DIR && python3 src/ui/errorz_launcher.py"
-Terminal=false
-Categories=Security;Network;
-EOF
-  echo -e "  ${GREEN}✓${NC} Desktop shortcuts created"
-
-  # Add to PATH
+  # Add shell aliases
   if ! grep -q "ERR0RS" ~/.bashrc 2>/dev/null; then
     echo "" >> ~/.bashrc
     echo "# ERR0RS ULTIMATE" >> ~/.bashrc
-    echo "alias errorz='cd $SCRIPT_DIR && python3 src/ui/errorz_launcher.py'" >> ~/.bashrc
+    echo "alias errorz='cd $SCRIPT_DIR && bash start_err0rs.sh'" >> ~/.bashrc
     echo "alias errorz-cli='cd $SCRIPT_DIR && python3 main.py'" >> ~/.bashrc
-    echo -e "  ${GREEN}✓${NC} Aliases added to .bashrc → type 'errorz' to launch"
+    echo "alias err0rs='cd $SCRIPT_DIR && bash start_err0rs.sh'" >> ~/.bashrc
+    echo -e "  ${GREEN}✓${NC} Aliases added: errorz | err0rs | errorz-cli"
   fi
 }
 

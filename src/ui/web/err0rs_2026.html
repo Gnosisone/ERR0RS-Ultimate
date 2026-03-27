@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERR0RS ULTIMATE — AI Pentesting Platform</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+  :root {
+    --bg:#080b0f; --bg2:#0c1018; --bg3:#111620;
+    --border:#1a2535; --border2:#1e2d42;
+    --red:#ff2d4a; --red-dim:#c41f35; --red-glow:rgba(255,45,74,0.15);
+    --cyan:#00d4ff; --cyan-dim:#0099bb; --cyan-glow:rgba(0,212,255,0.12);
+    --green:#00ff88; --green-dim:#00aa55; --green-glow:rgba(0,255,136,0.1);
+    --amber:#ffaa00; --amber-glow:rgba(255,170,0,0.12);
+    --purple:#a855f7; --text:#c8d8e8; --text-dim:#566880;
+    --mono:'Share Tech Mono',monospace; --display:'Orbitron',monospace;
+    --ui:'Rajdhani',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--ui);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);pointer-events:none;z-index:9999;}
+  header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:relative;overflow:hidden;}
+  header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red),var(--cyan),transparent);animation:hline 4s ease-in-out infinite;}
+  @keyframes hline{0%,100%{opacity:.4}50%{opacity:1}}
+  .logo{display:flex;align-items:center;gap:12px;}
+  .logo-text{font-family:var(--display);font-size:18px;font-weight:900;letter-spacing:3px;color:var(--red);text-shadow:0 0 20px var(--red),0 0 40px rgba(255,45,74,.3);}
+  .logo-sub{font-size:10px;color:var(--text-dim);letter-spacing:4px;font-family:var(--mono);margin-top:-2px;}
+  .header-status{display:flex;align-items:center;gap:20px;}
+  .status-pill{display:flex;align-items:center;gap:7px;padding:5px 14px;border:1px solid var(--border);font-family:var(--mono);font-size:10px;letter-spacing:1px;}
+  .status-pill.online{border-color:rgba(0,255,136,.3);color:var(--green);}
+  .status-pill.active{border-color:rgba(255,45,74,.3);color:var(--red);}
+  .status-pill.ready{border-color:rgba(0,212,255,.3);color:var(--cyan);}
+  .dot{width:6px;height:6px;border-radius:50%;animation:pulse 2s ease-in-out infinite;}
+  .dot.green{background:var(--green);box-shadow:0 0 8px var(--green);}
+  .dot.red{background:var(--red);box-shadow:0 0 8px var(--red);animation-delay:.5s;}
+  .dot.cyan{background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation-delay:1s;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .kali-badge{font-family:var(--mono);font-size:9px;padding:4px 10px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.4);color:var(--purple);letter-spacing:2px;}
+  .main{display:flex;flex:1;overflow:hidden;}
+  .sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
+  .sidebar::-webkit-scrollbar{width:3px;} .sidebar::-webkit-scrollbar-thumb{background:var(--border2);}
+  .sidebar-section{padding:12px 16px 6px;font-size:9px;letter-spacing:3px;color:var(--text-dim);font-family:var(--mono);}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-dim);border-left:2px solid transparent;transition:all .15s;}
+  .nav-item:hover{color:var(--text);background:rgba(255,255,255,.03);border-left-color:var(--border2);}
+  .nav-item.active{color:var(--cyan);background:var(--cyan-glow);border-left-color:var(--cyan);}
+  .nav-icon{font-size:14px;width:18px;text-align:center;}
+  .nav-badge{margin-left:auto;font-family:var(--mono);font-size:9px;padding:2px 6px;font-weight:700;}
+  .badge-new{background:rgba(168,85,247,.2);color:var(--purple);border:1px solid rgba(168,85,247,.4);}
+  .badge-hot{background:rgba(255,45,74,.2);color:var(--red);border:1px solid rgba(255,45,74,.4);}
+  .badge-num{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.3);}
+  .sidebar-divider{height:1px;background:var(--border);margin:8px 16px;}
+</style>
+  .content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .target-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .target-label{font-family:var(--mono);font-size:10px;color:var(--text-dim);letter-spacing:2px;white-space:nowrap;}
+  .target-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--cyan);font-family:var(--mono);font-size:13px;padding:7px 14px;outline:none;transition:border-color .2s;}
+  .target-input:focus{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.1);}
+  .target-input::placeholder{color:var(--text-dim);}
+  .scope-select{background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:7px 10px;outline:none;cursor:pointer;}
+  .launch-all-btn{padding:7px 20px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:var(--mono);font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s;}
+  .launch-all-btn:hover{background:var(--red-glow);box-shadow:0 0 20px var(--red-glow);}
+  .tab-bar{background:var(--bg2);border-bottom:1px solid var(--border);display:flex;padding:0 20px;overflow-x:auto;flex-shrink:0;}
+  .tab-bar::-webkit-scrollbar{height:2px;} .tab-bar::-webkit-scrollbar-thumb{background:var(--border2);}
+  .tab{padding:11px 18px;font-size:12px;font-weight:600;letter-spacing:1px;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:7px;transition:all .15s;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--cyan);border-bottom-color:var(--cyan);}
+  .tab-new{font-size:8px;padding:1px 5px;background:rgba(168,85,247,.2);color:var(--purple);border-radius:2px;font-family:var(--mono);}
+  .panel{flex:1;overflow-y:auto;padding:20px;}
+  .panel::-webkit-scrollbar{width:4px;} .panel::-webkit-scrollbar-thumb{background:var(--border2);}
+  .tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+  .tool-card{background:var(--bg2);border:1px solid var(--border);padding:16px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+  .tool-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent,var(--cyan));opacity:.6;transition:opacity .2s;}
+  .tool-card:hover{border-color:var(--accent,var(--cyan));background:var(--bg3);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,0,0,.4);}
+  .tool-card:hover::before{opacity:1;}
+  .tool-card.new-kali{--accent:var(--purple);border-color:rgba(168,85,247,.2);}
+  .tool-card.exploit{--accent:var(--red);}
+  .tool-card.web{--accent:var(--amber);}
+  .tool-card.wireless{--accent:var(--green);}
+  .tool-card.c2{--accent:var(--purple);}
+  .tool-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;}
+  .tool-name{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);}
+  .tool-badges{display:flex;gap:5px;flex-wrap:wrap;}
+  .tbadge{font-family:var(--mono);font-size:8px;padding:2px 6px;letter-spacing:1px;}
+  .tbadge.kali26{background:rgba(168,85,247,.15);color:var(--purple);border:1px solid rgba(168,85,247,.4);}
+  .tbadge.msf{background:rgba(255,45,74,.12);color:#ff6b6b;border:1px solid rgba(255,107,107,.35);}
+  .tbadge.web{background:rgba(255,170,0,.1);color:var(--amber);border:1px solid rgba(255,170,0,.3);}
+  .tbadge.recon{background:rgba(0,212,255,.08);color:var(--cyan);border:1px solid rgba(0,212,255,.25);}
+  .tool-desc{font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:12px;}
+  .tool-actions{display:flex;gap:8px;align-items:center;}
+  .btn-run{flex:1;padding:7px;background:transparent;border:1px solid var(--accent,var(--cyan));color:var(--accent,var(--cyan));font-family:var(--mono);font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s;}
+  .btn-run:hover{background:rgba(0,212,255,.08);}
+  .btn-icon{padding:7px 10px;background:transparent;border:1px solid var(--border2);color:var(--text-dim);font-size:12px;cursor:pointer;transition:all .2s;}
+  .btn-icon:hover{border-color:var(--cyan);color:var(--cyan);}
+  .kali-banner{background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(0,212,255,.05));border:1px solid rgba(168,85,247,.25);padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;}
+  .banner-icon{font-size:20px;}
+  .banner-title{font-family:var(--mono);font-size:11px;color:var(--purple);letter-spacing:1px;margin-bottom:2px;}
+  .banner-sub{font-size:11px;color:var(--text-dim);}
+  .banner-sub span{color:var(--cyan);}
+  .right-panel{width:380px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+  .agent-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .agent-title{font-family:var(--display);font-size:11px;letter-spacing:3px;color:var(--cyan);}
+  .agent-status{font-family:var(--mono);font-size:9px;color:var(--green);display:flex;align-items:center;gap:5px;}
+  .output-area{flex:1;overflow-y:auto;padding:14px;font-family:var(--mono);font-size:11px;line-height:1.7;}
+  .output-area::-webkit-scrollbar{width:3px;} .output-area::-webkit-scrollbar-thumb{background:var(--border2);}
+  .out-line{margin-bottom:2px;}
+  .out-line.prompt{color:var(--cyan);} .out-line.info{color:var(--text-dim);}
+  .out-line.success{color:var(--green);} .out-line.error{color:var(--red);}
+  .out-line.data{color:var(--amber);} .out-line.agent{color:var(--purple);}
+  .out-line.msf{color:#ff6b6b;} .out-line.new{color:var(--purple);}
+  .cursor-blink{display:inline-block;width:7px;height:13px;background:var(--cyan);animation:blink 1s step-end infinite;vertical-align:text-bottom;margin-left:2px;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .prompt-area{border-top:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .prompt-row{display:flex;align-items:center;gap:8px;}
+  .prompt-prefix{font-family:var(--mono);font-size:13px;color:var(--red);white-space:nowrap;}
+  .prompt-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:12px;caret-color:var(--cyan);}
+  .prompt-input::placeholder{color:var(--text-dim);font-size:11px;}
+  .send-btn{padding:7px 16px;background:var(--red);border:none;color:white;font-family:var(--mono);font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s;}
+  .send-btn:hover{background:var(--red-dim);}
+  .quick-cmds{display:flex;gap:6px;flex-wrap:wrap;}
+  .qcmd{font-family:var(--mono);font-size:9px;padding:3px 9px;background:transparent;border:1px solid var(--border2);color:var(--text-dim);cursor:pointer;transition:all .15s;}
+  .qcmd:hover{border-color:var(--cyan);color:var(--cyan);}
+  .sessions-widget{margin:10px 14px;border:1px solid rgba(255,45,74,.2);background:rgba(255,45,74,.03);}
+  .sessions-header{padding:7px 12px;font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--red);border-bottom:1px solid rgba(255,45,74,.15);display:flex;align-items:center;gap:7px;}
+  .session-row{padding:6px 12px;font-family:var(--mono);font-size:10px;color:var(--text);display:flex;justify-content:space-between;border-bottom:1px solid var(--border);}
+  .session-id{color:var(--red);margin-right:8px;}
+  .session-interact{color:var(--cyan);cursor:pointer;}
+  .stats-bar{background:var(--bg);border-top:1px solid var(--border);padding:6px 20px;display:flex;gap:24px;align-items:center;flex-shrink:0;font-family:var(--mono);font-size:10px;}
+  .stat{display:flex;align-items:center;gap:6px;color:var(--text-dim);}
+  .stat-val{color:var(--cyan);font-weight:700;}
+  .stat-red .stat-val{color:var(--red);} .stat-green .stat-val{color:var(--green);} .stat-purple .stat-val{color:var(--purple);}
+  .time-display{margin-left:auto;color:var(--text-dim);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(4px);}
+  .modal-overlay.open{opacity:1;pointer-events:all;}
+  .modal{background:var(--bg2);border:1px solid var(--border2);width:520px;max-height:80vh;overflow-y:auto;}
+  .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+  .modal-title{font-family:var(--display);font-size:13px;letter-spacing:2px;color:var(--cyan);}
+  .modal-close{margin-left:auto;background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;}
+  .modal-close:hover{color:var(--red);}
+  .modal-body{padding:20px;}
+  .form-group{margin-bottom:16px;}
+  .form-label{display:block;font-family:var(--mono);font-size:10px;color:var(--text-dim);letter-spacing:2px;margin-bottom:6px;}
+  .form-input,.form-select{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px;padding:9px 12px;outline:none;transition:border-color .2s;}
+  .form-input:focus,.form-select:focus{border-color:var(--cyan);}
+  .form-select{cursor:pointer;}
+  .modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+  .btn-cancel{padding:8px 20px;background:transparent;border:1px solid var(--border2);color:var(--text-dim);font-family:var(--mono);font-size:10px;cursor:pointer;letter-spacing:1px;}
+  .btn-execute{padding:8px 24px;background:var(--red);border:none;color:white;font-family:var(--mono);font-size:10px;letter-spacing:2px;cursor:pointer;}
+  .btn-execute:hover{background:var(--red-dim);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div>
+      <div class="logo-text">ERR0RS</div>
+      <div class="logo-sub">ULTIMATE AI PENTEST PLATFORM</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="status-pill online"><div class="dot green"></div>OLLAMA ONLINE</div>
+    <div class="status-pill active"><div class="dot red"></div>MSF RPC ACTIVE</div>
+    <div class="status-pill ready"><div class="dot cyan"></div>MCP READY</div>
+    <div class="kali-badge">KALI 2026.1</div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">WORKFLOW</div>
+    <div class="nav-item" onclick="filterTools('all')"><span class="nav-icon">⚡</span> All Tools</div>
+    <div class="nav-item active" onclick="filterTools('scan')"><span class="nav-icon">📡</span> Scanning</div>
+    <div class="nav-item" onclick="filterTools('vuln')"><span class="nav-icon">🔎</span> Vuln Analysis</div>
+    <div class="nav-item" onclick="filterTools('msf')"><span class="nav-icon">💥</span> Exploitation <span class="nav-badge badge-hot">MSF</span></div>
+    <div class="nav-item" onclick="filterTools('post')"><span class="nav-icon">🏴</span> Post-Exploit</div>
+    <div class="nav-item" onclick="filterTools('payload')"><span class="nav-icon">🎯</span> Payloads</div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">SPECIALIZED</div>
+    <div class="nav-item" onclick="filterTools('web')"><span class="nav-icon">🌐</span> Web Apps <span class="nav-badge badge-new">3 NEW</span></div>
+    <div class="nav-item" onclick="filterTools('wifi')"><span class="nav-icon">📶</span> Wireless <span class="nav-badge badge-new">NEW</span></div>
+    <div class="nav-item" onclick="filterTools('creds2')"><span class="nav-icon">🔑</span> Credentials</div>
+    <div class="nav-item" onclick="filterTools('c2tab')"><span class="nav-icon">🕹️</span> C2 / Emulation <span class="nav-badge badge-new">2 NEW</span></div>
+    <div class="nav-item" onclick="filterTools('hardware')"><span class="nav-icon">🔌</span> Hardware</div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">TOOLS</div>
+    <div class="nav-item"><span class="nav-icon">🧠</span> RAG Knowledge <span class="nav-badge badge-num">∞</span></div>
+    <div class="nav-item"><span class="nav-icon">📋</span> Reporting</div>
+    <div class="nav-item"><span class="nav-icon">⚙️</span> Settings</div>
+  </div>
+
+  <div class="content">
+    <div class="target-bar">
+      <span class="target-label">TARGET //</span>
+      <input class="target-input" id="targetInput" type="text" placeholder="192.168.1.0/24 | 10.0.0.1 | http://target.local">
+      <select class="scope-select"><option>SCOPE: FULL</option><option>SCOPE: WEB ONLY</option><option>SCOPE: INTERNAL</option><option>SCOPE: WIRELESS</option></select>
+      <button class="launch-all-btn" onclick="launchAll()">▶ AUTO ASSESS</button>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab active" onclick="filterTools('all')">⚡ ALL TOOLS</div>
+      <div class="tab" onclick="filterTools('kali26')">★ KALI 2026.1 <span class="tab-new">8 NEW</span></div>
+      <div class="tab" onclick="filterTools('msf')">🔴 METASPLOIT MCP</div>
+      <div class="tab" onclick="filterTools('web')">🌐 WEB</div>
+      <div class="tab" onclick="filterTools('wifi')">📶 WIRELESS</div>
+      <div class="tab" onclick="filterTools('creds2')">🔑 CREDS</div>
+      <div class="tab" onclick="filterTools('c2tab')">🕹️ C2</div>
+    </div>
+
+    <div class="panel">
+      <div class="kali-banner" id="kaliBanner">
+        <div class="banner-icon">🚀</div>
+        <div style="flex:1">
+          <div class="banner-title">★ KALI LINUX 2026.1 — MARCH 26, 2026</div>
+          <div class="banner-sub"><span>8 new tools</span>: MetasploitMCP · AdaptixC2 · Atomic-Operator · Fluxion · SSTImap · WPProbe · XSStrike · GEF + kernel 6.18</div>
+        </div>
+        <button class="btn-icon" onclick="document.getElementById('kaliBanner').style.display='none'">✕</button>
+      </div>
+
+      <div class="tool-grid" id="toolGrid">
+        <div class="tool-card new-kali exploit" data-tags="msf exploit kali26">
+          <div class="tool-header"><div class="tool-name">MetasploitMCP</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span><span class="tbadge msf">MCP</span></div></div>
+          <div class="tool-desc">MCP server for Metasploit Framework — natural language to full MSF exploitation. Exploits, payloads, sessions, post-ex, all via ERR0RS AI agent.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('msf_run_exploit')">▶ RUN EXPLOIT</button><button class="btn-run" onclick="openWizard('msf_search_exploits')" style="flex:0.6">SEARCH</button><button class="btn-icon" onclick="openWizard('msf_list_sessions')">⊞</button></div>
+        </div>
+        <div class="tool-card new-kali c2" data-tags="c2 kali26">
+          <div class="tool-header"><div class="tool-name">AdaptixC2</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span></div></div>
+          <div class="tool-desc">Extensible post-exploitation and adversarial emulation C2 framework. Multi-operator, malleable profiles, MITRE ATT&CK aligned lateral movement and persistence.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('adaptixc2_launch')">▶ LAUNCH C2</button><button class="btn-icon">📋</button></div>
+        </div>
+        <div class="tool-card new-kali" data-tags="c2 mitre kali26">
+          <div class="tool-header"><div class="tool-name">Atomic-Operator</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span></div></div>
+          <div class="tool-desc">MITRE ATT&CK Atomic Red Team tests across Windows/Linux/macOS. Purple team — run real techniques, validate detection coverage.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('atomic_operator')">▶ RUN TECHNIQUE</button><button class="btn-icon">🎯</button></div>
+        </div>
+        <div class="tool-card new-kali wireless" data-tags="wifi wireless kali26">
+          <div class="tool-header"><div class="tool-name">Fluxion</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span></div></div>
+          <div class="tool-desc">WiFi evil twin + captive portal social engineering. Captures WPA2 credentials with handshake verification — only accepts valid passwords.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('fluxion_attack')">▶ START ATTACK</button><button class="btn-icon">📶</button></div>
+        </div>
+        <div class="tool-card new-kali web" data-tags="web ssti kali26">
+          <div class="tool-header"><div class="tool-name">SSTImap</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span><span class="tbadge web">SSTI</span></div></div>
+          <div class="tool-desc">Auto-detect and exploit Server-Side Template Injection. Jinja2, Twig, FreeMarker, Smarty, Mako — RCE via sandbox escape with interactive shell.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('sstimapper')">▶ SCAN SSTI</button><button class="btn-icon">💉</button></div>
+        </div>
+        <div class="tool-card new-kali web" data-tags="web wordpress kali26">
+          <div class="tool-header"><div class="tool-name">WPProbe</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span><span class="tbadge web">WP</span></div></div>
+          <div class="tool-desc">Fast WordPress plugin enumeration — passively fingerprints installed plugins and versions. Feed directly into CVE cross-reference and nuclei scan.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('wpprobe_scan')">▶ ENUMERATE</button><button class="btn-icon">🔍</button></div>
+        </div>
+        <div class="tool-card new-kali web" data-tags="web xss kali26">
+          <div class="tool-header"><div class="tool-name">XSStrike</div><div class="tool-badges"><span class="tbadge kali26">KALI 2026.1</span><span class="tbadge web">XSS</span></div></div>
+          <div class="tool-desc">Advanced XSS scanner with intelligent payload mutation, WAF fingerprinting, DOM XSS detection, and full crawl mode.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('xsstrike_scan')">▶ SCAN XSS</button><button class="btn-icon">⚡</button></div>
+        </div>
+        <div class="tool-card exploit" data-tags="msf exploit">
+          <div class="tool-header"><div class="tool-name">MSF · Run Exploit</div><div class="tool-badges"><span class="tbadge msf">MSF-MCP</span></div></div>
+          <div class="tool-desc">Execute any Metasploit exploit with full payload config. Auto-checks target first. Live session streaming to agent context.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('msf_run_exploit')">▶ EXECUTE</button><button class="btn-icon">⚙️</button></div>
+        </div>
+        <div class="tool-card exploit" data-tags="msf payload">
+          <div class="tool-header"><div class="tool-name">MSF · Gen Payload</div><div class="tool-badges"><span class="tbadge msf">MSF-MCP</span></div></div>
+          <div class="tool-desc">Generate payloads: exe, elf, ps1, apk, jar, raw, py, hta. Optional encoder for AV evasion. Auto-saved to err0rs_payloads/.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('msf_generate_payload')">▶ GENERATE</button><button class="btn-icon">📦</button></div>
+        </div>
+        <div class="tool-card exploit" data-tags="msf sessions post">
+          <div class="tool-header"><div class="tool-name">MSF · Sessions</div><div class="tool-badges"><span class="tbadge msf">MSF-MCP</span></div></div>
+          <div class="tool-desc">List and interact with all active Meterpreter and shell sessions. Run commands, load modules, pivot to new targets.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('msf_list_sessions')">▶ LIST</button><button class="btn-run" onclick="openWizard('msf_session_cmd')" style="flex:0.7">INTERACT</button></div>
+        </div>
+        <div class="tool-card" data-tags="recon scan">
+          <div class="tool-header"><div class="tool-name">Nmap</div><div class="tool-badges"><span class="tbadge recon">RECON</span></div></div>
+          <div class="tool-desc">Port scanning, service detection, OS fingerprinting, NSE vuln scripts. XML parsed into agent context for next steps.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('nmap_quick')">▶ SCAN</button><button class="btn-icon">🗺️</button></div>
+        </div>
+        <div class="tool-card web" data-tags="web scan">
+          <div class="tool-header"><div class="tool-name">Gobuster</div><div class="tool-badges"><span class="tbadge web">WEB</span></div></div>
+          <div class="tool-desc">Directory and file brute forcing at 50 concurrent threads. Finds hidden paths, admin panels, API endpoints.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('gobuster_dir')">▶ BRUTE</button><button class="btn-icon">📂</button></div>
+        </div>
+        <div class="tool-card web" data-tags="web scan vuln">
+          <div class="tool-header"><div class="tool-name">Nikto</div><div class="tool-badges"><span class="tbadge web">WEB</span></div></div>
+          <div class="tool-desc">Web server scanner — dangerous files, outdated software, default creds, SSL issues, common misconfigurations.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('nikto_scan')">▶ SCAN</button><button class="btn-icon">🔍</button></div>
+        </div>
+        <div class="tool-card" data-tags="vuln scan">
+          <div class="tool-header"><div class="tool-name">Nuclei</div><div class="tool-badges"><span class="tbadge recon">VULN</span></div></div>
+          <div class="tool-desc">Template-based CVE scanner — 7,000+ templates. Critical CVEs, misconfigs, exposures. Findings ranked by severity.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('nuclei_scan')">▶ SCAN</button><button class="btn-icon">☢️</button></div>
+        </div>
+        <div class="tool-card web" data-tags="web sqli">
+          <div class="tool-header"><div class="tool-name">SQLmap</div><div class="tool-badges"><span class="tbadge web">SQLi</span></div></div>
+          <div class="tool-desc">Automated SQL injection detection and exploitation. MySQL, MSSQL, PostgreSQL, SQLite. Auto-dump when injectable found.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('sqlmap_test')">▶ TEST</button><button class="btn-icon">💉</button></div>
+        </div>
+        <div class="tool-card" data-tags="creds2 brute">
+          <div class="tool-header"><div class="tool-name">Hydra</div></div>
+          <div class="tool-desc">Online brute force across 50+ protocols — SSH, FTP, RDP, SMB, HTTP, MySQL, LDAP, VNC. Multi-threaded.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('hydra_brute')">▶ ATTACK</button><button class="btn-icon">🔑</button></div>
+        </div>
+        <div class="tool-card" data-tags="creds2 hash">
+          <div class="tool-header"><div class="tool-name">Hashcat</div></div>
+          <div class="tool-desc">GPU-accelerated hash cracking. MD5, NTLM, bcrypt, WPA2, Kerberoast. Rule-based mutation attacks.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('hashcat_crack')">▶ CRACK</button><button class="btn-icon">⚡</button></div>
+        </div>
+        <div class="tool-card wireless" data-tags="wifi wireless">
+          <div class="tool-header"><div class="tool-name">Aircrack-ng</div></div>
+          <div class="tool-desc">WPA/WPA2 handshake and PMKID capture. Monitor mode, targeted deauth, injection — works with Alfa AWUS036ACM.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('aircrack_capture')">▶ CAPTURE</button><button class="btn-icon">📶</button></div>
+        </div>
+        <div class="tool-card" data-tags="hardware flipper">
+          <div class="tool-header"><div class="tool-name">Flipper Zero</div></div>
+          <div class="tool-desc">Direct control via pyFlipper over USB. Sub-GHz, NFC, RFID, BadUSB, Bluetooth. Momentum firmware. Push payloads to SD card.</div>
+          <div class="tool-actions"><button class="btn-run" onclick="openWizard('flipper_send_cmd')">▶ CONTROL</button><button class="btn-icon">🐬</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat"><span>TOOLS</span><span class="stat-val">19</span></div>
+      <div class="stat stat-red"><span>SESSIONS</span><span class="stat-val" id="sessionCount">0</span></div>
+      <div class="stat stat-green"><span>FINDINGS</span><span class="stat-val" id="findingCount">0</span></div>
+      <div class="stat stat-purple"><span>RAG</span><span class="stat-val">LOADED</span></div>
+      <div class="stat"><span>MODEL</span><span class="stat-val" style="color:var(--amber)">OLLAMA LOCAL</span></div>
+      <div class="stat"><span>AIRGAP</span><span class="stat-val">✓ SECURE</span></div>
+      <div class="time-display" id="clock">--:--:--</div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="agent-header">
+      <div class="agent-title">ERR0RS AGENT</div>
+      <div class="agent-status"><div class="dot cyan"></div>OLLAMA · LOCAL</div>
+    </div>
+    <div class="sessions-widget" id="sessionsWidget" style="display:none">
+      <div class="sessions-header"><div class="dot red"></div>ACTIVE MSF SESSIONS</div>
+      <div id="sessionsList"></div>
+    </div>
+    <div class="output-area" id="outputArea">
+      <div class="out-line info">╔════════════════════════════════╗</div>
+      <div class="out-line info">║  ERR0RS ULTIMATE v3.0          ║</div>
+      <div class="out-line info">║  Kali 2026.1 Edition           ║</div>
+      <div class="out-line info">╚════════════════════════════════╝</div>
+      <div class="out-line"> </div>
+      <div class="out-line success">✓ Ollama — model ready</div>
+      <div class="out-line success">✓ MetasploitMCP — connected</div>
+      <div class="out-line success">✓ msfrpcd RPC — 127.0.0.1:55553</div>
+      <div class="out-line success">✓ ChromaDB RAG — knowledge loaded</div>
+      <div class="out-line new">★ Kali 2026.1 tools integrated</div>
+      <div class="out-line agent">⬡ 7h30th3r0n3 repos in RAG</div>
+      <div class="out-line"> </div>
+      <div class="out-line prompt">Describe your objective or select a</div>
+      <div class="out-line prompt">tool above to launch Smart Wizard.</div>
+      <div class="out-line"> </div>
+      <div class="out-line"><span class="cursor-blink"></span></div>
+    </div>
+    <div class="prompt-area">
+      <div class="prompt-row">
+        <span class="prompt-prefix">ERR0RS://&gt;</span>
+        <input class="prompt-input" id="promptInput" placeholder="e.g. scan 192.168.1.0/24 and exploit anything vulnerable" onkeydown="if(event.key==='Enter')sendPrompt()">
+        <button class="send-btn" onclick="sendPrompt()">EXEC</button>
+      </div>
+      <div class="quick-cmds">
+        <button class="qcmd" onclick="quickCmd('Full recon and port scan on target')">FULL SCAN</button>
+        <button class="qcmd" onclick="quickCmd('Search MSF for exploits matching services')">MSF SEARCH</button>
+        <button class="qcmd" onclick="quickCmd('List sessions and dump credentials')">DUMP CREDS</button>
+        <button class="qcmd" onclick="quickCmd('Full web app chain: gobuster nikto sqlmap xss')">WEB CHAIN</button>
+        <button class="qcmd" onclick="quickCmd('Generate windows meterpreter payload')">GEN PAYLOAD</button>
+        <button class="qcmd" onclick="quickCmd('Run MITRE T1059 atomic test via Atomic-Operator')">ATOMIC TEST</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="wizardModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="wizardIcon">⚙️</span>
+      <div class="modal-title" id="wizardTitle">TOOL WIZARD</div>
+      <button class="modal-close" onclick="closeWizard()">✕</button>
+    </div>
+    <div class="modal-body" id="wizardBody"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeWizard()">CANCEL</button>
+      <button class="btn-execute" onclick="executeWizard()">▶ EXECUTE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Clock
+function updateClock(){document.getElementById('clock').textContent=new Date().toTimeString().split(' ')[0]+' LOCAL';}
+setInterval(updateClock,1000);updateClock();
+
+// Filter
+function filterTools(f){
+  document.querySelectorAll('.tool-card').forEach(c=>{
+    const t=c.dataset.tags||'';
+    let show=false;
+    if(f==='all')show=true;
+    else if(f==='kali26')show=t.includes('kali26');
+    else if(f==='msf')show=t.includes('msf');
+    else if(f==='web')show=t.includes('web');
+    else if(f==='wifi')show=t.includes('wifi')||t.includes('wireless');
+    else if(f==='creds2')show=t.includes('creds2')||t.includes('hash')||t.includes('brute');
+    else if(f==='c2tab')show=t.includes('c2')||t.includes('mitre');
+    else show=true;
+    c.style.display=show?'':'none';
+  });
+}
+
+// Output
+function appendOutput(text,cls='info'){
+  const area=document.getElementById('outputArea');
+  const line=document.createElement('div');
+  line.className=`out-line ${cls}`;line.textContent=text;
+  area.querySelectorAll('.cursor-blink').forEach(c=>c.closest('.out-line')?.remove());
+  area.appendChild(line);
+  const cur=document.createElement('div');cur.className='out-line';
+  cur.innerHTML='<span class="cursor-blink"></span>';area.appendChild(cur);
+  area.scrollTop=area.scrollHeight;
+}
+
+// Prompt
+let findings=0;
+function quickCmd(cmd){document.getElementById('promptInput').value=cmd;sendPrompt();}
+
+async function sendPrompt(){
+  const inp=document.getElementById('promptInput');
+  const prompt=inp.value.trim();if(!prompt)return;
+  inp.value='';
+  const target=document.getElementById('targetInput').value||'[no target]';
+  appendOutput(`> ${prompt}`,'prompt');
+  const p=prompt.toLowerCase();
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  await sleep(400);
+  if(p.includes('scan')||p.includes('port')){
+    appendOutput('THINK: Selecting nmap for host discovery.','agent');await sleep(300);
+    appendOutput(`ACT: nmap -sV -sC -T4 ${target}`,'data');await sleep(800);
+    appendOutput('OBS: 22/tcp ssh OpenSSH 8.9','success');
+    appendOutput('OBS: 80/tcp http Apache 2.4.54','success');
+    appendOutput('OBS: 445/tcp smb Samba 4.17','success');await sleep(300);
+    appendOutput('THINK: SMB found — checking MS17-010...','agent');await sleep(400);
+    appendOutput('ACT: msf auxiliary/scanner/smb/smb_ms17_010','msf');await sleep(600);
+    appendOutput('OBS: ⚠ MS17-010 VULNERABLE — EternalBlue ready!','error');
+    findings++;document.getElementById('findingCount').textContent=findings;
+  } else if(p.includes('msf')||p.includes('exploit')){
+    appendOutput('THINK: Routing to MetasploitMCP bridge.','agent');await sleep(300);
+    appendOutput('ACT: MetasploitMCP → start_listener(meterpreter/reverse_tcp)','msf');await sleep(500);
+    appendOutput('OBS: Listener active on 0.0.0.0:4444','success');await sleep(300);
+    appendOutput('ACT: MetasploitMCP → run_exploit(ms17_010_eternalblue)','msf');await sleep(800);
+    appendOutput('OBS: 🔴 SESSION 1 OPENED — Meterpreter x64/windows','error');
+    document.getElementById('sessionCount').textContent='1';
+    showSessions([{id:1,type:'meterpreter',host:target,os:'Windows'}]);
+    findings+=2;document.getElementById('findingCount').textContent=findings;
+  } else if(p.includes('web')||p.includes('sqli')||p.includes('xss')){
+    appendOutput('THINK: Web app testing chain selected.','agent');await sleep(300);
+    appendOutput(`ACT: gobuster dir -u http://${target}`,'data');await sleep(600);
+    appendOutput('OBS: Found /admin /api/v1 /uploads /.env','success');await sleep(200);
+    appendOutput('ACT: sqlmap -u http://'+target+'/api/v1/users','data');await sleep(700);
+    appendOutput('OBS: ⚠ SQL injection found in id parameter!','error');await sleep(200);
+    appendOutput('ACT: xsstrike -u http://'+target+'/search --crawl','data');await sleep(500);
+    appendOutput('OBS: ⚠ Reflected XSS in q parameter','error');
+    findings+=2;document.getElementById('findingCount').textContent=findings;
+  } else if(p.includes('dump')||p.includes('cred')){
+    appendOutput('ACT: MetasploitMCP → session_cmd(1, "load kiwi")','msf');await sleep(500);
+    appendOutput('ACT: MetasploitMCP → session_cmd(1, "creds_all")','msf');await sleep(700);
+    appendOutput('OBS: 🔑 DOMAIN\\Administrator : P@ssw0rd123','data');
+    appendOutput('OBS: 🔑 DOMAIN\\svc_backup   : Backup2024!','data');
+    findings++;document.getElementById('findingCount').textContent=findings;
+  } else if(p.includes('payload')){
+    appendOutput('ACT: MetasploitMCP → generate_payload(windows/x64/meterpreter, exe)','msf');await sleep(600);
+    appendOutput('OBS: ✓ Saved: ~/err0rs_payloads/payload_4444.exe','success');
+  } else if(p.includes('atomic')||p.includes('mitre')){
+    appendOutput('ACT: atomic-operator run --techniques T1059.001 --os linux','data');await sleep(600);
+    appendOutput('OBS: Technique executed — check SIEM for detection!','agent');
+  } else {
+    appendOutput('THINK: Analyzing objective...','agent');await sleep(400);
+    appendOutput('INFO: Use Smart Wizard buttons or be more specific.','info');
+  }
+  appendOutput('','info');appendOutput('─── cycle complete ───','agent');
+}
+
+function showSessions(sessions){
+  const w=document.getElementById('sessionsWidget');
+  const l=document.getElementById('sessionsList');
+  w.style.display='';
+  l.innerHTML=sessions.map(s=>`<div class="session-row"><span><span class="session-id">[${s.id}]</span>${s.host} · ${s.type}</span><span class="session-interact" onclick="quickCmd('run sysinfo in session ${s.id}')">INTERACT</span></div>`).join('');
+}
+
+function launchAll(){
+  const t=document.getElementById('targetInput').value;
+  if(!t){document.getElementById('targetInput').focus();return;}
+  quickCmd(`Full automated assessment on ${t}: recon scan exploit dump creds report`);
+}
+
+// Wizard
+const WIZARDS={
+  msf_run_exploit:{title:'MSF · RUN EXPLOIT',icon:'💥',fields:[
+    {id:'module',label:'EXPLOIT MODULE',type:'text',placeholder:'exploit/windows/smb/ms17_010_eternalblue'},
+    {id:'target',label:'TARGET IP',type:'text',placeholder:'192.168.1.100'},
+    {id:'payload',label:'PAYLOAD',type:'select',options:['windows/x64/meterpreter/reverse_tcp','linux/x86/meterpreter/reverse_tcp','php/meterpreter/reverse_tcp']},
+    {id:'lhost',label:'LHOST',type:'text',placeholder:'192.168.1.10'},
+    {id:'lport',label:'LPORT',type:'text',placeholder:'4444'}]},
+  msf_search_exploits:{title:'MSF · SEARCH EXPLOITS',icon:'🔍',fields:[
+    {id:'query',label:'QUERY (CVE / SERVICE / KEYWORD)',type:'text',placeholder:'ms17_010 | apache | CVE-2021-41773'}]},
+  msf_list_sessions:{title:'MSF · ACTIVE SESSIONS',icon:'🔴',fields:[]},
+  msf_session_cmd:{title:'MSF · SESSION CMD',icon:'🏴',fields:[
+    {id:'session_id',label:'SESSION ID',type:'text',placeholder:'1'},
+    {id:'command',label:'COMMAND',type:'text',placeholder:'sysinfo | getsystem | load kiwi | creds_all'}]},
+  msf_generate_payload:{title:'MSF · GEN PAYLOAD',icon:'🎯',fields:[
+    {id:'payload',label:'PAYLOAD TYPE',type:'select',options:['windows/x64/meterpreter/reverse_tcp','linux/x86/meterpreter/reverse_tcp','php/meterpreter/reverse_tcp','android/meterpreter/reverse_tcp']},
+    {id:'format',label:'FORMAT',type:'select',options:['exe','elf','raw','ps1','py','apk','jar','hta']},
+    {id:'lhost',label:'LHOST',type:'text',placeholder:'192.168.1.10'},
+    {id:'lport',label:'LPORT',type:'text',placeholder:'4444'}]},
+  msf_start_listener:{title:'MSF · START LISTENER',icon:'📡',fields:[
+    {id:'payload',label:'PAYLOAD',type:'select',options:['windows/x64/meterpreter/reverse_tcp','linux/x86/meterpreter/reverse_tcp','php/meterpreter/reverse_tcp']},
+    {id:'lhost',label:'LHOST',type:'text',placeholder:'0.0.0.0'},
+    {id:'lport',label:'LPORT',type:'text',placeholder:'4444'}]},
+  nmap_quick:{title:'NMAP SCANNER',icon:'🗺️',fields:[
+    {id:'target',label:'TARGET (IP / CIDR)',type:'text',placeholder:'192.168.1.0/24'},
+    {id:'scan_type',label:'SCAN TYPE',type:'select',options:['quick','service','full','stealth','vuln']}]},
+  gobuster_dir:{title:'GOBUSTER DIR ENUM',icon:'📂',fields:[
+    {id:'url',label:'TARGET URL',type:'text',placeholder:'http://192.168.1.100'},
+    {id:'wordlist',label:'WORDLIST',type:'select',options:['/usr/share/wordlists/dirb/common.txt','/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt']},
+    {id:'extensions',label:'EXTENSIONS',type:'text',placeholder:'php,html,js'}]},
+  nikto_scan:{title:'NIKTO WEB SCAN',icon:'🔍',fields:[
+    {id:'host',label:'HOST',type:'text',placeholder:'192.168.1.100'},
+    {id:'port',label:'PORT',type:'text',placeholder:'80'},
+    {id:'ssl',label:'USE SSL',type:'checkbox'}]},
+  nuclei_scan:{title:'NUCLEI CVE SCAN',icon:'☢️',fields:[
+    {id:'target',label:'TARGET',type:'text',placeholder:'http://192.168.1.100'},
+    {id:'templates',label:'TEMPLATES',type:'select',options:['cves','misconfigs','exposures','default-logins','wordpress']},
+    {id:'severity',label:'SEVERITY',type:'select',options:['critical,high','critical,high,medium','critical']}]},
+  sqlmap_test:{title:'SQLMAP INJECTION',icon:'💉',fields:[
+    {id:'url',label:'URL',type:'text',placeholder:'http://target.com/page?id=1'},
+    {id:'level',label:'LEVEL (1-5)',type:'text',placeholder:'3'},
+    {id:'dump',label:'DUMP DATABASE IF FOUND',type:'checkbox'}]},
+  sstimapper:{title:'SSTIMAP — SSTI',icon:'💉',fields:[
+    {id:'url',label:'URL WITH PARAMETER',type:'text',placeholder:'http://target.com/page?name=test'},
+    {id:'level',label:'LEVEL (1-5)',type:'text',placeholder:'2'},
+    {id:'engine',label:'FORCE ENGINE',type:'select',options:['','jinja2','twig','freemarker','smarty','mako']}]},
+  wpprobe_scan:{title:'WPPROBE — WORDPRESS',icon:'🔍',fields:[
+    {id:'url',label:'WORDPRESS URL',type:'text',placeholder:'http://target.com'},
+    {id:'threads',label:'THREADS',type:'text',placeholder:'10'}]},
+  xsstrike_scan:{title:'XSSTRIKE — XSS',icon:'⚡',fields:[
+    {id:'url',label:'TARGET URL',type:'text',placeholder:'http://target.com/search?q=test'},
+    {id:'crawl',label:'CRAWL ALL LINKS',type:'checkbox'}]},
+  fluxion_attack:{title:'FLUXION — EVIL TWIN',icon:'📶',fields:[
+    {id:'interface',label:'WIRELESS INTERFACE',type:'text',placeholder:'wlan0mon'},
+    {id:'target_bssid',label:'TARGET BSSID',type:'text',placeholder:'AA:BB:CC:DD:EE:FF'},
+    {id:'channel',label:'CHANNEL',type:'text',placeholder:'6'}]},
+  aircrack_capture:{title:'AIRCRACK — HANDSHAKE',icon:'📶',fields:[
+    {id:'interface',label:'MONITOR INTERFACE',type:'text',placeholder:'wlan0mon'},
+    {id:'bssid',label:'BSSID',type:'text',placeholder:'AA:BB:CC:DD:EE:FF'},
+    {id:'channel',label:'CHANNEL',type:'text',placeholder:'6'}]},
+  hydra_brute:{title:'HYDRA — BRUTE FORCE',icon:'🔑',fields:[
+    {id:'target',label:'TARGET IP',type:'text',placeholder:'192.168.1.100'},
+    {id:'service',label:'SERVICE',type:'select',options:['ssh','ftp','rdp','smb','mysql','http-get']},
+    {id:'passlist',label:'WORDLIST',type:'text',placeholder:'/usr/share/wordlists/rockyou.txt'}]},
+  hashcat_crack:{title:'HASHCAT — CRACK HASHES',icon:'⚡',fields:[
+    {id:'hash_file',label:'HASH FILE',type:'text',placeholder:'/tmp/hashes.txt'},
+    {id:'hash_type',label:'HASH TYPE',type:'select',options:['0 (MD5)','1000 (NTLM)','1800 (sha512crypt)','13100 (Kerberoast)','22000 (WPA2)']},
+    {id:'wordlist',label:'WORDLIST',type:'text',placeholder:'/usr/share/wordlists/rockyou.txt'}]},
+  adaptixc2_launch:{title:'ADAPTIXC2 — C2 FRAMEWORK',icon:'🕹️',fields:[
+    {id:'port',label:'LISTENER PORT',type:'text',placeholder:'8443'},
+    {id:'profile',label:'MALLEABLE PROFILE (OPTIONAL)',type:'text',placeholder:''}]},
+  atomic_operator:{title:'ATOMIC-OPERATOR — MITRE',icon:'🎯',fields:[
+    {id:'technique',label:'ATT&CK TECHNIQUE ID',type:'text',placeholder:'T1059.001 | T1078 | T1003'},
+    {id:'os',label:'TARGET OS',type:'select',options:['linux','windows','macos']},
+    {id:'cleanup',label:'CLEANUP AFTER TEST',type:'checkbox'}]},
+  flipper_send_cmd:{title:'FLIPPER ZERO CONTROL',icon:'🐬',fields:[
+    {id:'app',label:'LAUNCH APP',type:'select',options:['','SubGHz','NFC','RFID','BadUSB','Bluetooth','GPIO']},
+    {id:'command',label:'CLI COMMAND',type:'text',placeholder:'storage list /ext | info'}]}
+};
+
+let currentTool=null;
+function openWizard(tool){
+  currentTool=tool;
+  const cfg=WIZARDS[tool];if(!cfg)return;
+  document.getElementById('wizardTitle').textContent=cfg.title;
+  document.getElementById('wizardIcon').textContent=cfg.icon;
+  const body=document.getElementById('wizardBody');
+  if(!cfg.fields.length){body.innerHTML=`<div style="font-family:var(--mono);color:var(--cyan);padding:8px 0">Execute ${cfg.title} with no parameters?</div>`;
+  } else {
+    body.innerHTML=cfg.fields.map(f=>{
+      if(f.type==='select')return`<div class="form-group"><label class="form-label">${f.label}</label><select class="form-select" id="wiz_${f.id}">${f.options.map(o=>`<option>${o}</option>`).join('')}</select></div>`;
+      if(f.type==='checkbox')return`<div class="form-group" style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="wiz_${f.id}" style="width:16px;height:16px;accent-color:var(--cyan)"><label class="form-label" style="margin:0">${f.label}</label></div>`;
+      return`<div class="form-group"><label class="form-label">${f.label}</label><input class="form-input" id="wiz_${f.id}" type="text" placeholder="${f.placeholder||''}"></div>`;
+    }).join('');
+    const tgt=document.getElementById('targetInput').value;
+    if(tgt)['wiz_target','wiz_host'].forEach(id=>{const el=document.getElementById(id);if(el&&!el.value)el.value=tgt;});
+    const urlEl=document.getElementById('wiz_url');if(urlEl&&tgt&&!urlEl.value)urlEl.value=`http://${tgt}`;
+  }
+  document.getElementById('wizardModal').classList.add('open');
+}
+
+function closeWizard(){document.getElementById('wizardModal').classList.remove('open');currentTool=null;}
+
+function executeWizard(){
+  if(!currentTool)return;
+  const cfg=WIZARDS[currentTool];
+  const params={};
+  cfg.fields.forEach(f=>{const el=document.getElementById(`wiz_${f.id}`);if(el)params[f.id]=f.type==='checkbox'?el.checked:el.value;});
+  closeWizard();
+  appendOutput(`▶ Launching: ${cfg.title}`,'prompt');
+  const summary=Object.entries(params).filter(([,v])=>v&&v!==false).map(([k,v])=>`${k}=${v}`).join(' | ');
+  if(summary)appendOutput(`  ${summary}`,'data');
+  document.getElementById('promptInput').value=`Execute ${currentTool} ${JSON.stringify(params)}`;
+  sendPrompt();
+}
+
+document.getElementById('wizardModal').addEventListener('click',function(e){if(e.target===this)closeWizard();});
+</script>
+</body>
+</html>

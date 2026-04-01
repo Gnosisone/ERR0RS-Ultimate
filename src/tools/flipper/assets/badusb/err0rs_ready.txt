@@ -1,0 +1,12 @@
+REM ERR0RS BadUSB Payload Slot
+REM ================================
+REM This file is a placeholder managed by ERR0RS Payload Studio.
+REM It is replaced during authorized engagements when a tester
+REM pushes a scoped payload via the ERR0RS dashboard.
+REM
+REM engagement_id is required before any payload push.
+REM No engagement = no payload. By design.
+REM
+REM Knowledge. Integrity. Security.
+REM github.com/Gnosisone/ERR0RS-Ultimate
+STRING ERR0RS physical sensor ready.

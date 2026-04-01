@@ -88,6 +88,14 @@ def start_api(ai, host: str = "0.0.0.0", port: int = 8000):
         def search(q: str, n: int = 4):
             return {"query": q, "results": ai.search_knowledge(q, n)}
 
+        # ── Flipper Zero integration ──────────────
+        try:
+            from src.tools.flipper.flipper_agent import register_flipper_routes
+            rag_store = getattr(ai, "_collection", None) or getattr(ai, "collection", None)
+            register_flipper_routes(app, rag_store=rag_store)
+        except Exception as _fe:
+            print(f"  [Flipper] Module load skipped: {_fe}")
+
         print(BANNER)
         print(f"  API running at http://{host}:{port}")
         print(f"  Docs at http://{host}:{port}/docs\n")

@@ -19,11 +19,27 @@ ERR0RS Brain runs 100% on YOUR hardware. Pi 5 + Hailo NPU. Always.
 Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
 """
 
-import json, re, time, urllib.request, urllib.error
+import json, re, time, urllib.request, urllib.error, os
 from pathlib import Path
 from typing import Optional
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
+
+# ── Pi-aware model selection ──────────────────────────────────────────────────
+def _default_model() -> str:
+    """Return the right Ollama model based on hardware."""
+    env_model = os.getenv("OLLAMA_MODEL", "")
+    if env_model:
+        return env_model
+    try:
+        with open("/proc/cpuinfo") as f:
+            if "Raspberry Pi" in f.read():
+                return "qwen2.5-coder:7b"   # Pi 5 — fits in 16GB RAM
+    except Exception:
+        pass
+    return "qwen2.5-coder:32b"              # Desktop — full quality
+
+_MODEL = _default_model()
 
 # ─── Use the ERR0RS inference layer (not Ollama directly) ─────────────────────
 try:
@@ -288,7 +304,9 @@ def _query_ollama(prompt: str, system: str, model: str = "llama3.2",
 # ─── High-level brain functions ───────────────────────────────────────────────
 
 def ask(prompt: str, mode: str = "auto", context: str = "",
-        model: str = "llama3.2") -> dict:
+        model: str = None) -> dict:
+    if model is None:
+        model = _MODEL
     """
     Main entry point. Ask ERR0RS Brain anything.
 
@@ -472,7 +490,7 @@ def handle_brain_request(payload: dict) -> dict:
       status        — check if Ollama is reachable
     """
     action = payload.get("action", "ask")
-    model  = payload.get("model", "llama3.2")
+    model  = payload.get("model", _MODEL)
 
     if action == "ask":
         result = ask(

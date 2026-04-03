@@ -1,85 +1,90 @@
 #!/bin/bash
-# =============================================================================
-# ERR0RS ULTIMATE — Pi 5 First Boot Configuration
-# Run ONCE after flashing and booting the Pi 5 for the first time
-# Usage: sudo bash /opt/ERR0RS-Ultimate/scripts/pi5_first_boot.sh
-# =============================================================================
+# ╔═══════════════════════════════════════════════════════════════╗
+# ║   ERR0RS Phoenix OS — Pi 5 First Boot Setup                   ║
+# ║   Runs once on first login to complete ERR0RS installation    ║
+# ║   Called by: /etc/profile.d/errz_firstboot.sh                ║
+# ╚═══════════════════════════════════════════════════════════════╝
 
-set -e
-REPO_DIR="/opt/ERR0RS-Ultimate"
-GREEN='\033[0;32m'; PURPLE='\033[0;35m'; CYAN='\033[0;36m'
-YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+STAMP="$HOME/.errz_firstboot_done"
+REPO="/opt/ERR0RS-Ultimate"
+LOG="$HOME/errz_firstboot.log"
 
-log()    { echo -e "${GREEN}[+]${NC} $1"; }
-warn()   { echo -e "${YELLOW}[!]${NC} $1"; }
-section(){ echo -e "\n${CYAN}══ $1 ══${NC}"; }
+# Only run once
+[ -f "$STAMP" ] && exit 0
 
-section "HAILO AI HAT+ 2 DRIVER INSTALL"
-# Install HailoRT from Hailo's APT repo
-log "Adding Hailo repository..."
-curl -fsSL https://hailo-hailort.s3.eu-west-2.amazonaws.com/HailoRT/hailo_platform_repo.gpg \
-  | gpg --dearmor -o /usr/share/keyrings/hailo.gpg 2>/dev/null || warn "GPG key step skipped"
+RED='\033[0;31m'; CYAN='\033[0;36m'; GREEN='\033[0;32m'; NC='\033[0m'
 
-echo "deb [signed-by=/usr/share/keyrings/hailo.gpg] \
-  https://hailo-hailort.s3.eu-west-2.amazonaws.com/HailoRT/4.18.0/deb stable main" \
-  > /etc/apt/sources.list.d/hailo.list 2>/dev/null || warn "Hailo repo step skipped — install manually"
+echo -e "${RED}"
+echo "  ╔══════════════════════════════════════════════════╗"
+echo "  ║   ERR0RS ULTIMATE — FIRST BOOT SETUP            ║"
+echo "  ║   Pi 5 Cyberdeck | Phoenix OS                   ║"
+echo "  ╚══════════════════════════════════════════════════╝"
+echo -e "${NC}"
+echo "Setting up ERR0RS... this takes ~5 minutes on first boot."
+echo "Log: $LOG"
+echo ""
 
-apt update -qq 2>/dev/null || true
-apt install -y hailort python3-hailort 2>/dev/null || warn "Hailo pkg install skipped — check internet"
-log "Hailo runtime install attempted"
+{
+    echo "[$(date)] ERR0RS First Boot Setup"
 
-section "NVME PERFORMANCE TUNING"
-# Ensure PCIe Gen 3 is set for X1004 dual NVMe
-CONFIG="/boot/firmware/config.txt"
-grep -q "pciex1_gen=3" "$CONFIG" || echo "dtparam=pciex1_gen=3" >> "$CONFIG"
-grep -q "pciex1-compat" "$CONFIG" || echo "dtoverlay=pciex1-compat-pi5,no-mip" >> "$CONFIG"
-log "PCIe Gen 3 confirmed in config.txt"
+    # ── Pull latest code ───────────────────────────────────────────
+    echo "[*] Pulling latest ERR0RS from GitHub..."
+    cd "$REPO"
+    git pull origin main 2>&1 || echo "[!] git pull failed — using bundled version"
 
-# I/O scheduler tweak for NVMe
-echo 'ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/scheduler}="none"' \
-  > /etc/udev/rules.d/60-nvme-scheduler.rules
-log "NVMe scheduler set to none (optimal for SSDs)"
+    # ── Python venv ────────────────────────────────────────────────
+    echo "[*] Setting up Python venv..."
+    python3 -m venv "$REPO/venv"
+    source "$REPO/venv/bin/activate"
+    pip install --upgrade pip -q
+    pip install -r "$REPO/requirements.txt" -q || \
+    pip install fastapi uvicorn websockets aiohttp \
+        anthropic chromadb sentence-transformers \
+        python-dotenv rich click psutil -q
 
-section "WIRELESS ADAPTER SETUP"
-# Enable monitor mode persistence for common chipsets
-apt install -y aircrack-ng wireless-tools rfkill 2>/dev/null || true
-rfkill unblock all
-log "Wireless adapters unblocked"
+    # ── Ollama ─────────────────────────────────────────────────────
+    echo "[*] Checking Ollama..."
+    if ! command -v ollama &>/dev/null; then
+        echo "[*] Installing Ollama..."
+        curl -fsSL https://ollama.com/install.sh | sh
+    fi
+    systemctl enable ollama 2>/dev/null || true
+    systemctl start ollama 2>/dev/null || (ollama serve &)
+    sleep 3
 
-section "ENABLE REQUIRED INTERFACES"
-# I2C / SPI for any HAT communication
-raspi-config nonint do_i2c 0
-raspi-config nonint do_spi 0
-log "I2C and SPI enabled"
+    echo "[*] Pulling qwen2.5-coder:7b model (background)..."
+    nohup ollama pull qwen2.5-coder:7b > "$HOME/errz_ollama_pull.log" 2>&1 &
+    echo "  Model pull running in background — check ~/errz_ollama_pull.log"
 
-section "EXPAND FILESYSTEM"
-# Fill available NVMe space
-raspi-config nonint do_expand_rootfs
-log "Filesystem expansion queued (takes effect on reboot)"
+    # ── Desktop icon ───────────────────────────────────────────────
+    echo "[*] Installing desktop icon..."
+    bash "$REPO/scripts/install_desktop_icon.sh" 2>/dev/null || true
 
-section "POSTGRESQL FIRST SETUP"
-service postgresql start
-sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='errorz'" | grep -q 1 || \
-  sudo -u postgres psql -c "CREATE DATABASE errorz;"
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='errorz'" | grep -q 1 || \
-  sudo -u postgres psql -c "CREATE USER errorz WITH PASSWORD 'err0rs_secure';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE errorz TO errorz;" 2>/dev/null || true
-systemctl enable postgresql redis-server
-log "Database ready"
+    # ── .env config ────────────────────────────────────────────────
+    echo "[*] Creating .env..."
+    cat > "$REPO/.env" << ENV
+UI_HOST=127.0.0.1
+UI_PORT=8765
+LLM_BACKEND=ollama
+OLLAMA_MODEL=qwen2.5-coder:7b
+OLLAMA_HOST=http://localhost:11434
+HAILO_ENABLED=true
+PI5_MODE=true
+ANTHROPIC_API_KEY=
+ENV
 
-section "VERIFY ERR0RS SERVICE"
-systemctl daemon-reload
-systemctl enable errorz.service
-systemctl start errorz.service || warn "ERR0RS service start failed — check logs: journalctl -u errorz"
-log "ERR0RS service enabled and started"
+    echo "[$(date)] First boot setup complete!" >> "$LOG"
+
+} 2>&1 | tee -a "$LOG"
+
+# Mark as done
+touch "$STAMP"
 
 echo ""
-echo -e "${PURPLE}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${PURPLE}║   Pi 5 First Boot Config Complete  ✓                ║${NC}"
-echo -e "${PURPLE}╚══════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "  ${CYAN}ERR0RS Dashboard:${NC}  http://$(hostname -I | awk '{print $1}'):8765"
-echo -e "  ${CYAN}Hailo NPU check:${NC}   hailortcli fw-control identify"
-echo -e "  ${CYAN}Service status:${NC}    systemctl status errorz"
-echo -e "  ${CYAN}Reboot now to apply all changes:${NC}  sudo reboot"
+echo -e "${GREEN}╔══════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║   ERR0RS SETUP COMPLETE ✓                        ║${NC}"
+echo -e "${GREEN}║   Double-click the desktop icon to launch        ║${NC}"
+echo -e "${GREEN}║   Or type: errorz                                ║${NC}"
+echo -e "${GREEN}║   Web UI: http://127.0.0.1:8765                  ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""

@@ -321,9 +321,17 @@ def run_tool_async(tool: str, target: str, params: dict) -> dict:
 
 
 def query_ollama(prompt: str) -> dict:
-    import urllib.request
+    import urllib.request, os
+    # Pi-aware model selection
+    _m = os.getenv("OLLAMA_MODEL", "")
+    if not _m:
+        try:
+            with open("/proc/cpuinfo") as f:
+                _m = "qwen2.5-coder:7b" if "Raspberry Pi" in f.read() else "qwen2.5-coder:32b"
+        except Exception:
+            _m = "qwen2.5-coder:32b"
     try:
-        body = json.dumps({"model": "llama3.2",
+        body = json.dumps({"model": _m,
             "prompt": f"You are ERR0RS, an AI penetration testing assistant. {prompt}",
             "stream": False}).encode()
         req = urllib.request.Request("http://localhost:11434/api/generate",
@@ -1596,14 +1604,21 @@ def _platform() -> str:
     return "Kali Linux"
 
 def check_ollama():
-    import urllib.request, json as j
+    import urllib.request, json as j, os
+    _m = os.getenv("OLLAMA_MODEL", "")
+    if not _m:
+        try:
+            with open("/proc/cpuinfo") as f:
+                _m = "qwen2.5-coder:7b" if "Raspberry Pi" in f.read() else "qwen2.5-coder:32b"
+        except Exception:
+            _m = "qwen2.5-coder:32b"
     try:
         with urllib.request.urlopen("http://localhost:11434/api/tags",timeout=2) as r:
             models = [m["name"] for m in j.loads(r.read()).get("models",[])]
             if models: print(f"[ERR0RS] Ollama connected: {', '.join(models)}"); return True
-        print("[ERR0RS] Ollama running but no models → ollama pull llama3.2")
+        print(f"[ERR0RS] Ollama running but no models → ollama pull {_m}")
     except Exception:
-        print("[ERR0RS] Ollama offline → sudo systemctl start ollama && ollama pull llama3.2")
+        print(f"[ERR0RS] Ollama offline → sudo systemctl start ollama && ollama pull {_m}")
     return False
 
 def check_ws_deps():

@@ -204,40 +204,77 @@ pip install -r requirements.txt --quiet
 pip install websockets aiohttp --quiet
 
 
-echo "[ERR0RS] Installing systemd service..."
+echo "[ERR0RS] Wiring first-boot setup script..."
+cat > /etc/profile.d/errz_firstboot.sh << 'FBSCRIPT'
+#!/bin/bash
+# ERR0RS first-boot setup — runs once on first login
+STAMP="$HOME/.errz_firstboot_done"
+if [ ! -f "$STAMP" ] && [ -f "/opt/ERR0RS-Ultimate/scripts/pi5_first_boot.sh" ]; then
+    bash /opt/ERR0RS-Ultimate/scripts/pi5_first_boot.sh
+fi
+FBSCRIPT
+chmod +x /etc/profile.d/errz_firstboot.sh
+
+echo "[ERR0RS] Installing Ollama..."
+curl -fsSL https://ollama.com/install.sh | sh || true
+
+echo "[ERR0RS] Installing systemd service (ERR0RS autostart)..."
 cat > /etc/systemd/system/errorz.service <<SERVICE
 [Unit]
-Description=ERR0RS AI Pentest Assistant — Phoenix OS
-After=network.target graphical.target
+Description=ERR0RS Ultimate — AI Pentest Assistant (Phoenix OS)
+After=network.target graphical.target ollama.service
 
 [Service]
 Type=simple
 User=kali
 WorkingDirectory=/opt/ERR0RS-Ultimate
-ExecStart=/opt/ERR0RS-Ultimate/venv/bin/python3 src/ui/errorz_launcher.py
+ExecStart=/bin/bash /opt/ERR0RS-Ultimate/start_err0rs.sh --no-msf
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 Environment=DISPLAY=:0
+Environment=OLLAMA_MODEL=qwen2.5-coder:7b
+Environment=PI5_MODE=true
 
 [Install]
 WantedBy=graphical.target
 SERVICE
 
 systemctl enable errorz.service
+systemctl enable ollama.service 2>/dev/null || true
 
-echo "[ERR0RS] Writing .env..."
+echo "[ERR0RS] Writing Pi .env config..."
 cat > /opt/ERR0RS-Ultimate/.env <<ENV
 UI_HOST=127.0.0.1
 UI_PORT=8765
-DB_URL=postgresql://errorz:err0rs_secure@localhost/errorz
-REDIS_URL=redis://localhost:6379
+LLM_BACKEND=ollama
+OLLAMA_MODEL=qwen2.5-coder:7b
+OLLAMA_HOST=http://localhost:11434
 HAILO_ENABLED=true
 PI5_MODE=true
-OLLAMA_MODEL=qwen2.5-coder:7b
+ANTHROPIC_API_KEY=
 ENV
 
+echo "[ERR0RS] Installing desktop icon for all users..."
+bash /opt/ERR0RS-Ultimate/scripts/install_desktop_icon.sh || true
+
+echo "[ERR0RS] Adding shell aliases..."
+cat >> /etc/skel/.bashrc <<ALIASES
+
+# ERR0RS ULTIMATE
+alias errorz='cd /opt/ERR0RS-Ultimate && bash start_err0rs.sh'
+alias err0rs='cd /opt/ERR0RS-Ultimate && bash start_err0rs.sh'
+alias errorz-cli='cd /opt/ERR0RS-Ultimate && python3 main.py'
+ALIASES
+cat >> /home/kali/.bashrc <<ALIASES
+
+# ERR0RS ULTIMATE
+alias errorz='cd /opt/ERR0RS-Ultimate && bash start_err0rs.sh'
+alias err0rs='cd /opt/ERR0RS-Ultimate && bash start_err0rs.sh'
+alias errorz-cli='cd /opt/ERR0RS-Ultimate && python3 main.py'
+ALIASES
+
 echo "phoenix" > /etc/hostname
-sed -i 's/kali/phoenix/g' /etc/hosts
+sed -i 's/kali/phoenix/g' /etc/hosts 2>/dev/null || true
 echo "kali:err0rs" | chpasswd
 chown -R kali:kali /opt/ERR0RS-Ultimate
 

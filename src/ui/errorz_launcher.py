@@ -79,6 +79,19 @@ except Exception as e:
     WIZARD_ENGINE = False
     print(f"[ERR0RS] Smart Wizard unavailable: {e}")
 
+# ── Hailo-10H NPU Integration ──────────────────────────────────────────────────
+try:
+    from src.ai.hailo_npu import (
+        handle_hailo_request, hailo_available,
+        hailo_status_line, HailoDetector
+    )
+    HAILO_ENGINE = True
+    _hailo_status = hailo_status_line()
+    print(f"[ERR0RS] Hailo NPU: {_hailo_status}")
+except Exception as e:
+    HAILO_ENGINE = False
+    print(f"[ERR0RS] Hailo NPU unavailable: {e}")
+
 # ── Flipper Zero Studio ───────────────────────────────────────────────────────
 try:
     from src.tools.badusb_studio.flipper_studio import handle_flipper_request
@@ -1268,6 +1281,16 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 else:
                     self._json({"status":"ok","flipper_connected":False,"engine_loaded":False})
 
+            elif self.path == "/api/hailo":
+                if HAILO_ENGINE:
+                    self._json(handle_hailo_request(payload))
+                else:
+                    self._json({
+                        "status": "error",
+                        "error":  "Hailo NPU module not loaded",
+                        "fix":    "sudo bash scripts/install_hailo.sh",
+                    })
+
             elif self.path == "/api/brain":
                 # ERR0RS Native AI Brain — replaces mr7 entirely, 100% local
                 if BRAIN_ENGINE:
@@ -1563,6 +1586,9 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 "opsec_engine":     OPSEC_ENGINE,
                 "blue_team_engine": BLUE_TEAM_ENGINE,
                 "teach_engine":     TEACH_ENGINE,
+                "hailo_engine":     HAILO_ENGINE,
+                "hailo_npu":        hailo_available() if HAILO_ENGINE else False,
+                "hailo_status":     hailo_status_line() if HAILO_ENGINE else "not loaded",
                 "flipper_engine":   FLIPPER_ENGINE if 'FLIPPER_ENGINE' in globals() else False}
 
     def _phases(self) -> dict:

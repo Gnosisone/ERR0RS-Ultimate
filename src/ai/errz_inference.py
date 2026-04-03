@@ -62,8 +62,26 @@ def detect_backend() -> dict:
     """
     Auto-detect which inference backend is available.
     Returns the best one with its connection details.
+    Priority: Hailo NPU > llama.cpp > Ollama > LM Studio > fallback
     """
     backends = []
+
+    # 0. Hailo-10H NPU via hailo-ollama (Pi 5 — highest priority)
+    try:
+        from src.ai.hailo_npu import HailoDetector, HAILO_OLLAMA_URL
+        det = HailoDetector.detect()
+        if det["hailo_found"] and det["hailo_ollama"]:
+            backends.append({
+                "name":     "hailo_npu",
+                "url":      HAILO_OLLAMA_URL,
+                "type":     "hailo_ollama",
+                "chip":     det.get("chip", "Hailo-10H"),
+                "firmware": det.get("firmware_version"),
+                "models":   det.get("hailo_ollama_models", []),
+                "priority": 0,
+            })
+    except Exception:
+        pass
 
     # 1. llama.cpp server (direct — fastest, no middleman)
     try:
@@ -414,7 +432,14 @@ class ERRZInference:
         """Route to the appropriate backend API."""
         btype = backend["type"]
 
-        if btype == "ollama":
+        if btype == "hailo_ollama":
+            # Route through Hailo NPU via hailo-ollama server
+            from src.ai.hailo_npu import HailoOllamaClient
+            client = HailoOllamaClient(base_url=backend["url"])
+            # Use best available Hailo model — not the standard Ollama model
+            hailo_model = (backend.get("models") or ["qwen2.5-coder-1.5b-instruct"])[0]
+            return client.generate(prompt=prompt, system=system, model=hailo_model)
+        elif btype == "ollama":
             return self._call_ollama(backend["url"], prompt, system, model)
         elif btype in ("openai_compat", "llamacpp"):
             return self._call_openai_compat(backend["url"], prompt, system, model)

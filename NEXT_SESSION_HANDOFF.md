@@ -1,118 +1,106 @@
-# ERR0RS ULTIMATE — SESSION HANDOFF DOCUMENT
-# ============================================================
-# Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
-# Updated: 2026-03-24 (Session 4 complete)
-# ============================================================
+# ERR0RS Next Session Handoff
+## Cue: "finish last sessions debug"
 
-## SESSION 4 — WHAT WAS COMPLETED
+---
 
-### ALL 12 HANDOFF STEPS EXECUTED:
-- Step 1:  knowledge.json validated — 62 entries, all valid JSON
-- Step 2:  All 9 new module imports — 9/9 PASS
-- Step 3:  Fixed run_postex / run_wireless / run_social (missing alias functions)
-- Step 4:  _status() updated with 14 new engine flags
-- Step 5:  /api/flipper endpoint upgraded (evolution + legacy routing)
-- Step 6:  Language layer classify_command() tested
-- Step 7:  Language expansion v2 self-test passes
-- Step 8:  Launcher boots cleanly — all engines ready
-- Step 9:  Teach engine self-test passes
-- Step 10: All expected RAG entries present
-- Step 11: (README deferred — lower priority)
-- Step 12: Full smoke test 16/16 OK
+## Current State Summary — Sprint: Phoenix OS Full Integration
 
-### NEW: FLIPPER ZERO EVOLUTION ENGINE
-Location: src/tools/flipper/flipper_evolution.py
-Entry:    src/tools/flipper/__init__.py
+### What Was Accomplished This Session
+1. **Phoenix-OS build_pi_image.sh v2.0 — PUSHED** (`506aec9`)
+   - Self-healing Kali ARM downloader — auto-detects latest version
+   - Validates XZ magic bytes before trusting cache
+   - Handles root-owned corrupt files automatically
 
-WHAT IT DOES:
-- Auto-detects Flipper Zero on Windows (COM ports), Linux (/dev/ttyACM0), macOS
-- Detects SD card mount across all platforms
-- XP-based level system (10 levels, AWAKENING → MAX POWER)
-- Persists state across sessions: src/output/flipper_sd/evolution_state.json
-- Background watcher: auto-evolves every time Flipper is plugged in (5s poll)
-- HAPPY STATE: achieved when all steps complete, XP >= level 5 threshold
+2. **Full OS Integration Sprint — PUSHED** (`ba20f53`)
+   - `start_err0rs.sh` v2.0 — FIXED. Was calling `uvicorn main:app` (WRONG).
+     Now correctly launches `python3 src/ui/errorz_launcher.py`
+   - Pi-aware model detection: Pi→`qwen2.5-coder:7b`, Desktop→`qwen2.5-coder:32b`
+   - `errz_brain.py` — uses `_MODEL = _default_model()` based on `/proc/cpuinfo`
+   - `errorz_launcher.py` — `query_ollama()` and `check_ollama()` now Pi-aware
+   - `scripts/pi5_first_boot.sh` — NEW. Runs on first login, pulls latest code,
+     sets up venv, pulls Ollama model in background, installs desktop icon, writes .env
+   - `scripts/build_pi_image.sh` — chroot now wires first-boot via `/etc/profile.d/`,
+     installs desktop icon for all users, adds `errorz` shell aliases, correct systemd service
 
-EVOLUTION STEPS (in order):
-  1. backup        — backs up SD card to timestamped folder           (+50 XP)
-  2. firmware      — Unleashed firmware guidance + qFlipper detection (+100 XP)
-  3. subghz_sync   — Syncs all .sub files from UberGuidoZ + Rocketgod (+200 XP)
-  4. nfc_sync      — NFC + RFID card databases                        (+150 XP)
-  5. ir_sync       — Full IR remote library                           (+150 XP)
-  6. badusb_sync   — ERR0RS + Jakoby + UberGuidoZ BadUSB payloads    (+200 XP)
-  7. wifi_scripts  — Marauder guide + evil portal templates           (+200 XP)
-  8. community     — Rocketgod + UberGuidoZ full community packs      (+200 XP)
-  9. companion_cfg — ERR0RS config, quick reference, README           (+150 XP)
-  10. calibration  — Health report + happy state assessment           (+200 XP)
+---
 
-TOTAL MAX XP: 1600 per session (steps already done don't re-award XP)
+## What To Do On The Pi Now
 
-API ENDPOINTS:
-  POST /api/flipper         action=evolve|detect|status|watch
-  POST /api/flipper/evolve  convenience endpoint
-  POST /api/flipper/status  quick status poll
+### Fastest path — just pull and run:
+```bash
+cd ~/Phoenix-OS   # or wherever the Pi has the repo
+git pull origin main
+bash start_err0rs.sh
+```
 
-WIZARD: "flipper" key in WIZARDS dict — 7 menu options
-TRIGGERS: 20+ phrases in WIZARD_TRIGGERS + BADUSB_TRIGGERS
+### If ERR0RS-Ultimate is at /opt/ERR0RS-Ultimate:
+```bash
+cd /opt/ERR0RS-Ultimate
+git pull origin main
+bash start_err0rs.sh
+# OR just double-click the desktop icon
+# OR type: errorz
+```
 
-### BUGS FIXED THIS SESSION:
-- run_postex / run_wireless / run_social: added thin alias wrappers
-- SEResult missing .error attribute: fixed with getattr()
-- Windows UTF-8 charmap: sys.stdout.reconfigure(encoding='utf-8')
-- subprocess encoding: encoding='utf-8', errors='replace' in all modules
-- Smart wizard SmartWizard → detect_wizard (class vs function)
+### If this is a fresh clone on the Pi:
+```bash
+git clone https://github.com/Gnosisone/ERR0RS-Ultimate.git /opt/ERR0RS-Ultimate
+cd /opt/ERR0RS-Ultimate
+sudo bash install.sh
+# OR
+bash scripts/pi5_first_boot.sh
+```
 
-## CURRENT ENGINE STATUS (all should be True on next boot)
+---
 
-FRAMEWORK_LOADED    = True
-BRAIN_ENGINE        = True
-BAS_ENGINE          = True
-POSTEX_ENGINE       = True   (fixed this session)
-WIRELESS_ENGINE     = True   (fixed this session)
-SOCIAL_ENGINE       = True   (fixed this session)
-CLOUD_ENGINE        = True
-CTF_ENGINE          = True
-OPSEC_ENGINE        = True
-BLUE_TEAM_ENGINE    = True
-CAMPAIGN_ENGINE     = True
-KILLCHAIN_ENGINE    = True
-PRO_REPORTER        = True
-CRED_ENGINE         = True
-SE_ENGINE           = True
-AI_THREAT_ENGINE    = True
-TEACH_ENGINE        = True
-FLIPPER_ENGINE      = True   (NEW this session)
+## Known Working State
+- **HTTP API**: http://127.0.0.1:8765
+- **WebSocket terminal**: ws://127.0.0.1:8766
+- **Desktop icon**: double-click → launches start_err0rs.sh → opens browser at 8765
+- **CLI**: `errorz` (alias) or `python3 main.py`
+- **Model on Pi**: qwen2.5-coder:7b (auto-detected via /proc/cpuinfo)
+- **Model on desktop**: qwen2.5-coder:32b
 
-## NEXT SESSION PRIORITIES
+## What Still Needs Testing On Pi
+1. **Hailo-10H NPU** — driver v5.1.1 installed but inference routing not yet hooked
+   into errz_inference.py. ERR0RS falls back to Ollama CPU.
+2. **WebSocket PTY terminal** — requires `websockets` Python package installed in venv
+3. **chromadb on Kali ARM** — may need `pip install chromadb --no-deps` if fails
+4. **RAG ingest** — runs in background on first launch via start_err0rs.sh
 
-1. README.md full rewrite (reflect all v3.0 capabilities)
-2. Nano Bridge Module (WiFi Pineapple Nano API integration)
-   - Connect when Alfa AWUS036ACM arrives
-   - Auto 5GHz detection + monitor mode setup
-   - Pipe recon data into ERR0RS RAG
-3. Pi 5 deployment testing
-   - Test full boot on Kali Linux ARM (Raspberry Pi 5 16GB)
-   - Hailo-10H acceleration hooks for LLM inference
-4. Web UI dashboard update
-   - Add Flipper Evolution widget (shows XP bar + level)
-   - Show all 14 engine status flags on the status page
+## Engines Status (as of last session)
+All engines are implemented. All import gracefully with fallback if deps missing:
+- ✅ Language Layer + NLP (500+ phrasings)
+- ✅ ERR0RS Brain (7 modes, Pi-aware model)
+- ✅ Smart Wizard (13+ tools)
+- ✅ Teach Engine (16+ offline lessons)
+- ✅ Campaign Manager
+- ✅ Auto Kill Chain
+- ✅ Professional Reporter
+- ✅ Credential Engine
+- ✅ Social Engineering Engine
+- ✅ AI Threat Intel Engine
+- ✅ BAS Engine (6 playbooks)
+- ✅ Post-Exploitation Suite
+- ✅ Privilege Escalation Module
+- ✅ Lateral Movement Module
+- ✅ Wireless Module
+- ✅ Cloud Security Module
+- ✅ CTF Solver
+- ✅ OPSEC Mode
+- ✅ Blue Team Toolkit
+- ✅ Flipper Zero Evolution Engine
+- ✅ Payload Studio
 
-## KEY FILE LOCATIONS
+## Key File Locations
+- Repo Windows: `H:\ERR0RS-Ultimate`
+- Repo Pi: `/opt/ERR0RS-Ultimate`
+- Main launcher: `src/ui/errorz_launcher.py`
+- Start script: `start_err0rs.sh` (FIXED — use this, not uvicorn directly)
+- Pi first boot: `scripts/pi5_first_boot.sh`
+- Desktop icon installer: `scripts/install_desktop_icon.sh`
 
-Main launcher:        src/ui/errorz_launcher.py   (~1600 lines)
-Language layer:       src/core/language_layer.py
-Language v2:          src/core/language_expansion_v2.py
-Smart wizard:         src/core/smart_wizard.py
-Teach engine:         src/education/teach_engine.py
-Knowledge JSON:       knowledge.json (62 entries)
-Flipper evolution:    src/tools/flipper/flipper_evolution.py  (NEW)
-Flipper SD output:    src/output/flipper_sd/
-Evolution state:      src/output/flipper_sd/evolution_state.json
-
-## DESKTOP COMMANDER WRITE RULES (CRITICAL — always follow)
-- mode: 'rewrite' for first chunk
-- mode: 'append'  for subsequent chunks
-- Max 25-30 lines per write_file call
-- fileWriteLineLimit = 501
-- Shell: always use shell='cmd' for start_process on Windows
-- Multi-line python: write to .py file, run with python <file>.py
-- Quotes in cmd: use a .py helper file to avoid shell quoting hell
+## Desktop Commander Config
+- allowedDirectories: `H:\ERR0RS-Ultimate`, `C:\Users\Err0r\Documents\GitHub\ERR0RS-Ultimate`
+- fileWriteLineLimit: 501
+- defaultShell: powershell.exe

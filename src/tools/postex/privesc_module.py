@@ -438,6 +438,20 @@ PRIVESC_WIZARD_MENU = {
     ]
 }
 
+# ── Public shim expected by errorz_launcher ──────────────────────────────────
+def run_privesc(action: str, params: dict = None) -> dict:
+    """Top-level entry point for the privilege escalation controller."""
+    ctrl = PrivescController()
+    result = ctrl.run(action, params)
+    return {
+        "technique":  result.technique,
+        "vulnerable": result.vulnerable,
+        "output":     result.output,
+        "teach":      result.teach,
+        "defend":     result.defend,
+    }
+
+
 if __name__ == "__main__":
     ctrl = PrivescController()
     print("[ERR0RS] Privilege Escalation Module OK")

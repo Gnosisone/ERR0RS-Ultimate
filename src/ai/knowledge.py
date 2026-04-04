@@ -55,6 +55,26 @@ class ERR0RSKnowledgeBase:
         try:
             import chromadb
             from chromadb.utils import embedding_functions
+            import warnings, logging as _logging
+
+            # ── Suppress noisy model load warnings ───────────────────────────
+            warnings.filterwarnings("ignore", message=".*UNEXPECTED.*")
+            _logging.getLogger("sentence_transformers").setLevel(_logging.ERROR)
+            _logging.getLogger("transformers").setLevel(_logging.ERROR)
+
+            # ── Offline mode: use cached model, never hit HuggingFace at boot ──
+            _hf_cache = os.path.expanduser(
+                "~/.cache/huggingface/hub/models--sentence-transformers--all-MiniLM-L6-v2"
+            )
+            if os.path.isdir(_hf_cache):
+                os.environ.setdefault("HF_HUB_OFFLINE", "1")
+                os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+            else:
+                log.warning(
+                    "Sentence-transformer model not cached locally. "
+                    "First boot will download ~90MB. Subsequent boots will be instant."
+                )
+
             client = chromadb.PersistentClient(path=str(self.persist_dir))
             ef = embedding_functions.SentenceTransformerEmbeddingFunction(
                 model_name="all-MiniLM-L6-v2"
@@ -71,6 +91,15 @@ class ERR0RSKnowledgeBase:
             return False
 
     def ingest(self, force: bool = False) -> int:
+        """
+        Ingest knowledge chunks into ChromaDB (or JSON fallback).
+        Skips re-ingestion if data already exists — fast on every boot after first run.
+        """
+        # ── Fast path: already ingested, skip unless forced ───────────────────
+        if self._use_chroma and self.collection.count() > 0 and not force:
+            log.info(f"RAG already populated ({self.collection.count()} docs) — skipping ingest.")
+            return self.collection.count()
+
         chunks = _kb_to_chunks()
         # ── Merge in DarkCoderSc knowledge base ──────────────────────────────
         try:

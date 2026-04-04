@@ -17,6 +17,19 @@ import json
 import logging
 from typing import Optional
 
+# ── Load .env so OLLAMA_MODEL / LLM_BACKEND are available ────────────────────
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _root = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(5):                          # walk up to repo root
+        _env = os.path.join(_root, ".env")
+        if os.path.isfile(_env):
+            _load_dotenv(_env, override=False)
+            break
+        _root = os.path.dirname(_root)
+except ImportError:
+    pass
+
 log = logging.getLogger("errors.ai.providers")
 
 

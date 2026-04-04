@@ -312,6 +312,20 @@ LATERAL_WIZARD_MENU = {
     ]
 }
 
+# ── Public shim expected by errorz_launcher ──────────────────────────────────
+def run_lateral(action: str, params: dict = None) -> dict:
+    """Top-level entry point for the lateral movement controller."""
+    ctrl = LateralMovementController()
+    result = ctrl.run(action, params)
+    return {
+        "technique": result.technique,
+        "command":   result.command,
+        "output":    result.output,
+        "teach":     result.teach,
+        "defend":    result.defend,
+    }
+
+
 if __name__ == "__main__":
     ctrl = LateralMovementController()
     print("[ERR0RS] Lateral Movement Module OK")

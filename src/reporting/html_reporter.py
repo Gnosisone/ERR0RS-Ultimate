@@ -185,8 +185,6 @@ a:hover { text-decoration: underline; }
 .section-header h2 { font-size: 22px; font-weight: 600; }
 .section-header .icon { font-size: 28px; }
 .section-body { padding: 32px 40px; }
-"""
-        # CSS continues in next chunk...
 
 /* === SEVERITY BADGES === */
 .badge {

@@ -17,6 +17,11 @@ import os, sys, json, time, asyncio, threading, subprocess, webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
+# ── Ensure repo root is always on sys.path regardless of cwd ─────────────────
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 # ── UTF-8 stdout/stderr (fixes Windows cp1252 charmap errors) ─────────────
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -267,18 +272,32 @@ try:
     _flipper_evo = FlipperEvolution()
     FLIPPER_ENGINE = True
     print("[ERR0RS] Flipper Evolution Engine ready — plug in your Flipper to evolve it!")
-    # Start background watcher — auto-evolves when Flipper is plugged in
-    import threading as _threading
+
     def _flipper_cb(step):
         print(f"[ERR0RS] FLIPPER [{step.status.upper()}] {step.name}  +{step.xp_reward} XP")
-    _ft = _threading.Thread(
-        target=_flipper_evo.auto_evolve_on_connect,
-        kwargs={"poll_interval": 5, "callback": _flipper_cb},
-        daemon=True, name="flipper-watcher"
-    )
-    _ft.start()
+
+    def start_flipper_watcher(poll_interval: int = 5):
+        """
+        Start the background Flipper auto-evolve watcher.
+        Called explicitly by the server after boot — NOT at import time.
+        Set env var FLIPPER_WATCH=1 to auto-start, or call this function manually.
+        """
+        import threading as _threading
+        _ft = _threading.Thread(
+            target=_flipper_evo.auto_evolve_on_connect,
+            kwargs={"poll_interval": poll_interval, "callback": _flipper_cb},
+            daemon=True, name="flipper-watcher"
+        )
+        _ft.start()
+        print(f"[ERR0RS] Flipper watcher started (polling every {poll_interval}s)")
+
+    # Only auto-start watcher if explicitly opted in via env var
+    if os.environ.get("FLIPPER_WATCH", "0") == "1":
+        start_flipper_watcher()
+
 except Exception as e:
     FLIPPER_ENGINE = False
+    start_flipper_watcher = None
     print(f"[ERR0RS] Flipper Evolution Engine unavailable: {e}")
 
 # ── Active listener/server processes (payload studio auto-spin-up) ─────────────
@@ -1663,7 +1682,15 @@ def start_server():
     if not UI_DIR.exists() or not (UI_DIR/"index.html").exists():
         print(f"[ERR0RS] ERROR: UI not found at {UI_DIR}"); sys.exit(1)
 
-    server = HTTPServer((HOST, HTTP_PORT), ERR0RSHandler)
+    # SO_REUSEADDR — survive port-in-use after a crash/restart
+    import socket
+    class ReusableHTTPServer(HTTPServer):
+        allow_reuse_address = True
+        def server_bind(self):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            super().server_bind()
+
+    server = ReusableHTTPServer((HOST, HTTP_PORT), ERR0RSHandler)
     url    = f"http://{HOST}:{HTTP_PORT}"
     print(f"[ERR0RS] Dashboard   → {url}")
     print(f"[ERR0RS] HTTP API    → {url}/api/command")
@@ -1673,12 +1700,29 @@ def start_server():
         print(f"[ERR0RS] Live Term   → ws://{HOST}:{WS_PORT}")
     print(f"[ERR0RS] Ctrl+C to stop\n")
 
-    t = threading.Thread(target=server.serve_forever, daemon=True)
-    t.start()
+    # ── HTTP server in background daemon thread ───────────────────────────────
+    http_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    http_thread.start()
+
+    # ── WebSocket server in background daemon thread ──────────────────────────
     start_ws_server()
-    try: webbrowser.open(url)
-    except Exception: pass
-    try: t.join()
+
+    # ── Flipper watcher in background (non-blocking daemon) ───────────────────
+    # Guard: only start if not already running (check thread names)
+    running = [t.name for t in threading.enumerate()]
+    if FLIPPER_ENGINE and callable(start_flipper_watcher) and "flipper-watcher" not in running:
+        start_flipper_watcher()
+
+    # ── Open browser ──────────────────────────────────────────────────────────
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+    # ── Block main thread with clean Ctrl+C handling ──────────────────────────
+    try:
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         print("\n[ERR0RS] Shutdown. Stay safe operator.")
         server.shutdown()

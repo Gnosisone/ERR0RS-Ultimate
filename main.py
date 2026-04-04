@@ -16,6 +16,14 @@ import os
 import sys
 import logging
 
+# ── Load .env BEFORE anything reads env vars ──────────────────────────────────
+try:
+    from dotenv import load_dotenv
+    _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    load_dotenv(_env_path, override=False)  # CLI args / existing env take precedence
+except ImportError:
+    pass  # python-dotenv optional; set vars manually if needed
+
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s [ERR0RS] %(message)s")
 
 BANNER = r"""

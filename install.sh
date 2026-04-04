@@ -186,6 +186,8 @@ setup_desktop() {
     mkdir -p "$DESKTOP_DIR"
     ICON_PATH="$SCRIPT_DIR/assets/icons/err0rs.png"
     [ ! -f "$ICON_PATH" ] && ICON_PATH="$SCRIPT_DIR/assets/icons/err0rs.svg"
+
+    # Main ERR0RS launcher
     cat > "$DESKTOP_DIR/ERR0RS-Ultimate.desktop" << DEOF
 [Desktop Entry]
 Version=1.1
@@ -203,6 +205,25 @@ DEOF
     chmod +x "$DESKTOP_DIR/ERR0RS-Ultimate.desktop"
     gio set "$DESKTOP_DIR/ERR0RS-Ultimate.desktop" metadata::trusted true 2>/dev/null || true
     echo -e "  ${GREEN}✓${NC} Desktop shortcut created"
+
+    # Prompt Manual launcher
+    cat > "$DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop" << DEOF
+[Desktop Entry]
+Version=1.1
+Type=Application
+Name=ERR0RS Prompt Manual
+GenericName=ERR0RS Prompting Guide
+Comment=Interactive prompt instruction manual for ERR0RS-Ultimate
+Exec=bash -c "cd $SCRIPT_DIR && bash open_manual.sh"
+Icon=$ICON_PATH
+Terminal=false
+StartupNotify=true
+Categories=Security;Documentation;
+Keywords=pentest;prompting;manual;guide;err0rs;
+DEOF
+    chmod +x "$DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop"
+    gio set "$DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop" metadata::trusted true 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Manual desktop icon created"
   fi
 
   # Add shell aliases

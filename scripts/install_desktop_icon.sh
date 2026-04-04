@@ -70,7 +70,7 @@ PYEOF
     echo -e "  ${GREEN}✓ Icons ready in $ICON_DIR${NC}"
 }
 
-# ── Build .desktop file content ──────────────────────────────────
+# ── Build .desktop file — main ERR0RS launcher ───────────────────
 desktop_entry() {
     cat << EOF
 [Desktop Entry]
@@ -90,6 +90,25 @@ X-GNOME-UsesNotifications=true
 EOF
 }
 
+# ── Build .desktop file — Prompt Manual ──────────────────────────
+manual_desktop_entry() {
+    cat << EOF
+[Desktop Entry]
+Version=1.1
+Type=Application
+Name=ERR0RS Prompt Manual
+GenericName=ERR0RS Prompting Guide
+Comment=Interactive prompt instruction manual for ERR0RS-Ultimate
+Exec=bash -c "cd $SCRIPT_DIR && bash open_manual.sh"
+Icon=$ICON_PNG
+Terminal=false
+StartupNotify=true
+Categories=Security;Documentation;
+Keywords=pentest;hacking;prompting;manual;guide;err0rs;ai;
+StartupWMClass=ERR0RS-Manual
+EOF
+}
+
 # ── Install for current user ─────────────────────────────────────
 install_user() {
     echo -e "${CYAN}[1/3] Installing for current user: $(whoami)${NC}"
@@ -102,14 +121,25 @@ install_user() {
 
     DESKTOP_DIR="${XDG_DESKTOP_DIR:-$HOME/Desktop}"
     mkdir -p "$DESKTOP_DIR"
+
+    # Main ERR0RS launcher
     desktop_entry > "$DESKTOP_DIR/ERR0RS-Ultimate.desktop"
     chmod +x "$DESKTOP_DIR/ERR0RS-Ultimate.desktop"
-
-    # Trust the .desktop file (XFCE/Nautilus/Thunar)
     gio set "$DESKTOP_DIR/ERR0RS-Ultimate.desktop" \
         metadata::trusted true 2>/dev/null || true
-
     echo -e "  ${GREEN}✓ Desktop icon: $DESKTOP_DIR/ERR0RS-Ultimate.desktop${NC}"
+
+    # Prompt Manual launcher
+    manual_desktop_entry > "$DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop"
+    chmod +x "$DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop"
+    gio set "$DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop" \
+        metadata::trusted true 2>/dev/null || true
+    echo -e "  ${GREEN}✓ Manual icon: $DESKTOP_DIR/ERR0RS-Prompt-Manual.desktop${NC}"
+
+    # Also add manual to app menu
+    manual_desktop_entry > "$USER_APPS/err0rs-prompt-manual.desktop"
+    chmod +x "$USER_APPS/err0rs-prompt-manual.desktop"
+
     update-desktop-database "$USER_APPS" 2>/dev/null || true
 }
 
@@ -134,43 +164,60 @@ install_system_wide() {
 
     echo -e "  ${GREEN}✓ Icons → /usr/share/icons/hicolor/${NC}"
 
-    # System .desktop entry
+    # System .desktop entry — main app
     desktop_entry > /usr/share/applications/err0rs-ultimate.desktop
     chmod 644 /usr/share/applications/err0rs-ultimate.desktop
     echo -e "  ${GREEN}✓ System app entry → /usr/share/applications/${NC}"
 
+    # System .desktop entry — manual
+    manual_desktop_entry > /usr/share/applications/err0rs-prompt-manual.desktop
+    chmod 644 /usr/share/applications/err0rs-prompt-manual.desktop
+    echo -e "  ${GREEN}✓ Manual app entry → /usr/share/applications/${NC}"
+
     # Desktop icon for every existing user
-    echo -e "${CYAN}[3/3] Adding icon to all existing user desktops...${NC}"
+    echo -e "${CYAN}[3/3] Adding icons to all existing user desktops...${NC}"
     for USER_HOME in /home/*/; do
         USERNAME=$(basename "$USER_HOME")
         USER_DESKTOP="$USER_HOME/Desktop"
         mkdir -p "$USER_DESKTOP"
 
+        # Main launcher
         desktop_entry > "$USER_DESKTOP/ERR0RS-Ultimate.desktop"
         chmod +x "$USER_DESKTOP/ERR0RS-Ultimate.desktop"
         chown "${USERNAME}:${USERNAME}" \
             "$USER_DESKTOP/ERR0RS-Ultimate.desktop" 2>/dev/null || true
-
-        # Trust for each user
         sudo -u "$USERNAME" gio set \
             "$USER_DESKTOP/ERR0RS-Ultimate.desktop" \
             metadata::trusted true 2>/dev/null || true
 
-        # Also add to their local applications menu
+        # Manual launcher
+        manual_desktop_entry > "$USER_DESKTOP/ERR0RS-Prompt-Manual.desktop"
+        chmod +x "$USER_DESKTOP/ERR0RS-Prompt-Manual.desktop"
+        chown "${USERNAME}:${USERNAME}" \
+            "$USER_DESKTOP/ERR0RS-Prompt-Manual.desktop" 2>/dev/null || true
+        sudo -u "$USERNAME" gio set \
+            "$USER_DESKTOP/ERR0RS-Prompt-Manual.desktop" \
+            metadata::trusted true 2>/dev/null || true
+
+        # Also add both to their local app menus
         USER_APPS_DIR="$USER_HOME/.local/share/applications"
         mkdir -p "$USER_APPS_DIR"
         desktop_entry > "$USER_APPS_DIR/err0rs-ultimate.desktop"
+        manual_desktop_entry > "$USER_APPS_DIR/err0rs-prompt-manual.desktop"
         chmod +x "$USER_APPS_DIR/err0rs-ultimate.desktop"
+        chmod +x "$USER_APPS_DIR/err0rs-prompt-manual.desktop"
         chown -R "${USERNAME}:${USERNAME}" "$USER_APPS_DIR" 2>/dev/null || true
 
         echo -e "  ${GREEN}✓${NC} $USERNAME"
     done
 
-    # /etc/skel — future new users automatically get the icon
+    # /etc/skel — future new users get both icons automatically
     mkdir -p "/etc/skel/Desktop"
     desktop_entry > "/etc/skel/Desktop/ERR0RS-Ultimate.desktop"
+    manual_desktop_entry > "/etc/skel/Desktop/ERR0RS-Prompt-Manual.desktop"
     chmod +x "/etc/skel/Desktop/ERR0RS-Ultimate.desktop"
-    echo -e "  ${GREEN}✓ /etc/skel — new users get icon automatically${NC}"
+    chmod +x "/etc/skel/Desktop/ERR0RS-Prompt-Manual.desktop"
+    echo -e "  ${GREEN}✓ /etc/skel — new users get both icons automatically${NC}"
 
     # Refresh caches
     gtk-update-icon-cache -f -t /usr/share/icons/hicolor/ 2>/dev/null || true
@@ -190,16 +237,17 @@ refresh_xfce() {
 summary() {
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║   ERR0RS DESKTOP ICON INSTALLED ✓                  ║${NC}"
+    echo -e "${GREEN}║   ERR0RS DESKTOP ICONS INSTALLED ✓                 ║${NC}"
     echo -e "${GREEN}╠════════════════════════════════════════════════════╣${NC}"
-    echo -e "${GREEN}║   Desktop: ~/Desktop/ERR0RS-Ultimate.desktop       ║${NC}"
-    echo -e "${GREEN}║   Menu:    Applications → Security → ERR0RS        ║${NC}"
+    echo -e "${GREEN}║   ERR0RS-Ultimate.desktop    → launch the AI       ║${NC}"
+    echo -e "${GREEN}║   ERR0RS-Prompt-Manual.desktop → open the manual   ║${NC}"
+    echo -e "${GREEN}║   Menu: Applications → Security → ERR0RS           ║${NC}"
     if [ "$EUID" -eq 0 ]; then
-    echo -e "${GREEN}║   System:  /usr/share/applications/                ║${NC}"
-    echo -e "${GREEN}║   New users get the icon automatically             ║${NC}"
+    echo -e "${GREEN}║   System: /usr/share/applications/                 ║${NC}"
+    echo -e "${GREEN}║   New users get both icons automatically            ║${NC}"
     fi
     echo -e "${GREEN}╠════════════════════════════════════════════════════╣${NC}"
-    echo -e "${GREEN}║   Double-click the desktop icon to launch ERR0RS   ║${NC}"
+    echo -e "${GREEN}║   Double-click ERR0RS-Prompt-Manual to read guide  ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════╝${NC}"
     echo ""
     if [ "$EUID" -ne 0 ]; then

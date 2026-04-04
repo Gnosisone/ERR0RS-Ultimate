@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERR0RS-Ultimate — Prompt Instruction Manual</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+:root {
+  --green:#00ff41; --green-dim:#00cc33; --green-dark:#003311;
+  --amber:#ffaa00; --red:#ff3333; --blue:#00aaff; --purple:#aa44ff;
+  --bg:#050a05; --bg2:#0a140a; --bg3:#0f1f0f; --border:#1a3a1a;
+  --text:#c8ffce; --text-dim:#5a8a5a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:16px;line-height:1.7;min-height:100vh;}
+.shell{display:flex;min-height:100vh;}
+/* SIDEBAR */
+.sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.logo{padding:20px 16px 16px;border-bottom:1px solid var(--border);}
+.logo-title{font-family:'Orbitron',monospace;font-size:18px;font-weight:900;color:var(--green);letter-spacing:2px;text-shadow:0 0 10px #00ff4155;}
+.logo-sub{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);margin-top:4px;letter-spacing:1px;}
+.nav-section-label{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--text-dim);padding:14px 16px 6px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;font-size:14px;font-weight:500;color:var(--text-dim);border-left:2px solid transparent;transition:all 0.15s;font-family:'Rajdhani',sans-serif;}
+.nav-item:hover{color:var(--green);background:var(--bg3);border-left-color:var(--green-dim);}
+.nav-item.active{color:var(--green);background:var(--green-dark);border-left-color:var(--green);}
+.nav-icon{font-size:14px;width:18px;text-align:center;}
+/* MAIN */
+.main{flex:1;overflow-y:auto;}
+.top-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+.top-bar-title{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--green);letter-spacing:1px;}
+.version-badge{background:var(--green-dark);border:1px solid var(--green-dim);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 10px;border-radius:3px;letter-spacing:1px;}
+.content{padding:32px;max-width:900px;}
+.section{display:none;}
+.section.active{display:block;}
+/* HERO */
+.hero{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:28px 32px;margin-bottom:28px;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),var(--amber),transparent);}
+.hero-eyebrow{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--amber);letter-spacing:3px;margin-bottom:10px;}
+.hero-title{font-family:'Orbitron',monospace;font-size:28px;font-weight:900;color:var(--green);line-height:1.2;text-shadow:0 0 20px #00ff4133;margin-bottom:12px;}
+.hero-sub{font-size:16px;color:var(--text-dim);max-width:600px;line-height:1.6;}
+/* CARDS */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px;}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:20px;}
+.stat-label{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;}
+.stat-val{font-family:'Orbitron',monospace;font-size:26px;font-weight:700;color:var(--green);}
+.stat-note{font-size:13px;color:var(--text-dim);margin-top:4px;}
+/* CALLOUTS */
+.callout{border-radius:5px;padding:16px 20px;margin-bottom:20px;border-left:3px solid;font-size:15px;line-height:1.7;}
+.callout.green{background:#002210;border-color:var(--green);color:#90d4a0;}
+.callout.amber{background:#1a0e00;border-color:var(--amber);color:#d4b080;}
+.callout.red{background:#1a0000;border-color:var(--red);color:#d48080;}
+.callout.blue{background:#001830;border-color:var(--blue);color:#80c8ff;}
+.callout.purple{background:#120020;border-color:var(--purple);color:#cc88ff;}
+.callout-label{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;margin-bottom:8px;display:block;font-weight:700;}
+/* CODE */
+.code-block{background:#020802;border:1px solid var(--border);border-radius:5px;padding:16px 20px;margin-bottom:20px;font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--green);line-height:1.8;overflow-x:auto;white-space:pre;}
+.code-comment{color:var(--text-dim);}
+.code-key{color:var(--amber);}
+.code-val{color:#80ffaa;}
+/* SECTION HEADERS */
+.sec-header{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:var(--green);margin-bottom:6px;letter-spacing:1px;}
+.sec-divider{height:1px;background:var(--border);margin-bottom:24px;}
+.sec-desc{font-size:16px;color:var(--text-dim);margin-bottom:24px;line-height:1.7;}
+.subsec{margin-bottom:32px;}
+.subsec-title{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--amber);margin-bottom:12px;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+.subsec-title::before{content:'//';color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:13px;}
+/* TABLE */
+.data-table{width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;}
+.data-table th{background:var(--bg3);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;padding:10px 14px;text-align:left;border:1px solid var(--border);}
+.data-table td{padding:10px 14px;border:1px solid var(--border);color:var(--text);vertical-align:top;line-height:1.6;}
+.data-table tr:nth-child(even) td{background:#060e06;}
+/* TAGS */
+.tag{display:inline-block;font-family:'Share Tech Mono',monospace;font-size:11px;padding:2px 8px;border-radius:3px;margin:2px;border:1px solid;}
+.tag.green{color:var(--green);border-color:var(--green-dim);background:var(--green-dark);}
+.tag.amber{color:var(--amber);border-color:#664400;background:#1a0e00;}
+.tag.red{color:var(--red);border-color:#661111;background:#1a0000;}
+.tag.blue{color:var(--blue);border-color:#004466;background:#001828;}
+/* ANATOMY */
+.anatomy{background:var(--bg2);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:24px;}
+.anatomy-row{display:flex;border-bottom:1px solid var(--border);}
+.anatomy-row:last-child{border-bottom:none;}
+.anatomy-label{width:160px;min-width:160px;padding:14px 16px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--amber);background:var(--bg3);border-right:1px solid var(--border);display:flex;align-items:flex-start;letter-spacing:1px;}
+.anatomy-content{padding:14px 20px;font-size:15px;color:var(--text);flex:1;line-height:1.7;}
+.anatomy-content code{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--green);background:#010f01;padding:1px 6px;border-radius:3px;}
+/* TERMINAL */
+.terminal{background:#010601;border:1px solid var(--green-dim);border-radius:6px;overflow:hidden;margin-bottom:20px;}
+.term-bar{background:var(--bg3);padding:8px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
+.term-dot{width:10px;height:10px;border-radius:50%;}
+.term-label{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-left:6px;}
+.term-body{padding:16px 20px;font-family:'Share Tech Mono',monospace;font-size:13px;line-height:1.9;color:var(--green);}
+.term-prompt{color:var(--text-dim);}
+.term-cmd{color:var(--green);}
+.term-out{color:#80b880;}
+.term-err{color:var(--red);}
+.term-warn{color:var(--amber);}
+.term-good{color:#aaffaa;}
+/* ACCORDION */
+.accordion-item{border:1px solid var(--border);border-radius:5px;margin-bottom:10px;overflow:hidden;}
+.accordion-header{padding:14px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:var(--bg2);font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:600;color:var(--text);user-select:none;}
+.accordion-header:hover{background:var(--bg3);color:var(--green);}
+.accordion-arrow{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text-dim);transition:transform 0.2s;}
+.accordion-item.open .accordion-arrow{transform:rotate(90deg);}
+.accordion-body{display:none;padding:16px 18px;background:#030803;border-top:1px solid var(--border);font-size:15px;line-height:1.7;color:var(--text);}
+.accordion-item.open .accordion-body{display:block;}
+/* LEVEL BARS */
+.level-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.level-name{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text-dim);width:140px;letter-spacing:1px;}
+.level-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+.level-fill{height:100%;border-radius:3px;background:var(--green);}
+.level-val{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);width:36px;text-align:right;}
+/* MISC */
+.footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);text-align:center;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:2px;}
+p{margin-bottom:14px;}
+strong{color:var(--green);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="shell">
+<!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-title">ERR0RS</div>
+    <div class="logo-sub">PROMPT INSTRUCTION MANUAL v1.0</div>
+  </div>
+  <div class="nav-section-label">Chapters</div>
+  <div class="nav-item active" onclick="showSection('intro',this)"><span class="nav-icon">00</span> Introduction</div>
+  <div class="nav-item" onclick="showSection('anatomy',this)"><span class="nav-icon">01</span> Prompt Anatomy</div>
+  <div class="nav-item" onclick="showSection('roles',this)"><span class="nav-icon">02</span> Role &amp; Context</div>
+  <div class="nav-item" onclick="showSection('operators',this)"><span class="nav-icon">03</span> Operator Language</div>
+  <div class="nav-item" onclick="showSection('techniques',this)"><span class="nav-icon">04</span> Prompt Techniques</div>
+  <div class="nav-item" onclick="showSection('modules',this)"><span class="nav-icon">05</span> Module Triggers</div>
+  <div class="nav-item" onclick="showSection('errors',this)"><span class="nav-icon">06</span> Common Errors</div>
+  <div class="nav-item" onclick="showSection('advanced',this)"><span class="nav-icon">07</span> Advanced Patterns</div>
+  <div class="nav-item" onclick="showSection('opsec',this)"><span class="nav-icon">08</span> OPSEC in Prompts</div>
+  <div class="nav-item" onclick="showSection('cheatsheet',this)"><span class="nav-icon">09</span> Quick Cheatsheet</div>
+</nav>
+<!-- ═══════════════════ MAIN ═══════════════════ -->
+<div class="main">
+  <div class="top-bar">
+    <div class="top-bar-title">ERR0RS-Ultimate // Prompt Engineering Manual</div>
+    <div class="version-badge">v1.0 // Kali 2026.1</div>
+  </div>
+  <div class="content">
+
+<!-- ═══════════════ SECTION 00: INTRO ═══════════════ -->
+<div class="section active" id="intro">
+  <div class="hero">
+    <div class="hero-eyebrow">CLASSIFIED // OPERATOR DOCUMENTATION</div>
+    <div class="hero-title">How to Talk to ERR0RS</div>
+    <div class="hero-sub">This manual teaches you to prompt ERR0RS like a pro — from basic recon queries to chaining full kill chains. The better you speak its language, the harder it hits.</div>
+  </div>
+  <div class="card-grid">
+    <div class="stat-card"><div class="stat-label">PROMPT PATTERNS</div><div class="stat-val">500+</div><div class="stat-note">Operator phrasings recognized</div></div>
+    <div class="stat-card"><div class="stat-label">MODULE TRIGGERS</div><div class="stat-val">120+</div><div class="stat-note">Natural language activators</div></div>
+    <div class="stat-card"><div class="stat-label">AGENT MODES</div><div class="stat-val">11</div><div class="stat-note">Wizards in the Smart Wizard system</div></div>
+  </div>
+  <div class="sec-header">What is ERR0RS?</div>
+  <div class="sec-divider"></div>
+  <p>ERR0RS-Ultimate is a <strong>fully local, airgapped AI penetration testing assistant</strong> running on your Cyberdeck (Raspberry Pi 5 + Hailo-10H NPU). Think Clippy from Windows 95 — but it pops shells instead of formatting documents.</p>
+  <p>Every response ERR0RS gives is built around a <strong>ReAct loop</strong>: Reason → Act → Observe → Repeat. Your prompts are the input that drives that loop. Trash in = trash out. Precision in = precision strikes.</p>
+  <div class="callout green"><span class="callout-label">// CORE PHILOSOPHY</span>ERR0RS is built for <strong>purple team operations</strong> — every offensive technique you ask about is paired with TEACH (how it works) and DEFEND (how to stop it). You're not just popping boxes — you're learning why each attack works at the system level.</div>
+  <div class="subsec">
+    <div class="subsec-title">The Two Launch Modes</div>
+    <div class="anatomy">
+      <div class="anatomy-row"><div class="anatomy-label">CLI MODE</div><div class="anatomy-content"><code>python3 main.py</code> — Interactive terminal session. Best for quick queries, single-module tasks, and learning.</div></div>
+      <div class="anatomy-row"><div class="anatomy-label">WEB MODE</div><div class="anatomy-content"><code>python3 main.py --api</code> — Full dashboard at <code>http://localhost:8000</code>. 19 tool cards, live MSF session widget, Campaign Manager.</div></div>
+    </div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Model Selection</div>
+    <table class="data-table">
+      <tr><th>HARDWARE</th><th>MODEL</th><th>BEST FOR</th></tr>
+      <tr><td>Pi 5 (8GB RAM)</td><td><code>qwen2.5-coder:7b</code></td><td>Fast response, single-tool help, flag lookups</td></tr>
+      <tr><td>Desktop (32GB RAM)</td><td><code>qwen2.5-coder:32b</code></td><td>Deep reasoning, kill chains, exploit dev</td></tr>
+      <tr><td>Hailo-10H NPU</td><td>hailo_runtime.py</td><td>Fastest local inference (driver v5.1.1)</td></tr>
+    </table>
+  </div>
+  <div class="footer">ERR0RS-Ultimate // For educational and authorized penetration testing only // github.com/Gnosisone</div>
+</div>
+
+<!-- ═══════════════ SECTION 01: ANATOMY ═══════════════ -->
+<div class="section" id="anatomy">
+  <div class="sec-header">01 // Prompt Anatomy</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">Every effective ERR0RS prompt has a structure. Understanding each part lets you get exactly what you need without burning tokens on vague back-and-forth.</div>
+  <div class="subsec">
+    <div class="subsec-title">The Five-Part Prompt Structure</div>
+    <div class="anatomy">
+      <div class="anatomy-row"><div class="anatomy-label">ROLE</div><div class="anatomy-content">Who ERR0RS should act as. <code>"Act as a red team operator..."</code> Sets the mindset and output style for the whole session.</div></div>
+      <div class="anatomy-row"><div class="anatomy-label">CONTEXT</div><div class="anatomy-content">What environment, scope, or target you're working with. Always include OS, network range, authorization scope.</div></div>
+      <div class="anatomy-row"><div class="anatomy-label">TASK</div><div class="anatomy-content">The specific action you want. Be precise. <code>"nmap SYN scan all 65535 ports, service version detection, XML output"</code> is strong.</div></div>
+      <div class="anatomy-row"><div class="anatomy-label">FORMAT</div><div class="anatomy-content">How you want output delivered. <code>"Command first, then explain each flag, then expected output."</code></div></div>
+      <div class="anatomy-row"><div class="anatomy-label">CONSTRAINTS</div><div class="anatomy-content">Limits or edge cases. <code>"Do not touch port 443, avoid noisy scans, stay stealth."</code></div></div>
+    </div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Weak vs Strong Prompt</div>
+    <div class="terminal">
+      <div class="term-bar"><div class="term-dot" style="background:#ff5f56"></div><div class="term-dot" style="background:#ffbd2e"></div><div class="term-dot" style="background:#27c93f"></div><span class="term-label">WEAK — avoid this</span></div>
+      <div class="term-body"><span class="term-err">USER &gt; "scan the network"</span>
+<span class="term-warn">RESULT: Ambiguous. Which network? What kind of scan?
+ERR0RS has to guess — guesses waste time and may violate scope.</span></div>
+    </div>
+    <div class="terminal">
+      <div class="term-bar"><div class="term-dot" style="background:#ff5f56"></div><div class="term-dot" style="background:#ffbd2e"></div><div class="term-dot" style="background:#27c93f"></div><span class="term-label">STRONG — this is the way</span></div>
+      <div class="term-body"><span class="term-prompt">USER &gt; </span><span class="term-cmd">"Act as red team recon operator. Authorized test on
+192.168.10.0/24. Stealth SYN scan top 1000 ports, skip
+host discovery, grepable output to ~/recon/targets.gnmap.
+Then show which hosts have port 80 or 443 open."</span>
+<span class="term-good">RESULT: Precise. Scoped. Formatted. ERR0RS executes clean.</span></div>
+    </div>
+  </div>
+  <div class="callout amber"><span class="callout-label">// TOKEN TIP</span>First prompt in a session should always carry full context. Short follow-ups are fine after that. On Pi 5 7B, keep prompts under 512 tokens for snappy response.</div>
+</div>
+
+<!-- ═══════════════ SECTION 02: ROLES ═══════════════ -->
+<div class="section" id="roles">
+  <div class="sec-header">02 // Role &amp; Context Setting</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">Telling ERR0RS what role to take on activates the right mental model. A red team operator thinks differently than a malware analyst or CTF solver.</div>
+  <div class="subsec">
+    <div class="subsec-title">Built-in Agent Roles</div>
+    <table class="data-table">
+      <tr><th>ROLE PHRASE</th><th>AGENT</th><th>BEST FOR</th></tr>
+      <tr><td><code>"Act as red team operator"</code></td><td>red_team</td><td>Offensive ops, exploitation, C2, post-ex</td></tr>
+      <tr><td><code>"Act as blue team analyst"</code></td><td>blue_team</td><td>Log review, detection rules, hardening</td></tr>
+      <tr><td><code>"Act as bug bounty hunter"</code></td><td>bug_bounty</td><td>Web app testing, CVE research, write-ups</td></tr>
+      <tr><td><code>"Act as malware analyst"</code></td><td>malware</td><td>Reverse engineering, YARA rules, behavior</td></tr>
+      <tr><td><code>"Act as vuln chain builder"</code></td><td>vuln_chain</td><td>Multi-step exploit chains, AD attack paths</td></tr>
+      <tr><td><code>"Teach me about..."</code></td><td>teach engine</td><td>Learning mode — 41 lessons, concepts, theory</td></tr>
+      <tr><td><code>"Defend against..."</code></td><td>blue+teach</td><td>Countermeasures, detection, hardening</td></tr>
+      <tr><td><code>"Solve this CTF..."</code></td><td>CTF solver</td><td>Flags, forensics, crypto, pwn challenges</td></tr>
+    </table>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Context Anchor Checklist</div>
+    <div class="callout blue"><span class="callout-label">// ALWAYS INCLUDE</span>Before any task, confirm ERR0RS knows: <strong>what OS</strong> you're on, <strong>what the target</strong> is, <strong>your authorization</strong> scope, and <strong>output format</strong> needed.</div>
+    <div class="code-block"><span class="code-comment"># Session header template — paste at start of every engagement</span>
+<span class="code-key">OS:</span>      <span class="code-val">Kali Linux ARM64 2026.1 (Pi 5 Cyberdeck)</span>
+<span class="code-key">LHOST:</span>   <span class="code-val">[YOUR KALI IP]</span>
+<span class="code-key">TARGET:</span>  <span class="code-val">[IP/RANGE] — [OS if known]</span>
+<span class="code-key">AUTH:</span>    <span class="code-val">Written authorization on file</span>
+<span class="code-key">SCOPE:</span>   <span class="code-val">[full / web only / internal only]</span>
+<span class="code-key">AVOID:</span>   <span class="code-val">[IPs/ports to not touch]</span>
+<span class="code-key">NOISE:</span>   <span class="code-val">[stealth / normal / loud]</span>
+<span class="code-key">OUTPUT:</span>  <span class="code-val">Commands + flags explained + OPSEC rating</span></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Persona Stacking (Purple Team Mode)</div>
+    <div class="callout green"><span class="callout-label">// EXAMPLE</span><code>"Act as a red team operator AND a blue team analyst. For every attack you suggest, also tell me how a defender would detect it in Splunk."</code><br><br>This activates <strong>purple team mode</strong> — ERR0RS pairs every ATTACK with TEACH and DEFEND blocks.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 03: OPERATORS ═══════════════ -->
+<div class="section" id="operators">
+  <div class="sec-header">03 // Operator Language</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">ERR0RS speaks hacker. 500+ operator phrasings map directly to module activations and tool calls. Here's the vocabulary.</div>
+  <div class="subsec">
+    <div class="subsec-title">Core Action Verbs</div>
+    <table class="data-table">
+      <tr><th>YOU SAY</th><th>ERR0RS HEARS</th><th>FIRES</th></tr>
+      <tr><td><code>pop / shell / own / pwn</code></td><td>Get shell access</td><td>Exploitation module + MSF bridge</td></tr>
+      <tr><td><code>recon / map / enumerate / fingerprint</code></td><td>Info gathering</td><td>Nmap, Netdiscover, service enumeration</td></tr>
+      <tr><td><code>pivot / tunnel / move laterally</code></td><td>Lateral movement</td><td>Lateral movement module, proxychains</td></tr>
+      <tr><td><code>persist / backdoor / implant</code></td><td>Persistence</td><td>Post-ex persistence module</td></tr>
+      <tr><td><code>dump / harvest / exfil creds</code></td><td>Credential access</td><td>Credential Engine (Mimikatz, hashdump)</td></tr>
+      <tr><td><code>spray / brute / crack</code></td><td>Password attacks</td><td>Hydra, Hashcat, password spray</td></tr>
+      <tr><td><code>phish / lure / soceng</code></td><td>Social engineering</td><td>Social Engineering Engine</td></tr>
+      <tr><td><code>ghost / stealth / evade</code></td><td>Detection evasion</td><td>OPSEC module + AV/EDR evasion</td></tr>
+      <tr><td><code>chain / automate / full kill chain</code></td><td>Multi-stage ops</td><td>Auto Kill Chain + Campaign Manager</td></tr>
+    </table>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Hardware Slang (Cyberdeck)</div>
+    <table class="data-table">
+      <tr><th>PHRASE</th><th>DEVICE</th><th>MODULE</th></tr>
+      <tr><td><code>"flip it" / "flipper" / "zero"</code></td><td>Flipper Zero</td><td>Flipper Evolution Engine (10-level XP)</td></tr>
+      <tr><td><code>"pineapple" / "wifi recon"</code></td><td>WiFi Pineapple Nano</td><td>Wireless attack module</td></tr>
+      <tr><td><code>"alfa" / "deauth" / "handshake"</code></td><td>Alfa AWUS036ACM</td><td>802.11 wireless module (aircrack-ng)</td></tr>
+      <tr><td><code>"marauder" / "esp" / "bluetooth"</code></td><td>ESP32 + Marauder</td><td>BLE/BT attack module</td></tr>
+      <tr><td><code>"cc1101" / "rf" / "sub-ghz"</code></td><td>CC1101 Module</td><td>RF capture and replay</td></tr>
+      <tr><td><code>"hailo" / "npu" / "fast inference"</code></td><td>Hailo-10H NPU</td><td>hailo_runtime.py inference path</td></tr>
+    </table>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Tool Shorthand</div>
+    <div class="code-block"><span class="code-comment"># ERR0RS understands these shorthand references</span>
+<span class="code-key">"msf"</span>        → <span class="code-val">Metasploit Framework (msf_bridge.py)</span>
+<span class="code-key">"msfvenom"</span>   → <span class="code-val">Payload generator (Payload Studio)</span>
+<span class="code-key">"blood/hound"</span>→ <span class="code-val">BloodHound AD enumeration</span>
+<span class="code-key">"kerberoast"</span> → <span class="code-val">Kerberos ticket attack</span>
+<span class="code-key">"as-rep"</span>     → <span class="code-val">ASREPRoasting attack</span>
+<span class="code-key">"ducky"</span>      → <span class="code-val">DuckyScript payload (Payload Studio)</span>
+<span class="code-key">"responder"</span>  → <span class="code-val">LLMNR/NBT-NS poisoning</span>
+<span class="code-key">"ntlm relay"</span> → <span class="code-val">NTLM relay attack chain</span>
+<span class="code-key">"cobalt-like"</span>→ <span class="code-val">AdaptixC2 (Kali 2026.1)</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 04: TECHNIQUES ═══════════════ -->
+<div class="section" id="techniques">
+  <div class="sec-header">04 // Prompt Techniques</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">Battle-tested techniques that get the best results out of ERR0RS. Each has a specific use case — don't use a sledgehammer when you need a scalpel.</div>
+  <div class="subsec">
+    <div class="subsec-title">Technique 01 — Chain-of-Thought (CoT)</div>
+    <p>Force ERR0RS to reason step-by-step before executing. Critical for complex attacks where order of operations matters.</p>
+    <div class="callout green"><span class="callout-label">// TRIGGER</span>Append: <code>"Think step by step before giving me the commands."</code></div>
+    <div class="terminal">
+      <div class="term-bar"><div class="term-dot" style="background:#ff5f56"></div><div class="term-dot" style="background:#ffbd2e"></div><div class="term-dot" style="background:#27c93f"></div><span class="term-label">CoT Example</span></div>
+      <div class="term-body"><span class="term-prompt">USER &gt; </span><span class="term-cmd">"Foothold as www-data on 10.10.10.50. Think step by
+step about privesc. Consider SUID, sudo misconfigs,
+cron, writable paths, kernel exploits. Low-noise first."</span>
+<span class="term-out">ERR0RS reasons through each vector before recommending.</span></div>
+    </div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Technique 02 — Few-Shot Examples</div>
+    <p>Show ERR0RS an example of what you want, then ask it to repeat for your target. Most effective way to control output format.</p>
+    <div class="code-block"><span class="code-comment"># Few-shot template</span>
+<span class="code-key">EXAMPLE INPUT:</span>  <span class="code-val">target is Apache 2.4.49</span>
+<span class="code-key">EXAMPLE OUTPUT:</span> <span class="code-val">CVE-2021-41773, path traversal + RCE,
+                searchsploit -x apache/webapps/50383.sh</span>
+
+<span class="code-key">NOW DO THIS:</span>    <span class="code-val">target is OpenSSH 8.1</span>
+<span class="code-comment"># ERR0RS matches your example format exactly</span></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Technique 03 — Negative Prompting</div>
+    <p>Tell ERR0RS what NOT to do. Critical for staying within rules of engagement.</p>
+    <div class="callout amber"><span class="callout-label">// EXAMPLES</span>
+      <code>"Do NOT use Metasploit — manual only."</code><br>
+      <code>"Do NOT generate payloads — explain the concept."</code><br>
+      <code>"Do NOT touch 192.168.1.1 — that's the router."</code><br>
+      <code>"Do NOT run anything loud — IDS is monitoring."</code>
+    </div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Technique 04 — Output Templating</div>
+    <p>Specify an exact structure for ERR0RS's response. Useful when piping output into reports or the RAG system.</p>
+    <div class="code-block"><span class="code-key">"Give me output in this exact format:
+TOOL: [tool name]
+COMMAND: [exact command]
+FLAGS: [each flag explained]
+EXPECTED OUTPUT: [what you'll see]
+OPSEC RATING: [Low/Medium/High noise]
+DETECTION: [how blue team catches this]"</span></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Technique 05 — Iterative Refinement</div>
+    <p>Run one stage, show ERR0RS the output, ask for the next step. This mimics how real engagements work.</p>
+    <div class="terminal">
+      <div class="term-bar"><div class="term-dot" style="background:#ff5f56"></div><div class="term-dot" style="background:#ffbd2e"></div><div class="term-dot" style="background:#27c93f"></div><span class="term-label">Iterative Session</span></div>
+      <div class="term-body"><span class="term-prompt">STEP 1 &gt; </span><span class="term-cmd">"Run recon on 10.10.10.5"</span>
+<span class="term-out">ERR0RS: [nmap results returned]</span>
+<span class="term-prompt">STEP 2 &gt; </span><span class="term-cmd">"Port 21 open, vsftpd 2.3.4. What's the play?"</span>
+<span class="term-out">ERR0RS: [vsftpd backdoor, MSF module details]</span>
+<span class="term-prompt">STEP 3 &gt; </span><span class="term-cmd">"Got shell as root. Post-exploitation checklist."</span>
+<span class="term-good">ERR0RS: [hashdump, persistence, loot, cleanup]</span></div>
+    </div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Technique 06 — Constraint Injection</div>
+    <div class="callout blue"><span class="callout-label">// TEMPLATE</span><code>"Authorized internal pentest for [Company]. Scope: [IPs]. Time box: [X hours]. Client priority: stealth over speed. RoE: no destructive payloads, no DoS. Report format: CVSS scored."</code></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 05: MODULES ═══════════════ -->
+<div class="section" id="modules">
+  <div class="sec-header">05 // Module Triggers</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">ERR0RS's Smart Wizard system has 11 specialized wizards. Each has natural language phrases that activate it. Here's the full activation map.</div>
+
+  <div class="accordion-item open" id="acc-recon">
+    <div class="accordion-header" onclick="toggleAcc('acc-recon')"><span>Recon &amp; Enumeration Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag green">scan the network</span> <span class="tag green">find live hosts</span> <span class="tag green">enumerate services</span> <span class="tag green">map the attack surface</span></p>
+      <p><strong>Tools fired:</strong> Nmap, Netdiscover, Gobuster, Nikto. Parses results and feeds discovered services into follow-on modules automatically.</p>
+      <p><strong>Example:</strong> <code>"Map attack surface on 10.0.0.0/24 — ports, services, OS versions, and low-hanging fruit."</code></p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-exploit">
+    <div class="accordion-header" onclick="toggleAcc('acc-exploit')"><span>Exploitation Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag red">pop a shell</span> <span class="tag red">exploit this</span> <span class="tag red">what's the CVE</span> <span class="tag red">run the exploit</span></p>
+      <p><strong>What it does:</strong> Queries ChromaDB RAG for known exploits, matches CVEs, builds MSF module commands, chains with msfvenom for payload generation.</p>
+      <p><strong>Example:</strong> <code>"vsftpd 2.3.4 on port 21 — pop it, reverse shell back to 10.0.0.100."</code></p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-postex">
+    <div class="accordion-header" onclick="toggleAcc('acc-postex')"><span>Post-Exploitation Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag amber">I have a shell</span> <span class="tag amber">post-ex checklist</span> <span class="tag amber">situational awareness</span> <span class="tag amber">gather loot</span></p>
+      <p><strong>What it does:</strong> System info, user enumeration, cred harvesting, network interfaces, AV detection, establish persistence.</p>
+      <p><strong>Example:</strong> <code>"Meterpreter shell on Windows 10, standard user. Post-ex checklist in order of priority."</code></p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-privesc">
+    <div class="accordion-header" onclick="toggleAcc('acc-privesc')"><span>Privilege Escalation Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag red">escalate privs</span> <span class="tag red">get root</span> <span class="tag red">get SYSTEM</span> <span class="tag red">SUID binaries</span> <span class="tag red">sudo misconfig</span></p>
+      <p><strong>What it does:</strong> LinPEAS/WinPEAS guidance, manual checks, kernel exploit suggestions, sudo/SUID/cron enumeration. Teaches why each vector works.</p>
+      <p><strong>Example:</strong> <code>"www-data on Ubuntu 20.04 — top 3 paths to root, ranked by ease."</code></p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-ad">
+    <div class="accordion-header" onclick="toggleAcc('acc-ad')"><span>Active Directory Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag blue">active directory</span> <span class="tag blue">kerberoast</span> <span class="tag blue">bloodhound</span> <span class="tag blue">DCSync</span> <span class="tag blue">pass the hash</span> <span class="tag blue">golden ticket</span></p>
+      <p><strong>What it does:</strong> Full AD chain — BloodHound, Kerberoasting, ASREPRoasting, Pass-the-Hash, Pass-the-Ticket, DCSync, Golden/Silver Ticket.</p>
+      <p><strong>Example:</strong> <code>"Domain-joined box, standard user — full BloodHound → Kerberoast → crack → DCSync chain."</code></p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-wireless">
+    <div class="accordion-header" onclick="toggleAcc('acc-wireless')"><span>Wireless Attack Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag green">wifi attack</span> <span class="tag green">capture handshake</span> <span class="tag green">deauth</span> <span class="tag green">evil twin</span> <span class="tag green">WPA crack</span></p>
+      <p><strong>What it does:</strong> Drives WiFi Pineapple Nano and Alfa AWUS036ACM. Monitor mode, deauth, handshake capture, evil twin, hashcat cracking. Integrates Fluxion (Kali 2026.1).</p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-payload">
+    <div class="accordion-header" onclick="toggleAcc('acc-payload')"><span>Payload Studio Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag amber">build a payload</span> <span class="tag amber">msfvenom</span> <span class="tag amber">ducky script</span> <span class="tag amber">reverse shell</span> <span class="tag amber">bypass AV</span></p>
+      <p><strong>What it does:</strong> Hak5-style payload editor. msfvenom, DuckyScript, custom shellcode. AV evasion. Output to Flipper Zero, rubber ducky, or file.</p>
+      <p><strong>Example:</strong> <code>"Windows x64 reverse TCP payload for 10.0.0.100:4444, encode to bypass Defender, output as .exe."</code></p>
+    </div>
+  </div>
+  <div class="accordion-item" id="acc-ctf">
+    <div class="accordion-header" onclick="toggleAcc('acc-ctf')"><span>CTF Solver Wizard</span><span class="accordion-arrow">&#9658;</span></div>
+    <div class="accordion-body">
+      <p><strong>Triggers:</strong> <span class="tag blue">CTF</span> <span class="tag blue">solve the challenge</span> <span class="tag blue">find the flag</span> <span class="tag blue">steganography</span> <span class="tag blue">pwn challenge</span></p>
+      <p><strong>What it does:</strong> Multi-category CTF support — crypto, forensics, web, pwn, reversing, OSINT. Pwntools integration. Teaches methodology alongside solutions.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 06: ERRORS ═══════════════ -->
+<div class="section" id="errors">
+  <div class="sec-header">06 // Common Prompting Errors</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">The most common mistakes operators make when talking to ERR0RS — and how to fix them fast.</div>
+  <div class="subsec">
+    <div class="subsec-title">Error 01 — Context Amnesia</div>
+    <div class="callout red"><span class="callout-label">// PROBLEM</span>Starting a new session without giving ERR0RS context. The model has no memory between sessions — it doesn't know your target, OS, or scope unless you tell it.</div>
+    <div class="callout green"><span class="callout-label">// FIX</span>Keep a session header snippet you paste at the start of every engagement. 10 seconds of setup saves 10 minutes of confusion.</div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Error 02 — One-Word Prompts</div>
+    <div class="callout red"><span class="callout-label">// PROBLEM</span><code>"scan"</code> / <code>"exploit"</code> / <code>"shell"</code> — Too vague. ERR0RS asks clarifying questions or gives a generic response.</div>
+    <div class="callout green"><span class="callout-label">// FIX</span>Minimum viable prompt: <code>[action] + [target] + [constraint]</code>. Example: <code>"Scan 10.0.0.5 (authorized) for open ports — stealth, no ping, top 1000."</code></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Error 03 — Asking for Everything at Once</div>
+    <div class="callout red"><span class="callout-label">// PROBLEM</span><code>"Run recon, find vulns, exploit, escalate, dump creds, write report for 10.0.0.0/24."</code> Overwhelms context window, produces rushed output.</div>
+    <div class="callout green"><span class="callout-label">// FIX</span>Break it into stages. Each stage gets full attention. Use the Campaign Manager for multi-stage orchestration.</div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Error 04 — Wrong Model for the Job</div>
+    <div class="callout red"><span class="callout-label">// PROBLEM</span>Running 7B on Pi 5 for a complex AD kill chain analysis. 7B can't hold enough context for deep multi-step reasoning.</div>
+    <div class="callout green"><span class="callout-label">// FIX</span>7B → quick commands, single-tool help, flag lookups. 32B → kill chain planning, deep reasoning, malware analysis.</div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Error 05 — Not Showing ERR0RS Your Output</div>
+    <div class="callout red"><span class="callout-label">// PROBLEM</span><code>"The scan finished."</code> ERR0RS can't help if it doesn't see what you found.</div>
+    <div class="callout green"><span class="callout-label">// FIX</span>Always paste relevant output back. <code>"Here's the nmap result: [paste]. What are the most promising vectors?"</code> This is how the ReAct loop is supposed to work.</div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Error 06 — Ignoring OPSEC Flags</div>
+    <div class="callout amber"><span class="callout-label">// FIX</span>When ERR0RS gives an OPSEC rating, trust it. If you need speed over stealth, say so explicitly: <code>"Speed over stealth — client authorized noisy testing."</code></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 07: ADVANCED ═══════════════ -->
+<div class="section" id="advanced">
+  <div class="sec-header">07 // Advanced Prompt Patterns</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">Expert-level patterns for orchestrating full engagements, chaining modules, and getting the most out of the ReAct agent loop.</div>
+  <div class="subsec">
+    <div class="subsec-title">The Kill Chain Prompt</div>
+    <div class="code-block"><span class="code-comment"># Full kill chain orchestration prompt</span>
+<span class="code-key">"Red team AI. Authorization to attack 192.168.10.50
+(Windows Server 2019, domain-joined).
+
+Map the MITRE ATT&amp;CK kill chain:
+1. Initial Access vectors (3 candidates)
+2. Execution method for each
+3. Persistence mechanism
+4. Privilege escalation path
+5. Lateral movement targets
+6. Objectives (cred dump, domain admin)
+
+For each phase: tool, exact command, OPSEC rating (1-5),
+and what detection looks like. Ask if you need context."</span></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">The Socratic Prompt (Learning Mode)</div>
+    <div class="callout purple"><span class="callout-label">// SOCRATIC MODE</span><code>"Don't give me the answer yet. Ask me questions to figure out what I already know about privilege escalation, then fill in my gaps."</code><br><br>ERR0RS assesses what you know and teaches the rest. Fastest path from tool-monkey to actual operator.</div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Adversary Emulation Prompt</div>
+    <div class="code-block"><span class="code-key">"Emulate APT29 (Cozy Bear) TTPs against 10.0.0.0/16.
+Use only their known techniques:
+- Spearphishing with weaponized documents
+- WMI for lateral movement
+- AdaptixC2 beaconing
+- NTDS.dit credential dumping
+
+Stay within the APT29 MITRE ATT&amp;CK profile.
+Flag any deviation from their known behavior."</span></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">RAG Injection Prompt</div>
+    <div class="callout blue"><span class="callout-label">// RAG TRIGGER PHRASES</span>
+      <code>"Search your knowledge base for..."</code><br>
+      <code>"What does the 7h30th3r0n3 repo say about..."</code><br>
+      <code>"Pull the Kali 2026.1 docs on..."</code><br>
+      <code>"What do you have indexed about [tool]?"</code>
+    </div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Teach + Defend Combo</div>
+    <div class="code-block"><span class="code-key">"For the technique [NAME]:
+ATTACK: Exact commands to execute it.
+TEACH: WHY it works at the protocol/OS level.
+DEFEND: How does blue team detect and stop this?
+MITRE: ATT&amp;CK technique ID?
+LAB: HackTheBox / TryHackMe machine to practice on?"</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 08: OPSEC ═══════════════ -->
+<div class="section" id="opsec">
+  <div class="sec-header">08 // OPSEC in Your Prompts</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">Your prompts themselves carry OPSEC risk. Since ERR0RS runs fully airgapped, data stays on the Cyberdeck — but operational discipline still matters.</div>
+  <div class="subsec">
+    <div class="subsec-title">The Airgap Advantage</div>
+    <div class="callout green"><span class="callout-label">// YOUR ADVANTAGE</span>ERR0RS runs 100% local. No cloud API call, no telemetry, no conversation logging to a third party. Client data stays on the Cyberdeck. You can safely paste real IP ranges and findings without exposure.</div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">OPSEC Prompt Checklist</div>
+    <div class="level-bar"><div class="level-name">Authorization stated</div><div class="level-track"><div class="level-fill" style="width:100%"></div></div><div class="level-val">P1</div></div>
+    <div class="level-bar"><div class="level-name">Scope defined</div><div class="level-track"><div class="level-fill" style="width:100%"></div></div><div class="level-val">P1</div></div>
+    <div class="level-bar"><div class="level-name">No-touch zones listed</div><div class="level-track"><div class="level-fill" style="width:85%;background:var(--amber)"></div></div><div class="level-val">P2</div></div>
+    <div class="level-bar"><div class="level-name">Noise tolerance set</div><div class="level-track"><div class="level-fill" style="width:85%;background:var(--amber)"></div></div><div class="level-val">P2</div></div>
+    <div class="level-bar"><div class="level-name">Time box specified</div><div class="level-track"><div class="level-fill" style="width:70%;background:var(--amber)"></div></div><div class="level-val">P3</div></div>
+    <p style="margin-top:12px;font-size:13px;color:var(--text-dim);">P1 = always include. P2 = external engagements. P3 = long campaigns.</p>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Report Sanitization Prompt</div>
+    <div class="code-block"><span class="code-key">"Sanitize this finding for a client report:
+- Remove all internal IP references (use [REDACTED])
+- Professional language only (no operator slang)
+- CVSS score the vulnerability
+- Write a remediation recommendation
+- Format for executive and technical audiences"</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION 09: CHEATSHEET ═══════════════ -->
+<div class="section" id="cheatsheet">
+  <div class="sec-header">09 // Quick Reference Cheatsheet</div>
+  <div class="sec-divider"></div>
+  <div class="sec-desc">Print this. Tape it to the Cyberdeck. Read it before every engagement.</div>
+  <div class="subsec">
+    <div class="subsec-title">The Perfect Prompt Template</div>
+    <div class="code-block"><span class="code-comment">## ERR0RS SESSION HEADER — paste at start of every engagement</span>
+
+<span class="code-key">ROLE:</span>    <span class="code-val">Red team operator / [other role]</span>
+<span class="code-key">OS:</span>      <span class="code-val">Kali Linux ARM64 2026.1 on Pi 5 Cyberdeck</span>
+<span class="code-key">LHOST:</span>   <span class="code-val">[YOUR KALI IP]</span>
+<span class="code-key">TARGET:</span>  <span class="code-val">[IP/RANGE] — [OS if known]</span>
+<span class="code-key">AUTH:</span>    <span class="code-val">Written authorization on file</span>
+<span class="code-key">SCOPE:</span>   <span class="code-val">[full / web only / internal only]</span>
+<span class="code-key">AVOID:</span>   <span class="code-val">[IPs/ports to not touch]</span>
+<span class="code-key">NOISE:</span>   <span class="code-val">[stealth / normal / loud]</span>
+<span class="code-key">OUTPUT:</span>  <span class="code-val">Commands + flags explained + OPSEC rating</span>
+<span class="code-key">GOAL:</span>    <span class="code-val">[your objective this session]</span></div>
+  </div>
+  <div class="subsec">
+    <div class="subsec-title">Power Phrase Quick Reference</div>
+    <table class="data-table">
+      <tr><th>WANT</th><th>SAY THIS</th></tr>
+      <tr><td>Step-by-step reasoning</td><td><code>"Think step by step before answering"</code></td></tr>
+      <tr><td>Structured output</td><td><code>"Format: TOOL / CMD / FLAGS / OPSEC"</code></td></tr>
+      <tr><td>Learning mode</td><td><code>"Teach me this, don't just give me the command"</code></td></tr>
+      <tr><td>Purple team</td><td><code>"For every attack, give me the detection method too"</code></td></tr>
+      <tr><td>No MSF</td><td><code>"Manual exploitation only — no Metasploit"</code></td></tr>
+      <tr><td>Full kill chain</td><td><code>"Build me the full MITRE kill chain for this target"</code></td></tr>
+      <tr><td>RAG lookup</td><td><code>"Search your knowledge base for..."</code></td></tr>
+      <tr><td>Adversary sim</td><td><code>"Emulate [APT group] TTPs against this network"</code></td></tr>
+      <tr><td>CTF mode</td><td><code>"Solve this CTF — walk me through it"</code></td></tr>
+      <tr><td>Report ready</td><td><code>"Sanitize this for a client-facing report"</code></td></tr>
+      <tr><td>Hardware trigger</td><td><code>"Use the Flipper / Alfa / Pineapple to..."</code></td></tr>
+      <tr><td>Iterative mode</td><td><code>"Here's the output: [paste]. What next?"</code></td></tr>
+    </table>
+  </div>
+  <div class="callout green"><span class="callout-label">// GOLDEN RULE</span><strong>The more context you give ERR0RS, the harder it hits.</strong> Every vague prompt is a missed strike. Every precise prompt is a guided missile. You built this tool — learn to use it at full power.</div>
+  <div class="footer">ERR0RS-Ultimate // github.com/Gnosisone // Authorized penetration testing &amp; security education only<br>Oklahoma City Cyberdeck // Kali 2026.1 ARM64 // Hailo-10H NPU // Purple Team Philosophy</div>
+</div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+function showSection(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+function toggleAcc(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+// Keyboard nav
+document.addEventListener('keydown', function(e) {
+  const sections = ['intro','anatomy','roles','operators','techniques','modules','errors','advanced','opsec','cheatsheet'];
+  const active = document.querySelector('.section.active');
+  if (!active) return;
+  const idx = sections.indexOf(active.id);
+  let next = -1;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = Math.min(idx + 1, sections.length - 1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = Math.max(idx - 1, 0);
+  if (next >= 0 && next !== idx) {
+    const navItems = document.querySelectorAll('.nav-item');
+    showSection(sections[next], navItems[next]);
+  }
+});
+</script>
+</body>
+</html>

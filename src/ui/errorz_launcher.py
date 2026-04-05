@@ -52,6 +52,17 @@ SRC_DIR  = ROOT_DIR / "src"
 if str(ROOT_DIR) not in sys.path: sys.path.insert(0, str(ROOT_DIR))
 if str(SRC_DIR)  not in sys.path: sys.path.insert(0, str(SRC_DIR))
 
+# ── Integration adapter — fixes module registry + wires all 25 tool entry points
+try:
+    from tools.integration_adapter import patch_registry
+    patch_registry()
+except Exception:
+    try:
+        from src.tools.integration_adapter import patch_registry
+        patch_registry()
+    except Exception as _ia_e:
+        print(f"[ERR0RS] Integration adapter warning: {_ia_e}")
+
 HOST     = os.getenv("ERRZ_HOST", "127.0.0.1")
 HTTP_PORT = int(os.getenv("ERRZ_PORT",    "8765"))
 WS_PORT   = int(os.getenv("ERRZ_WS_PORT", "8766"))
@@ -1713,9 +1724,23 @@ def start_server():
     if FLIPPER_ENGINE and callable(start_flipper_watcher) and "flipper-watcher" not in running:
         start_flipper_watcher()
 
-    # ── Open browser ──────────────────────────────────────────────────────────
+    # ── Open browser (ARM64-safe — avoid stale Chromium flags) ───────────────
     try:
-        webbrowser.open(url)
+        import shutil, subprocess as _sp
+        _opened = False
+        # Try browsers in order, suppress flag errors with stderr redirect
+        for _br in ["firefox", "chromium", "chromium-browser", "epiphany"]:
+            if shutil.which(_br):
+                _sp.Popen(
+                    [_br, url],
+                    stdout=_sp.DEVNULL,
+                    stderr=_sp.DEVNULL,
+                    start_new_session=True
+                )
+                _opened = True
+                break
+        if not _opened:
+            webbrowser.open(url)
     except Exception:
         pass
 

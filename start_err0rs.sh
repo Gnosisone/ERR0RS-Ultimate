@@ -120,6 +120,17 @@ if [[ "$*" != *"--no-ollama"* ]]; then
     echo -e "  ${GREEN}✓ Ollama ready | $OLLAMA_MODEL${NC}"
 fi
 
+# ── Hailo-10H NPU driver auto-load (Pi 5 only) ───────────────────
+if [ "$PI_MODE" = true ]; then
+    if ! lsmod | grep -q hailo1x_pci 2>/dev/null; then
+        modprobe hailo1x_pci 2>/dev/null && \
+            echo -e "  ${GREEN}✓ Hailo-10H driver loaded (hailo1x_pci)${NC}" || \
+            echo -e "  ${YELLOW}~ Hailo-10H not detected (plug in HAT+ or run: sudo bash scripts/install_hailo.sh)${NC}"
+    else
+        echo -e "  ${GREEN}✓ Hailo-10H driver already active${NC}"
+    fi
+fi
+
 # ── RAG first-run ingest ──────────────────────────────────────────
 if [[ ! -d "$HOME/err0rs_chromadb" ]]; then
     echo -e "${CYAN}[*] First run — ingesting knowledge base (background)...${NC}"
@@ -165,8 +176,8 @@ echo -e "${CYAN}[*] Launching ERR0RS...${NC}"
 
 if [[ "$*" == *"--cli"* ]]; then
     # CLI mode
-    python3 "$SCRIPT_DIR/main.py"
+    PYTHONPATH="$SCRIPT_DIR" python3 "$SCRIPT_DIR/main.py"
 else
-    # Web UI mode — this is the correct launcher (NOT uvicorn main:app)
-    ERRZ_PORT="$UI_PORT" python3 "$SCRIPT_DIR/src/ui/errorz_launcher.py"
+    # Web UI mode — PYTHONPATH ensures src.tools.integration_adapter resolves correctly
+    PYTHONPATH="$SCRIPT_DIR" ERRZ_PORT="$UI_PORT" python3 "$SCRIPT_DIR/src/ui/errorz_launcher.py"
 fi

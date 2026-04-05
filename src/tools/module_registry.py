@@ -42,7 +42,7 @@ MODULES = {
         "category":    "automation",
         "module":      "src.orchestration.auto_killchain",
         "entry":       "handle_killchain_command",
-        "commands":    ["auto pentest", "full auto", "run kill chain", "automated scan"],
+        "commands":    ["auto pentest", "full auto", "run kill chain", "automated scan", "kill chain", "auto kill chain", "full pentest"],
         "competes_with": ["Metasploit Pro automation", "Core Impact", "Pentera"],
     },
 
@@ -357,16 +357,18 @@ COMPETITIVE_POSITION = {
 }
 
 def get_module(name: str) -> Optional[dict]:
-    """Return module info by name or command keyword."""
+    """Return module info by name or command keyword.
+    Fixed: keyword must be IN the user input. Longest match wins."""
     name_lower = name.lower().strip()
-    # Direct lookup
     if name_lower in MODULES:
         return MODULES[name_lower]
-    # Search by command keywords
+    best, best_len = None, 0
     for key, mod in MODULES.items():
-        if any(name_lower in cmd for cmd in mod.get("commands", [])):
-            return mod
-    return None
+        for cmd_kw in mod.get("commands", []):
+            if cmd_kw in name_lower and len(cmd_kw) > best_len:
+                best = mod
+                best_len = len(cmd_kw)
+    return best
 
 
 def list_by_category(category: str = None) -> dict:

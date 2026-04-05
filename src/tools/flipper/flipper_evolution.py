@@ -7,7 +7,7 @@ next level → leaves it in its most powerful happy state.
 
 Evolution Levels (XP-based, like a video game):
   Level 1  — Stock Flipper detected, prep & backup
-  Level 2  — Unleashed firmware (most capable fork)
+  Level 2  — Community firmware detected (RogueMaster/Unleashed/Momentum/Xtreme)
   Level 3  — Full SubGHz database (all regions)
   Level 4  — NFC / RFID card database
   Level 5  — IR blaster library (all TV, AC, projectors)
@@ -26,6 +26,7 @@ import json
 import time
 import shutil
 import hashlib
+import serial
 import subprocess
 import platform
 from pathlib import Path
@@ -44,7 +45,7 @@ STATE_FILE = ROOT_DIR / "src" / "output" / "flipper_sd" / "evolution_state.json"
 # ── Evolution Level Definitions ───────────────────────────────────────────────
 EVOLUTION_LEVELS = {
     1:  {"name": "AWAKENING",      "xp": 0,    "emoji": "🌑", "desc": "Flipper detected — backup & prep"},
-    2:  {"name": "UNLEASHED",      "xp": 100,  "emoji": "⚡", "desc": "Unleashed firmware — unlock all regions"},
+    2:  {"name": "UNLOCKED",      "xp": 100,  "emoji": "🔴", "desc": "Community firmware — full region unlock + extra protocols"},
     3:  {"name": "FREQUENCY LORD", "xp": 250,  "emoji": "📡", "desc": "Full SubGHz frequency database"},
     4:  {"name": "CARD SHARK",     "xp": 450,  "emoji": "🃏", "desc": "NFC/RFID card & key database"},
     5:  {"name": "IR OVERLORD",    "xp": 700,  "emoji": "🔴", "desc": "IR blaster — all devices in range"},
@@ -95,6 +96,136 @@ class FlipperState:
 
 
 # ── USB / Serial Detection ─────────────────────────────────────────────────────
+# ── Firmware Detection via Serial CLI ─────────────────────────────────────────
+FIRMWARE_PROFILES = {
+    "roguemaster": {
+        "display":  "RogueMaster",
+        "keywords": ["roguemaster", "rogue master", "rogue_master"],
+        "color":    "🔴",
+        "desc":     "RogueMaster — Max RF power, all unlocks, community apps, NFC extras",
+        "url":      "https://github.com/RogueMaster/flipperzero-firmware-wPlugins/releases",
+        "rating":   "★★★★★ — You're already running the best community build",
+    },
+    "unleashed": {
+        "display":  "Unleashed",
+        "keywords": ["unleashed", "unlshd"],
+        "color":    "⚡",
+        "desc":     "Unleashed — frequency unlocks, extra protocols, rolling code bypass",
+        "url":      "https://github.com/DarkFlippers/unleashed-firmware/releases",
+        "rating":   "★★★★☆ — Great build. RogueMaster adds more community apps.",
+    },
+    "momentum": {
+        "display":  "Momentum",
+        "keywords": ["momentum", "moofw"],
+        "color":    "💨",
+        "desc":     "Momentum — performance-focused fork with UI customization",
+        "url":      "https://github.com/Next-Flip/Momentum-Firmware/releases",
+        "rating":   "★★★★☆ — Solid build. All major unlocks present.",
+    },
+    "xtreme": {
+        "display":  "Xtreme",
+        "keywords": ["xtreme", "xfw"],
+        "color":    "🔥",
+        "desc":     "Flipper Xtreme — custom apps, BLE spam, all protocols",
+        "url":      "https://github.com/ClaraCrazy/Flipper-Xtreme/releases",
+        "rating":   "★★★★☆ — Community favorite. Well maintained.",
+    },
+    "official": {
+        "display":  "Official Flipper",
+        "keywords": ["release", "official", "flipper"],
+        "color":    "🐬",
+        "desc":     "Official firmware — stable but frequency-locked",
+        "url":      "https://github.com/flipperdevices/flipperzero-firmware/releases",
+        "rating":   "★★☆☆☆ — Upgrade recommended for full capability",
+    },
+}
+
+
+def detect_flipper_firmware(port: str, timeout: float = 3.0) -> dict:
+    """
+    Query Flipper Zero firmware via serial CLI using 'device_info' command.
+    Parses firmware_origin_fork, firmware_branch, firmware_version, firmware_build_date.
+    Returns: {"firmware": str, "profile": dict, "version": str, "build_date": str,
+              "fork": str, "branch": str, "hw_name": str, "raw": str, "detected": bool}
+    """
+    result = {
+        "firmware":   "unknown",
+        "profile":    FIRMWARE_PROFILES["official"],
+        "version":    "",
+        "build_date": "",
+        "fork":       "",
+        "branch":     "",
+        "hw_name":    "",
+        "raw":        "",
+        "detected":   False,
+    }
+    if not port:
+        return result
+    try:
+        import serial as _serial
+        with _serial.Serial(port, baudrate=115200, timeout=timeout) as ser:
+            ser.write(b"\r\n")
+            time.sleep(0.3)
+            ser.reset_input_buffer()
+            ser.write(b"device_info\r\n")
+            time.sleep(1.5)
+            raw = ser.read(ser.in_waiting or 2048).decode("utf-8", errors="replace")
+            result["raw"]      = raw
+            result["detected"] = bool(raw.strip())
+
+            # Parse key-value pairs from device_info output
+            fields = {}
+            for line in raw.splitlines():
+                if ":" in line:
+                    k, _, v = line.partition(":")
+                    fields[k.strip()] = v.strip()
+
+            fork       = fields.get("firmware_origin_fork", "").upper()
+            branch     = fields.get("firmware_branch", "")
+            version    = fields.get("firmware_version", "")
+            build_date = fields.get("firmware_build_date", "")
+            hw_name    = fields.get("hardware_name", "")
+
+            result["version"]    = version
+            result["build_date"] = build_date
+            result["fork"]       = fork
+            result["branch"]     = branch
+            result["hw_name"]    = hw_name
+
+            # Match fork identifier to profile
+            fork_map = {
+                "RM":       "roguemaster",
+                "UNLEASHED":"unleashed",
+                "UNLSHD":   "unleashed",
+                "MOMENTUM": "momentum",
+                "MOOFW":    "momentum",
+                "XTREME":   "xtreme",
+                "XFW":      "xtreme",
+            }
+
+            matched_key = fork_map.get(fork)
+            if not matched_key:
+                # Fallback: check branch/version string against keywords
+                combined = (fork + branch + version).lower()
+                for fw_key, profile in FIRMWARE_PROFILES.items():
+                    if any(kw in combined for kw in profile["keywords"]):
+                        matched_key = fw_key
+                        break
+
+            if matched_key:
+                result["firmware"] = FIRMWARE_PROFILES[matched_key]["display"]
+                result["profile"]  = FIRMWARE_PROFILES[matched_key]
+            else:
+                # Unknown fork — build a display name from what we got
+                result["firmware"] = f"Custom ({fork or 'unknown'} v{version})"
+
+    except ImportError:
+        result["raw"] = "pyserial not installed — run: pip3 install pyserial --break-system-packages"
+    except Exception as e:
+        result["raw"] = str(e)
+    return result
+
+
 def detect_flipper() -> Dict:
     """
     Detect a connected Flipper Zero across Windows, Linux, macOS.
@@ -239,41 +370,66 @@ def _step_backup(sd_path: str, state: Dict) -> EvolutionStep:
 
 # ── Step: Level 2 — Firmware Update Info ─────────────────────────────────────
 def _step_firmware(port: str, state: Dict) -> EvolutionStep:
-    step = EvolutionStep("firmware_update", "Unleashed Firmware — latest release", XP_PER_LEVEL["firmware_update"])
+    """
+    Detect current Flipper firmware via serial CLI.
+    Acknowledges whatever is installed, gives upgrade guidance only if needed.
+    """
+    step = EvolutionStep("firmware_update", "Firmware detection & validation", XP_PER_LEVEL["firmware_update"])
     t0 = time.time()
-    # Check if qFlipper or flipper CLI is available
-    qflipper = shutil.which("qFlipper") or shutil.which("qflipper")
-    flipper_cli = shutil.which("flipper_cli") or shutil.which("flipper-cli")
-    if qflipper:
-        step.status = "done"
+
+    # Query actual firmware over serial
+    fw_info = detect_flipper_firmware(port)
+    profile  = fw_info["profile"]
+    fw_name  = fw_info["firmware"]
+    detected = fw_info["detected"]
+
+    step.status = "done"
+
+    if detected:
+        ver_str  = f" v{fw_info['version']}" if fw_info['version'] else ""
+        date_str = f" (built {fw_info['build_date']})" if fw_info['build_date'] else ""
+        hw_str   = f" | device: {fw_info['hw_name']}" if fw_info['hw_name'] else ""
+        step.name = f"Firmware: {fw_name}{ver_str} detected {profile['color']}"
         step.output = (
-            f"[ERR0RS] qFlipper found at {qflipper}\n"
-            f"  To update firmware via CLI:\n"
-            f"    qFlipper -p {port or 'auto'} update\n\n"
-            f"  Unleashed firmware releases:\n"
-            f"    https://github.com/DarkFlippers/unleashed-firmware/releases\n\n"
-            f"  [ERR0RS] Unleashed firmware removes:\n"
-            f"    - Regional frequency restrictions\n"
-            f"    - SubGHz TX lock (now transmit on ALL frequencies)\n"
-            f"    - Extra protocols: CAME, Faac, NiceFlo, Ansonic & more\n"
-            f"    - Rolling code bypass capabilities"
+            f"[ERR0RS] {profile['color']} FIRMWARE: {profile['display']}{ver_str}{date_str}{hw_str}\n"
+            f"  Status  : {profile['rating']}\n"
+            f"  Info    : {profile['desc']}\n"
+            f"  Releases: {profile['url']}\n"
         )
+        # If they're on official stock, recommend upgrading
+        if fw_name == "Official Flipper":
+            step.output += (
+                f"\n  [ERR0RS] ⚡ UPGRADE RECOMMENDED:\n"
+                f"    You're on stock firmware — unlock full RF capability:\n\n"
+                f"    RogueMaster (max features):\n"
+                f"      https://github.com/RogueMaster/flipperzero-firmware-wPlugins/releases\n"
+                f"    Unleashed (stable unlocks):\n"
+                f"      https://github.com/DarkFlippers/unleashed-firmware/releases\n\n"
+                f"    Flash via qFlipper: File > Install from file → choose .tgz\n"
+            )
+        else:
+            step.output += (
+                f"\n  [ERR0RS] ✅ Your firmware is already unlocked and capable.\n"
+                f"  No reflash needed — ERR0RS will work with {profile['display']}.\n"
+            )
     else:
-        step.status = "done"
+        # Serial query failed — give generic guidance
+        step.name = "Firmware: check & validate"
         step.output = (
-            f"[ERR0RS] qFlipper not found — manual flash steps:\n\n"
-            f"  OPTION A — qFlipper GUI (recommended):\n"
-            f"    1. Download: https://flipperzero.one/update\n"
-            f"    2. Open qFlipper → Connect Flipper\n"
-            f"    3. Click 'Install from file' → choose Unleashed .tgz\n\n"
-            f"  OPTION B — SD card method:\n"
-            f"    1. Download Unleashed from GitHub releases\n"
-            f"    2. Extract to Flipper SD /update/ folder\n"
-            f"    3. On Flipper: Settings > Firmware > Update\n\n"
-            f"  Unleashed latest:\n"
-            f"    https://github.com/DarkFlippers/unleashed-firmware/releases\n\n"
-            f"  [ERR0RS] Benefits: ALL frequency unlocks, extra protocols, custom apps"
+            f"[ERR0RS] Could not query firmware over serial (may need pyserial).\n"
+            f"  Install: pip3 install pyserial --break-system-packages\n\n"
+            f"  KNOWN GOOD COMMUNITY FIRMWARES:\n"
+            f"  🔴 RogueMaster (recommended — max capability):\n"
+            f"      https://github.com/RogueMaster/flipperzero-firmware-wPlugins/releases\n"
+            f"  ⚡ Unleashed (stable unlocks + extra protocols):\n"
+            f"      https://github.com/DarkFlippers/unleashed-firmware/releases\n"
+            f"  💨 Momentum (performance + UI customization):\n"
+            f"      https://github.com/Next-Flip/Momentum-Firmware/releases\n\n"
+            f"  Flash via qFlipper → Install from file → choose .tgz / .dfu\n"
         )
+
+    # Store detected firmware in state for future steps
+    state["detected_firmware"] = fw_name
     step.duration = round(time.time() - t0, 2)
     return step
 

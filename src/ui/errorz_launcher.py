@@ -1159,7 +1159,11 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
 
     def log_error(self, format, *args):
         msg = format % args if args else str(format)
+        # Suppress noisy non-errors
         if any(x in msg for x in ["BrokenPipe","Errno 32","Errno 104"]): return
+        # Suppress 404s — static files browser auto-requests (favicon, manifests, etc.)
+        # SimpleHTTPRequestHandler uses: "code 404, message File not found"
+        if "404" in msg: return
         print(f"[ERR0RS] {msg}")
 
     def end_headers(self):

@@ -15,7 +15,12 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Kali%20%7C%20Parrot%20%7C%20Pi5-557C94?style=flat-square&logo=linux&logoColor=white)](https://kali.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active%20Dev-blueviolet?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-v1.0.0-brightgreen?style=flat-square)](https://github.com/Gnosisone/ERR0RS-Ultimate/releases/tag/v1.0.0)
+[![Tests](https://img.shields.io/badge/Tests-28%2F28%20passing-brightgreen?style=flat-square)]()
+[![Modules](https://img.shields.io/badge/Modules-25%20integrated-blue?style=flat-square)]()
+[![Tools](https://img.shields.io/badge/Kali%20Tools-120%2B-red?style=flat-square)]()
+[![Ollama](https://img.shields.io/badge/LLM-Ollama%20100%25%20Local-orange?style=flat-square)](https://ollama.com)
+[![Pi5](https://img.shields.io/badge/Hardware-Pi%205%20%2B%20Hailo--10H-c51a4a?style=flat-square&logo=raspberry-pi&logoColor=white)]()
 
 **100% Local · Zero Data Leaves the OS · Built for Professional Red Teams & Security Education**
 
@@ -88,6 +93,52 @@ ollama pull llama3.2
 
 # Optional — cloud AI (highest quality)
 export ANTHROPIC_API_KEY=your_key_here
+```
+
+---
+
+---
+
+## 🖥️ Live Demo
+
+```
+  ERR0RS [red_team]> scan 192.168.1.0/24 for live hosts and open ports
+
+  [ERR0RS] 🧙 RECON WIZARD
+  ┌─────────────────────────────────────────────────┐
+  │  Target: 192.168.1.0/24                         │
+  │  Mode:   Stealth SYN scan (-sS)                 │
+  │  Ports:  Top 1000 + service detection           │
+  └─────────────────────────────────────────────────┘
+  [*] Running: nmap -sS -sV -O --top-ports 1000 192.168.1.0/24
+
+  HOSTS DISCOVERED:
+  192.168.1.1   — Cisco router      | 22/ssh 80/http 443/https
+  192.168.1.50  — Windows Server    | 445/smb 3389/rdp 5985/winrm
+  192.168.1.100 — Ubuntu 22.04      | 22/ssh 80/http 8080/http-alt
+
+  [ERR0RS] 🎯 Attack surface identified. Suggested next steps:
+    [1] SMB enumeration on .50  → "enum smb 192.168.1.50"
+    [2] Web app scan on .100    → "nikto scan http://192.168.1.100"
+    [3] Full kill chain auto    → "auto pentest 192.168.1.50"
+
+  [TEACH]  Port 445 (SMB) is Microsoft's file/printer sharing protocol.
+           It's historically the most exploited service on Windows networks
+           (EternalBlue, MS17-010, PrintNightmare, etc.).
+  [DEFEND] Block inbound 445 at perimeter. Require SMB signing. Patch monthly.
+```
+
+```
+  ERR0RS [red_team]> auto pentest 192.168.1.50
+
+  [ERR0RS] ⚡ AUTO KILL CHAIN — MITRE ATT&CK Mapped
+  Phase 1/5 [RECON]     → nmap -A 192.168.1.50            ✓ 3 vulns found
+  Phase 2/5 [EXPLOIT]   → MS17-010 EternalBlue attempt    ✓ SYSTEM shell
+  Phase 3/5 [POSTEX]    → hashdump, persistence, loot      ✓ 4 hashes
+  Phase 4/5 [LATERAL]   → CrackMapExec spray              ✓ 2 pivots
+  Phase 5/5 [REPORT]    → HTML report generated            ✓ output/reports/
+
+  [ERR0RS] Engagement complete. CVSS Critical: 1 | High: 2 | Medium: 3
 ```
 
 ---
@@ -409,6 +460,33 @@ MITRE ATT&CK: T1003.001 — OS Credential Dumping: LSASS Memory
 
 ---
 
+## 🍓 Cyberdeck Hardware (Pi 5 Reference Build)
+
+ERR0RS runs natively on a Raspberry Pi 5 Cyberdeck — a portable, self-contained
+penetration testing rig that fits in a bag and operates fully airgapped.
+
+| Component | Spec | Role |
+|-----------|------|------|
+| **Raspberry Pi 5** | 8GB RAM, ARM64 | Main compute |
+| **Hailo-10H NPU** | AI HAT+ 2, 40 TOPS | Local LLM acceleration |
+| **512GB NVMe SSD** | M.2 via HAT | Tool storage + knowledge base |
+| **WiFi Pineapple Nano** | 802.11 b/g/n | WiFi recon + evil twin |
+| **Alfa AWUS036ACM** | 802.11 ac, monitor mode | Packet capture + deauth |
+| **Flipper Zero** | Sub-GHz/IR/NFC/BLE | Multi-protocol RF + BadUSB |
+| **ESP32 + Marauder** | BT/BLE attacks | Bluetooth HID + BLE scanning |
+| **CC1101** | 300-928 MHz | Sub-GHz capture + replay |
+| **7× 18650 cells** | ~40Wh | Field power (6+ hours) |
+
+```bash
+# On Pi 5: ERR0RS auto-detects hardware at boot
+bash start_err0rs.sh
+# [ERR0RS] Hailo-10H NPU: driver loaded (hailo1x_pci)
+# [ERR0RS] FLIPPER DETECTED! Port=/dev/ttyACM0 Level=7 XP=1350
+# [ERR0RS] Flipper Evolution Sequence starting...
+```
+
+---
+
 ## 🏗️ Architecture
 
 ```
@@ -580,11 +658,15 @@ Deepfake Fraud · Prompt Injection · MITRE ATLAS · Corporate AI Briefing
 
 | Document | Contents |
 |----------|----------|
-| `docs/Metasploit_Armitage_RedTeam_Book.md` | 2,182-line complete guide: msfconsole, msfvenom, Armitage, kill chain playbooks |
-| `docs/ERR0RS_Deep_Reference.md` | Every function in the framework documented |
-| `knowledge/social-engineering/HUMAN_VARIABLE/HUMAN_VARIABLE_FIELD_GUIDE.md` | SE field guide: psychology, phishing, vishing, physical, defense |
-| `knowledge/threat-intelligence/ai-powered-threats/AI_THREAT_FIELD_GUIDE.md` | WormGPT, FraudGPT, deepfakes, enterprise defense roadmap |
-| `knowledge/wireless/WIRELESS_KNOWLEDGE.md` | WiFi attack reference + Mimikatz vs aircrack disambiguation |
+| [`docs/err0rs_prompt_manual.html`](docs/err0rs_prompt_manual.html) | **Interactive prompt manual** — 10-chapter guide to prompting ERR0RS (open in browser) |
+| [`QUICKSTART.md`](QUICKSTART.md) | Step-by-step setup for Kali, Parrot, and Pi 5 |
+| [`PRODUCTION_READY.md`](PRODUCTION_READY.md) | Full production readiness checklist + audit results |
+| [`docs/Metasploit_Armitage_RedTeam_Book.md`](docs/Metasploit_Armitage_RedTeam_Book.md) | 2,182-line Metasploit reference: msfconsole, msfvenom, kill chain playbooks |
+| [`docs/ERR0RS_Deep_Reference.md`](docs/ERR0RS_Deep_Reference.md) | Every function in the framework documented |
+| [`PHILOSOPHY.md`](PHILOSOPHY.md) | Purple team philosophy — why ERR0RS teaches while it attacks |
+| `knowledge/social-engineering/` | SE field guide: psychology, phishing, vishing, physical |
+| `knowledge/threat-intelligence/` | WormGPT, FraudGPT, deepfakes, enterprise defense roadmap |
+| `knowledge/wireless/` | WiFi attack reference: WPA2, PMKID, evil twin, deauth |
 
 ---
 

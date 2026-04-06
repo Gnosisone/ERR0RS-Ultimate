@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ERR0RS Ultimate
+GenericName=Penetration Testing Platform
+Comment=AI-powered pentesting platform — Knowledge, Integrity, Security
+Exec=bash -c "cd /home/kali/ERR0RS-Ultimate && source venv/bin/activate && python3 src/ui/errorz_launcher.py"
+Icon=err0rs
+Terminal=false
+StartupNotify=true
+Categories=Network;Security;HackingTools;Kali;
+Keywords=pentest;security;hacking;nmap;metasploit;flipper;hailo;ai;
+StartupWMClass=ERR0RS

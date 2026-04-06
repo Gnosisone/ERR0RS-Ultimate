@@ -1659,7 +1659,16 @@ def _uptime() -> str:
 def _platform() -> str:
     try:
         with open("/proc/cpuinfo") as f:
-            if "Raspberry Pi" in f.read(): return "Raspberry Pi 5 16GB"
+            cpu = f.read()
+        if "Raspberry Pi" in cpu:
+            # Read actual RAM from /proc/meminfo
+            try:
+                with open("/proc/meminfo") as m:
+                    kb = int(m.readline().split()[1])
+                gb = round(kb / 1024 / 1024)
+            except Exception:
+                gb = 8
+            return f"Raspberry Pi 5 {gb}GB"
     except Exception: pass
     return "Kali Linux"
 
@@ -1723,10 +1732,12 @@ def start_server():
     start_ws_server()
 
     # ── Flipper watcher in background (non-blocking daemon) ───────────────────
-    # Guard: only start if not already running (check thread names)
-    running = [t.name for t in threading.enumerate()]
-    if FLIPPER_ENGINE and callable(start_flipper_watcher) and "flipper-watcher" not in running:
-        start_flipper_watcher()
+    # Singleton guard — check both thread names AND a module-level flag
+    if not getattr(start_flipper_watcher, '_started', False):
+        running = [t.name for t in threading.enumerate()]
+        if FLIPPER_ENGINE and callable(start_flipper_watcher) and "flipper-watcher" not in running:
+            start_flipper_watcher()
+            start_flipper_watcher._started = True
 
     # ── Open browser (ARM64-safe — avoid stale Chromium flags) ───────────────
     try:

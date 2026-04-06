@@ -919,20 +919,10 @@
     <div class="rp-section">
       <div class="rp-header"><span class="rp-dot"></span>INTEL FEED</div>
       <div id="intel-feed">
-        <div class="ic ok">
-          <div class="ic-ts">00:00:01</div>
-          <div class="ic-ttl">✅ SYSTEM ONLINE</div>
-          <div class="ic-body">ERR0RS v2.0 // Hailo-10H NPU active // Dual NVMe OK</div>
-        </div>
-        <div class="ic info">
-          <div class="ic-ts">00:00:02</div>
-          <div class="ic-ttl">◈ HARDWARE DETECTED</div>
-          <div class="ic-body">Pi 5 16GB // X1004 PCIe splitter // 26 TOPS AI engine</div>
-        </div>
         <div class="ic">
-          <div class="ic-ts">00:00:03</div>
-          <div class="ic-ttl">◉ AWAITING TARGET</div>
-          <div class="ic-body">No active engagement. Use tool grid or terminal.</div>
+          <div class="ic-ts">--:--:--</div>
+          <div class="ic-ttl">◉ BOOTING ERR0RS...</div>
+          <div class="ic-body">Fetching live system status...</div>
         </div>
       </div>
     </div>
@@ -1842,10 +1832,51 @@ function submitTargetModal() {
   }, 600);
 }
 
+// ─────────────────────────────────────────────
+// DYNAMIC BOOT STATUS FEED
+// Pulls /api/status on page load and populates
+// the intel feed with real hardware/engine info
+// ─────────────────────────────────────────────
+async function bootStatusFeed() {
+  try {
+    const s = await fetch('/api/status').then(r => r.json());
+    document.getElementById('intel-feed').innerHTML = '';
+
+    // Build engine list from all *_engine booleans that are true
+    const engines = Object.entries(s)
+      .filter(([k, v]) => k.endsWith('_engine') && v === true)
+      .map(([k]) => k.replace('_engine', '').toUpperCase())
+      .join(' // ');
+
+    const hw      = s.platform    || 'Unknown hardware';
+    const npuLine = s.hailo_npu   ? `Hailo-10H NPU active // ${s.hailo_status}`
+                                  : `Hailo NPU: ${s.hailo_status || 'not ready'}`;
+    const models  = s.ollama_models && s.ollama_models.length
+                    ? s.ollama_models.join(', ')
+                    : 'No models loaded';
+    const flipper = s.flipper_engine ? 'Flipper Zero: connected' : 'Flipper Zero: not detected';
+    const ws      = s.websocket      ? `WebSocket: :${s.ws_port}` : 'WebSocket: disabled';
+
+    // Cards added bottom-to-top (insertBefore puts newest at top)
+    addIntel('◉ AWAITING TARGET',   'No active engagement. Use tool grid or terminal.', '');
+    addIntel('🔌 CONNECTIVITY',     `${flipper} // ${ws}`, 'info');
+    addIntel('⚡ ENGINES ONLINE',   engines || 'None loaded', 'info');
+    addIntel('🤖 OLLAMA',           models, s.ollama ? 'ok' : 'warn');
+    addIntel('◈ HARDWARE DETECTED', `${hw} // ${npuLine}`, 'info');
+    addIntel('✅ SYSTEM ONLINE',    `ERR0RS v${s.version || '3.0'} // uptime ${s.uptime}`, 'ok');
+  } catch (e) {
+    document.getElementById('intel-feed').innerHTML = '';
+    addIntel('⚠ BACKEND OFFLINE',
+      'Cannot reach ERR0RS server. Run: python3 src/ui/errorz_launcher.py', 'crit');
+  }
+}
+
 // Allow Enter key in modal
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('target-modal-input');
   if (inp) inp.addEventListener('keydown', e => { if(e.key==='Enter') submitTargetModal(); if(e.key==='Escape') closeTargetModal(); });
+  // Boot the live status feed
+  bootStatusFeed();
 });
 
 // ─────────────────────────────────────────────

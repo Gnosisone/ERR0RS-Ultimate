@@ -95,6 +95,18 @@ except Exception as e:
     WIZARD_ENGINE = False
     print(f"[ERR0RS] Smart Wizard unavailable: {e}")
 
+# ── Terminal Bridge — OS terminal spawner + tool anatomy panel ───────────────
+try:
+    from src.tools.terminal_bridge import (
+        register_terminal_bridge_routes,
+        get_tool_panel_data, load_registry as load_tool_registry,
+    )
+    TERMINAL_BRIDGE = True
+    print("[ERR0RS] Terminal Bridge ready — OS terminal launcher active")
+except Exception as e:
+    TERMINAL_BRIDGE = False
+    print(f"[ERR0RS] Terminal Bridge unavailable: {e}")
+
 # ── Hailo-10H NPU Integration ──────────────────────────────────────────────────
 try:
     from src.ai.hailo_npu import (
@@ -1186,6 +1198,22 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                             "live_terminal": LIVE_TERMINAL})
             elif self.path == "/api/payload_studio/snippets":
                 self._payload_snippets()
+            # ── Terminal Bridge GET routes ─────────────────────────────────
+            elif self.path == "/api/tool/registry":
+                if TERMINAL_BRIDGE:
+                    self._json(load_tool_registry())
+                else:
+                    self._json({"error": "Terminal Bridge not loaded"})
+            elif self.path.startswith("/api/tool/panel/"):
+                if TERMINAL_BRIDGE:
+                    parts = self.path.split("/")
+                    tool = parts[-1].split("?")[0]
+                    from urllib.parse import urlparse, parse_qs
+                    qs = parse_qs(urlparse(self.path).query)
+                    target = qs.get("target", [""])[0]
+                    self._json(get_tool_panel_data(tool, target))
+                else:
+                    self._json({"error": "Terminal Bridge not loaded"})
             else: super().do_GET()
         except (BrokenPipeError, ConnectionResetError): pass
 
@@ -1211,6 +1239,42 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 cmd     = payload.get("cmd","").strip()
                 timeout = payload.get("timeout",60)
                 self._json(run_shell(cmd,timeout) if cmd else {"error":"no cmd"})
+
+            # ── Terminal Bridge POST routes ────────────────────────────────
+            elif self.path == "/api/terminal/launch":
+                if TERMINAL_BRIDGE:
+                    from src.tools.terminal_bridge import (
+                        build_command_from_flags, spawn_terminal_with_command,
+                        get_tool_panel_data as _get_panel
+                    )
+                    tool    = payload.get("tool","").strip()
+                    target  = payload.get("target","").strip()
+                    flags   = payload.get("flags", [])
+                    fvals   = payload.get("flag_values", {})
+                    command = payload.get("command") or build_command_from_flags(tool, target, flags, fvals)
+                    spawn_result = spawn_terminal_with_command(command, tool)
+                    self._json({
+                        "status":  "launched" if "pid" in spawn_result else "error",
+                        "command": command,
+                        "tool":    tool,
+                        "target":  target,
+                        "terminal_info": spawn_result,
+                        "panel":   _get_panel(tool, target),
+                    })
+                else:
+                    self._json({"error": "Terminal Bridge not loaded"})
+
+            elif self.path == "/api/terminal/fire":
+                if TERMINAL_BRIDGE:
+                    from src.tools.terminal_bridge import spawn_terminal_with_command
+                    command = payload.get("command","").strip()
+                    tool    = payload.get("tool","")
+                    if not command:
+                        self._json({"error": "no command"}); return
+                    result = spawn_terminal_with_command(command, tool)
+                    self._json({"status": "fired", "result": result})
+                else:
+                    self._json({"error": "Terminal Bridge not loaded"})
 
             elif self.path == "/api/teach":
                 query = payload.get("query","").strip()

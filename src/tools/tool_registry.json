@@ -1,0 +1,146 @@
+{
+  "nmap": {
+    "name": "Nmap",
+    "binary": "nmap",
+    "category": "recon",
+    "description": "Network Mapper — the industry-standard tool for host discovery, port scanning, service/version detection, OS fingerprinting, and scripted vulnerability checks. The foundation of every professional recon phase.",
+    "teach_intro": "Nmap works by sending carefully crafted packets to the target and analyzing the responses. Different port states (open, closed, filtered) give us a map of the attack surface. Every open port is a potential entry point.",
+    "default_flags": ["-sV", "--top-ports", "1000"],
+    "default_command": "nmap -sV --top-ports 1000 {target}",
+    "flags": {
+      "-sV": {
+        "label": "Version Detection",
+        "desc": "Probe open ports to determine the service name and version number. Essential — version info reveals CVEs.",
+        "example": "nmap -sV 192.168.1.1",
+        "teach": "Version detection sends additional probes after discovering open ports. A port showing 'Apache 2.4.29' immediately tells you to check CVE databases for that specific version.",
+        "risk": "noisy"
+      },
+      "-sC": {
+        "label": "Default Scripts",
+        "desc": "Run Nmap's default NSE scripts. Checks for common vulns, grabs banners, enumerates services automatically.",
+        "example": "nmap -sC 192.168.1.1",
+        "teach": "NSE (Nmap Scripting Engine) scripts are mini-programs that run against open ports. Default scripts grab banners, detect vulns, enumerate SMB shares, and more — all automatically.",
+        "risk": "noisy"
+      },
+      "-sS": {
+        "label": "SYN Stealth Scan",
+        "desc": "Half-open TCP scan. Never completes the handshake — faster and harder to detect than full connect scan.",
+        "example": "nmap -sS 192.168.1.1",
+        "teach": "SYN scan sends a SYN packet and waits. Open ports reply SYN-ACK, closed ports reply RST. We never send the final ACK — the connection never fully opens, leaving fewer logs.",
+        "risk": "requires_root"
+      },
+      "-sU": {
+        "label": "UDP Scan",
+        "desc": "Scan UDP ports. Finds DNS (53), SNMP (161), TFTP (69), NTP (123) — often overlooked by defenders.",
+        "example": "nmap -sU --top-ports 100 192.168.1.1",
+        "teach": "UDP is connectionless so scanning is slower. ICMP 'port unreachable' = closed. No response = open|filtered. SNMP (161) is a goldmine — often misconfigured with 'public' community string.",
+        "risk": "slow"
+      },
+      "-O": {
+        "label": "OS Detection",
+        "desc": "Identify the operating system via TCP/IP fingerprinting. Narrows exploit selection dramatically.",
+        "example": "nmap -O 192.168.1.1",
+        "teach": "OS detection analyzes subtle differences in how operating systems respond to unusual packet combinations. Knowing it's Windows Server 2019 vs Ubuntu 20.04 changes your entire attack path.",
+        "risk": "requires_root"
+      },
+      "-A": {
+        "label": "Aggressive Scan",
+        "desc": "Enables OS detection (-O), version detection (-sV), script scanning (-sC), and traceroute. All-in-one.",
+        "example": "nmap -A 192.168.1.1",
+        "teach": "The -A flag is the Swiss Army knife — it's louder but gives maximum intel in one shot. Great for CTFs and internal assessments where stealth isn't a priority.",
+        "risk": "very_noisy"
+      },
+      "-p-": {
+        "label": "All Ports",
+        "desc": "Scan all 65535 ports. Default only scans top 1000. Services on non-standard ports hide here.",
+        "example": "nmap -p- 192.168.1.1",
+        "teach": "Admins often move services to non-standard ports thinking it adds security (security through obscurity). An SSH on port 2222, RDP on 3399, or a web admin on 8888 would be missed without -p-.",
+        "risk": "slow"
+      },
+      "-p": {
+        "label": "Port Range",
+        "desc": "Specify exact ports or ranges: -p 22,80,443 or -p 1-1024",
+        "example": "nmap -p 22,80,443,8080,8443 192.168.1.1",
+        "teach": "Targeted port scanning is faster and quieter. Use when you already know what services to look for, or want to quickly verify if a specific service is running.",
+        "risk": "quiet"
+      },
+      "--script": {
+        "label": "NSE Script",
+        "desc": "Run specific Nmap scripts: vuln, smb-vuln-ms17-010, http-title, ftp-anon, etc.",
+        "example": "nmap --script smb-vuln-ms17-010 192.168.1.1",
+        "teach": "NSE scripts are Lua programs. smb-vuln-ms17-010 checks for EternalBlue. ftp-anon checks for anonymous FTP login. http-enum discovers web paths. You can chain: --script vuln,discovery",
+        "risk": "depends_on_script"
+      },
+      "--top-ports": {
+        "label": "Top N Ports",
+        "desc": "Scan the N most commonly open ports. --top-ports 1000 covers 99% of real-world services.",
+        "example": "nmap --top-ports 1000 192.168.1.1",
+        "teach": "Nmap has a database of port frequency based on real-world internet scans. Top 100 ports covers ~80% of services, top 1000 covers ~99%. Balances speed vs coverage.",
+        "risk": "quiet"
+      },
+      "-T4": {
+        "label": "Timing Template T4",
+        "desc": "Aggressive timing — faster scans on reliable networks. T0=paranoid (slowest) to T5=insane (fastest).",
+        "example": "nmap -T4 192.168.1.1",
+        "teach": "Timing templates control packet rate. T1-T2 are for IDS evasion (very slow). T3 is default. T4 is faster for reliable LAN. T5 can miss results. Never use T5 in production.",
+        "risk": "noisy"
+      },
+      "-oN": {
+        "label": "Normal Output",
+        "desc": "Save results to a file in normal human-readable format for your report.",
+        "example": "nmap -oN scan_results.txt 192.168.1.1",
+        "teach": "Always save your output! -oN = normal text, -oX = XML (for parsing), -oG = grepable, -oA = all formats at once. You'll need this for your report and for evidence.",
+        "risk": "safe"
+      },
+      "-oX": {
+        "label": "XML Output",
+        "desc": "Save results as XML — can be imported into Metasploit, Dradis, and other tools.",
+        "example": "nmap -oX scan.xml 192.168.1.1",
+        "teach": "XML output is machine-readable. Metasploit can import nmap XML directly: db_import scan.xml — this populates your Metasploit database with all hosts and services automatically.",
+        "risk": "safe"
+      },
+      "--open": {
+        "label": "Show Open Only",
+        "desc": "Only display open ports in output. Cleaner results on large network scans.",
+        "example": "nmap --open 192.168.1.0/24",
+        "teach": "On large subnet scans, you'll get hundreds of 'closed' results that don't matter. --open filters the noise so you only see actionable findings.",
+        "risk": "safe"
+      },
+      "-v": {
+        "label": "Verbose",
+        "desc": "Increase verbosity — shows results as they come in rather than waiting for scan to finish.",
+        "example": "nmap -v 192.168.1.1",
+        "teach": "With -v you see open ports appear in real time as nmap discovers them. Great for long scans — you can start working on early discoveries while the scan continues.",
+        "risk": "safe"
+      }
+    },
+    "preset_profiles": {
+      "Quick Recon": {
+        "flags": ["-sV", "--top-ports", "100", "-T4"],
+        "desc": "Fast top-100 port sweep with version detection. Good for initial target survey."
+      },
+      "Full Recon": {
+        "flags": ["-sV", "-sC", "--top-ports", "1000"],
+        "desc": "Service versions + default NSE scripts. The professional standard."
+      },
+      "Stealth SYN": {
+        "flags": ["-sS", "-T2", "--top-ports", "1000"],
+        "desc": "Half-open scan with slow timing. Lower IDS detection probability."
+      },
+      "Aggressive All": {
+        "flags": ["-A", "-p-"],
+        "desc": "All ports + OS + scripts + traceroute. Maximum intel, maximum noise."
+      },
+      "SMB Hunter": {
+        "flags": ["-p", "139,445", "--script", "smb-vuln-ms17-010,smb-enum-shares,smb-os-discovery"],
+        "desc": "Hunt for EternalBlue and SMB misconfigs specifically."
+      },
+      "Web App": {
+        "flags": ["-p", "80,443,8080,8443,8888", "-sV", "--script", "http-title,http-headers,http-methods"],
+        "desc": "Web-focused scan with HTTP enumeration scripts."
+      }
+    },
+    "defend_notes": "From a blue team perspective: Nmap SYN scans generate RST packets visible in firewall logs. Full connect scans appear in web server access logs. Version detection produces unusual banner grabs. Configure your SIEM to alert on port sweeps (single source → multiple destinations in short window). Tools like Snort/Suricata have Nmap detection signatures built in.",
+    "mitre_techniques": ["T1046 - Network Service Discovery", "T1595.001 - Active Scanning: Scanning IP Blocks"]
+  }
+}

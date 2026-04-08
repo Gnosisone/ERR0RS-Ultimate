@@ -966,23 +966,28 @@
     </div>
     <div id="tool-grid">
       <!-- RED TEAM / OFFENSIVE -->
-      <div class="tb offensive" onclick="launchTool(this,'nmap','🌐','Spinning up Nmap — mapping every open door on the target.')">
+      <div class="tb offensive" onclick="launchTool(this,'nmap','🌐','Spinning up Nmap — mapping every open door on the target.')" oncontextmenu="event.preventDefault();openToolPanel('nmap')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
         <div class="tb-icon">🌐</div><div class="tb-name">NMAP</div><div class="tb-cat">RECON</div>
+        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
       </div>
       <div class="tb offensive" onclick="launchTool(this,'metasploit','💣','Metasploit loaded. Choose your payload, operator.')">
         <div class="tb-icon">💣</div><div class="tb-name">MSF</div><div class="tb-cat">EXPLOIT</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'sqlmap','🗄️','SQLMap probing injection points... finding the cracks.')">
+      <div class="tb offensive" onclick="launchTool(this,'sqlmap','🗄️','SQLMap probing injection points... finding the cracks.')" oncontextmenu="event.preventDefault();openToolPanel('sqlmap')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
         <div class="tb-icon">🗄️</div><div class="tb-name">SQLMAP</div><div class="tb-cat">WEB</div>
+        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'hydra','🔑','Hydra brute-forcing credentials. Patience, operator.')">
+      <div class="tb offensive" onclick="launchTool(this,'hydra','🔑','Hydra brute-forcing credentials. Patience, operator.')" oncontextmenu="event.preventDefault();openToolPanel('hydra')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
         <div class="tb-icon">🔑</div><div class="tb-name">HYDRA</div><div class="tb-cat">CREDS</div>
+        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'nikto','🕷️','Nikto web scanner armed. Checking for misconfigs.')">
+      <div class="tb offensive" onclick="launchTool(this,'nikto','🕷️','Nikto web scanner armed. Checking for misconfigs.')" oncontextmenu="event.preventDefault();openToolPanel('nikto')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
         <div class="tb-icon">🕷️</div><div class="tb-name">NIKTO</div><div class="tb-cat">WEB SCAN</div>
+        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'gobuster','📂','Gobuster fuzzing directories. Finding the hidden paths.')">
+      <div class="tb offensive" onclick="launchTool(this,'gobuster','📂','Gobuster fuzzing directories. Finding the hidden paths.')" oncontextmenu="event.preventDefault();openToolPanel('gobuster')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
         <div class="tb-icon">📂</div><div class="tb-name">GOBUSTER</div><div class="tb-cat">FUZZ</div>
+        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
       </div>
       <div class="tb offensive" onclick="launchTool(this,'aircrack-ng','📡','Aircrack-ng live. Capturing handshakes on the air.')">
         <div class="tb-icon">📡</div><div class="tb-name">AIRCRACK</div><div class="tb-cat">WIRELESS</div>
@@ -2409,6 +2414,101 @@ const SNIPPETS = {
     },
   ],
 };
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TERMINAL BRIDGE — Tool Panel overlay
+     Slides in from the right when a tool card is activated.
+     Contains: tool description, clickable flags, command preview, FIRE button.
+════════════════════════════════════════════════════════════════════ -->
+<div id="errz-panel-overlay" style="
+  display:none;
+  position:fixed;top:0;right:0;bottom:0;
+  width:420px;max-width:95vw;
+  background:#08001a;
+  border-left:1px solid #2d0a60;
+  z-index:9000;
+  overflow-y:auto;
+  padding:20px;
+  box-shadow:-8px 0 32px rgba(123,47,190,0.25);
+  transition:transform 0.25s ease;
+  font-family:'Share Tech Mono',monospace;
+">
+  <!-- Panel header bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;border-bottom:1px solid #1e0040;padding-bottom:12px;">
+    <span style="font-family:Orbitron,monospace;color:#bf6fff;font-size:0.85rem;letter-spacing:2px;">
+      ⚡ TOOL ANATOMY
+    </span>
+    <button onclick="ToolPanel.hide();document.getElementById('errz-panel-overlay').style.display='none';"
+      style="background:none;border:none;color:#4a2870;cursor:pointer;font-size:20px;line-height:1;">✕</button>
+  </div>
+
+  <!-- Target input inside panel -->
+  <div style="margin-bottom:14px;">
+    <div style="color:#4a2870;font-size:11px;margin-bottom:4px;">TARGET</div>
+    <input id="errz-panel-target" type="text" placeholder="192.168.1.1 or hostname.com"
+      style="
+        width:100%;padding:8px 12px;
+        background:#04000a;border:1px solid #1e0040;border-radius:4px;
+        color:#d4b8ff;font-family:'Share Tech Mono',monospace;font-size:13px;
+        outline:none;
+      "
+      oninput="ToolPanel._updateTarget(this.value)"
+    />
+  </div>
+
+  <!-- Panel content injected by tool_panel.js -->
+  <div id="errz-tool-panel-wrap"></div>
+</div>
+
+<!-- Dark backdrop -->
+<div id="errz-panel-backdrop" onclick="ToolPanel.hide();document.getElementById('errz-panel-overlay').style.display='none';document.getElementById('errz-panel-backdrop').style.display='none';"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8999;">
+</div>
+
+<!-- Tool Panel JS -->
+<script src="/tool_panel.js"></script>
+<script>
+  // ── Init panel on page load ───────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    ToolPanel.init("errz-tool-panel-wrap");
+  });
+
+  // ── Global: open tool panel from any tool card ────────────────────────────
+  function openToolPanel(tool, target) {
+    target = target || document.getElementById("errz-panel-target")?.value || "";
+    const overlay  = document.getElementById('errz-panel-overlay');
+    const backdrop = document.getElementById('errz-panel-backdrop');
+    const inp      = document.getElementById('errz-panel-target');
+    overlay.style.display  = "block";
+    backdrop.style.display = "block";
+    if (inp) inp.value = target;
+
+    // ERR0RS reacts — lean toward the panel side (right)
+    if (typeof bgImg !== 'undefined') bgImg.className = 'lean-right';
+    if (typeof zoomBorder !== 'undefined') {
+      zoomBorder.classList.add('speaking');
+      setTimeout(() => zoomBorder.classList.remove('speaking'), 1200);
+    }
+    if (typeof speechEl !== 'undefined') {
+      speechEl.style.opacity = 0;
+      setTimeout(() => {
+        speechEl.textContent = `📖 Loading ${tool.toUpperCase()} anatomy — right-click any flag for intel.`;
+        speechEl.style.opacity = 1;
+      }, 200);
+    }
+    ToolPanel.loadPanel(tool, target);
+  }
+
+  // Let the panel update command when target changes
+  ToolPanel._updateTarget = function(val) {
+    if (ToolPanel._state) ToolPanel._state.target = val;
+    if (typeof ToolPanel.rebuildCommand === "function") ToolPanel.rebuildCommand();
+  };
+
+  // ── Wire nmap card click if the tool grid exists ──────────────────────────
+  // Cards already have onclick handlers — this wires the "Learn & Launch" path
+  // Intercept any tool card's secondary button or add the path in the card HTML.
 </script>
 </body>
 </html>

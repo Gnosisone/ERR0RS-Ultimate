@@ -170,7 +170,26 @@
     .deploy-btn.flipper { border-color:var(--orange); color:var(--orange); background:rgba(255,102,0,.08); }
     .deploy-btn.copy    { border-color:var(--cyan);   color:var(--cyan);   background:rgba(0,245,255,.06); }
     .deploy-btn.save    { border-color:var(--green);  color:var(--green);  background:rgba(57,255,20,.06); }
+    .deploy-btn.pico    { border-color:var(--purple-hi); color:var(--purple-hi); background:rgba(192,132,252,.08); }
+    .deploy-btn.convert { border-color:var(--blue);   color:var(--blue);   background:rgba(68,136,255,.07); }
+    .deploy-btn.gen     { border-color:var(--amber);  color:var(--amber);  background:rgba(255,170,0,.07); }
     #deploy-status { font-size:.58rem; color:var(--text-dim); text-align:center; min-height:18px; }
+
+    /* ── PICO MODAL ── */
+    #pico-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000; align-items:center; justify-content:center; }
+    #pico-modal.open { display:flex; }
+    #pico-panel { background:#0c0020; border:1px solid var(--purple); border-radius:8px; padding:20px; width:460px; max-width:95vw; box-shadow:0 0 40px rgba(123,47,190,.5); }
+    .pico-title { font-family:'Orbitron',monospace; font-size:.65rem; letter-spacing:3px; color:var(--purple-hi); margin-bottom:14px; }
+    .pico-status { font-size:.62rem; padding:10px; border-radius:4px; margin-bottom:10px; min-height:40px; background:rgba(0,0,0,.4); border:1px solid var(--border); color:var(--text-dim); white-space:pre-wrap; }
+    .pico-row { display:flex; gap:8px; margin-bottom:8px; }
+    .pico-btn { flex:1; padding:8px; font-family:'Orbitron',monospace; font-size:.48rem; letter-spacing:1.5px; cursor:pointer; border-radius:4px; border:1px solid; transition:all .2s; }
+    .pico-btn:hover { filter:brightness(1.4); }
+    .pico-btn.detect  { border-color:var(--cyan);   color:var(--cyan);   background:rgba(0,245,255,.08); }
+    .pico-btn.flash   { border-color:var(--purple-hi); color:var(--purple-hi); background:rgba(192,132,252,.1); }
+    .pico-btn.convert { border-color:var(--blue);   color:var(--blue);   background:rgba(68,136,255,.08); }
+    .pico-btn.close   { border-color:var(--text-dim); color:var(--text-dim); background:transparent; }
+    .pico-device { font-size:.58rem; color:var(--green); margin-bottom:8px; min-height:16px; }
+    .pico-hint { font-size:.52rem; color:var(--text-dim); margin-top:8px; line-height:1.6; }
   </style>
 </head>
 <body>
@@ -298,11 +317,36 @@
 
     <div id="deploy-section">
       <button class="deploy-btn flipper" onclick="deployToFlipper()">🐬 DEPLOY → FLIPPER SD</button>
+      <button class="deploy-btn pico"    onclick="openPicoModal()">🟣 FLASH → PICO BADUSB</button>
+      <button class="deploy-btn convert" onclick="convertToPico()">⚡ CONVERT → CIRCUITPY</button>
+      <button class="deploy-btn gen"     onclick="aiGeneratePayload()">🤖 AI GENERATE</button>
       <button class="deploy-btn copy"    onclick="copyPayload()">📋 COPY PAYLOAD</button>
       <button class="deploy-btn save"    onclick="savePayload()">💾 DOWNLOAD .txt</button>
       <div id="deploy-status"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── PICO BADUSB MODAL ── -->
+<div id="pico-modal">
+  <div id="pico-panel">
+    <div class="pico-title">🟣 PICO BADUSB PROGRAMMER</div>
+    <div class="pico-device" id="pico-device-status">Checking for device...</div>
+    <div class="pico-status" id="pico-status-box">Click DETECT to scan for connected RP2040 / Pico device.</div>
+    <div class="pico-row">
+      <button class="pico-btn detect"  onclick="picoDetect()">🔍 DETECT DEVICE</button>
+      <button class="pico-btn flash"   onclick="picoFlash()">⚡ FLASH PAYLOAD</button>
+    </div>
+    <div class="pico-row">
+      <button class="pico-btn convert" onclick="picoConvertAndShow()">🔄 VIEW CIRCUITPY CODE</button>
+      <button class="pico-btn close"   onclick="closePicoModal()">✕ CLOSE</button>
+    </div>
+    <div class="pico-hint">
+      <strong>How to enter BOOTSEL mode:</strong> Hold the BOOTSEL button on your Pico while plugging in USB.<br>
+      Drive appears as <code>RPI-RP2</code> → ERR0RS flashes firmware automatically.<br>
+      Running pico-ducky firmware? Just click FLASH — payload.txt drops instantly.
+    </div>
   </div>
 </div>
 
@@ -1248,6 +1292,188 @@ function deployToFlipper() {
   }, 1500);
 }
 
+// ══════════════════════════════════════════════════════════
+// PICO BADUSB PROGRAMMER
+// ══════════════════════════════════════════════════════════
+function openPicoModal() {
+  document.getElementById('pico-modal').classList.add('open');
+  picoDetect();
+}
+
+function closePicoModal() {
+  document.getElementById('pico-modal').classList.remove('open');
+}
+
+function picoSetStatus(msg, color) {
+  const box = document.getElementById('pico-status-box');
+  box.textContent = msg;
+  box.style.color = color || 'var(--text-dim)';
+}
+
+function picoSetDevice(msg, color) {
+  const el = document.getElementById('pico-device-status');
+  el.textContent = msg;
+  el.style.color = color || 'var(--green)';
+}
+
+async function picoDetect() {
+  picoSetDevice('🔍 Scanning...', 'var(--cyan)');
+  picoSetStatus('Scanning USB for RP2040 / Pico devices...');
+  try {
+    const r = await fetch('/api/rp2040', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: 'detect' })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      const dev = d.device;
+      const info = d.info;
+      if (dev.mode === 'none') {
+        picoSetDevice('❌ No RP2040 detected', 'var(--red)');
+        picoSetStatus(
+          'No device found.\n\n' +
+          'To connect:\n' +
+          '  • pico-ducky: just plug in\n' +
+          '  • BOOTSEL mode: hold BOOTSEL button while plugging in USB\n' +
+          '  • CircuitPython: plug in normally\n\n' +
+          'Available firmware: ' + (info.available_firmware.length
+            ? info.available_firmware.join(', ')
+            : 'none — add .uf2 to src/tools/badusb_studio/firmware/'),
+          'var(--amber)'
+        );
+      } else {
+        picoSetDevice(`✅ ${dev.mode.toUpperCase()} — ${dev.path}`, 'var(--green)');
+        picoSetStatus(
+          `Device found!\n` +
+          `  Mode: ${dev.mode}\n` +
+          `  Path: ${dev.path}\n` +
+          `  Ready for: ${dev.ready_for}\n\n` +
+          (info.available_firmware.length
+            ? `Available firmware: ${info.available_firmware.join(', ')}`
+            : 'Tip: Add pico-ducky.uf2 to firmware/ for one-click flashing'),
+          'var(--green)'
+        );
+      }
+    } else {
+      picoSetDevice('⚠️ Detect error', 'var(--amber)');
+      picoSetStatus('Error: ' + (d.error || 'unknown'), 'var(--red)');
+    }
+  } catch (err) {
+    picoSetDevice('⚠️ Backend unreachable', 'var(--red)');
+    picoSetStatus('Could not reach ERR0RS backend.\nIs ERR0RS server running?', 'var(--red)');
+  }
+}
+
+async function picoFlash() {
+  const code = editor.value.trim();
+  if (!code) { picoSetStatus('No payload in editor. Write or load a payload first.', 'var(--red)'); return; }
+  picoSetStatus('⚡ Flashing payload to Pico...', 'var(--amber)');
+  picoSetDevice('⚡ Flashing...', 'var(--amber)');
+  try {
+    const r = await fetch('/api/rp2040', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: 'flash_ducky', code })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      picoSetDevice('✅ FLASH SUCCESS', 'var(--green)');
+      picoSetStatus(
+        `✅ ${d.message}\n` +
+        `  Mode: ${d.mode || 'auto'}\n` +
+        `  Device: ${d.device || 'connected'}\n` +
+        (d.converted_lines ? `  CircuitPython lines: ${d.converted_lines}\n` : '') +
+        '\nPico is armed and ready. Unplug and deploy.',
+        'var(--green)'
+      );
+      setStatus('✅ Pico flashed successfully!');
+    } else {
+      picoSetDevice('❌ Flash failed', 'var(--red)');
+      picoSetStatus('Error: ' + (d.error || 'unknown') + (d.hint ? '\n\nHint: ' + d.hint : ''), 'var(--red)');
+    }
+  } catch (err) {
+    picoSetDevice('❌ Error', 'var(--red)');
+    picoSetStatus('Backend error: ' + err, 'var(--red)');
+  }
+}
+
+async function picoConvertAndShow() {
+  const code = editor.value.trim();
+  if (!code) { picoSetStatus('No payload in editor.', 'var(--red)'); return; }
+  picoSetStatus('Converting DuckyScript → CircuitPython...', 'var(--cyan)');
+  try {
+    const r = await fetch('/api/payload_studio/convert', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ code, target: 'circuitpython' })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      picoSetStatus(d.output, 'var(--cyan)');
+      picoSetDevice(`✅ Converted — ${d.lines} lines CircuitPython`, 'var(--green)');
+    } else {
+      picoSetStatus('Conversion error: ' + d.error, 'var(--red)');
+    }
+  } catch (err) {
+    picoSetStatus('Error: ' + err, 'var(--red)');
+  }
+}
+
+async function convertToPico() {
+  const code = editor.value.trim();
+  if (!code) { setStatus('No payload in editor.'); return; }
+  setStatus('⚡ Converting to CircuitPython...');
+  try {
+    const r = await fetch('/api/payload_studio/convert', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ code, target: 'circuitpython' })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      // Download the converted file
+      const blob = new Blob([d.output], {type: 'text/plain'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'code.py';
+      a.click();
+      setStatus(`✅ CircuitPython file downloaded (${d.lines} lines) — drop on CIRCUITPY drive`);
+    } else {
+      setStatus('Conversion error: ' + d.error);
+    }
+  } catch (err) {
+    setStatus('Error: ' + err);
+  }
+}
+
+async function aiGeneratePayload() {
+  const desc = prompt('Describe the payload (e.g. "steal WiFi passwords on Windows"):');
+  if (!desc) return;
+  setStatus('🤖 AI generating payload...');
+  try {
+    const r = await fetch('/api/payload_studio/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        description: desc,
+        target_os: document.getElementById('target-os-select').value || 'windows',
+        output_format: 'duckyscript'
+      })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      editor.value = d.script;
+      onEditorInput();
+      setStatus(`✅ AI generated ${d.lines} lines (${d.ai_used ? 'Ollama LLM' : 'template fallback'})`);
+    } else {
+      setStatus('AI generate error: ' + d.error);
+    }
+  } catch (err) {
+    setStatus('Error: ' + err);
+  }
+}
+
 function setStatus(msg) {
   document.getElementById('deploy-status').textContent = msg;
   setTimeout(() => document.getElementById('deploy-status').textContent = '', 5000);
@@ -1299,6 +1525,11 @@ setPlatform('windows');
 updateTargetInfo();
 updateLineNumbers();
 renderServerPanel(null);
+
+// Close pico modal on backdrop click
+document.getElementById('pico-modal').addEventListener('click', function(e) {
+  if (e.target === this) closePicoModal();
+});
 
 // Default starter content
 editor.value = `REM ═══════════════════════════════════════

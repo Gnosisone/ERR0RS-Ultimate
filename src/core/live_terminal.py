@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ERR0RS ULTIMATE — Live Terminal Engine v3.0
+ERR0RS ULTIMATE — Live Terminal Engine v3.1
 WebSocket-based streaming terminal with inline education injection.
 
 Architecture:
@@ -10,6 +10,8 @@ Architecture:
   - Forwards stdin FROM browser TO running process (interactive!)
   - Inline education: parses output and injects [ERR0RS] teaching cards
   - Intent parser: "run nmap on X and teach me" → execute + teach mode
+  - OperatorTerminal: persistent desktop xterm — ERR0RS types every tool
+    call into it live so operator can see and interact at any time
 
 Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
 """
@@ -319,6 +321,195 @@ def annotate_line(line: str, tool: str, target: str = "") -> list:
     return events
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# OPERATOR TERMINAL — persistent desktop xterm that ERR0RS types into
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class OperatorTerminal:
+    """
+    One persistent xterm lives on the desktop for the entire ERR0RS session.
+    Every time ERR0RS fires a tool, it types the command into this terminal
+    via xdotool so the operator can see exactly what's running and jump in.
+
+    Lifecycle:
+        ot = OperatorTerminal.instance()   # singleton
+        ot.send_command("nmap -sV 10.0.0.1", tool="nmap")
+
+    The terminal is a real interactive bash shell — operator can type freely
+    between ERR0RS tool calls.
+    """
+
+    _singleton = None
+    _lock      = threading.Lock()
+
+    # Window title — used by xdotool to find the window reliably
+    WINDOW_TITLE = "ERR0RS Operator Terminal"
+
+    # ERR0RS green-on-black colour scheme
+    XTERM_ARGS = [
+        "xterm",
+        "-T",  WINDOW_TITLE,
+        "-fa", "Monospace",
+        "-fs", "12",
+        "-bg", "#0a0a0a",
+        "-fg", "#00ff41",
+        "-cr", "#00ff41",         # cursor colour
+        "-geometry", "180x45",    # wide enough for nmap output
+        "-sl", "5000",            # scrollback lines
+    ]
+
+    def __init__(self):
+        self._proc   = None   # Popen for the xterm process
+        self._wid    = None   # X window ID (found via xdotool)
+        self._ready  = False
+
+    # ── Singleton accessor ────────────────────────────────────────────────────
+    @classmethod
+    def instance(cls) -> "OperatorTerminal":
+        with cls._lock:
+            if cls._singleton is None:
+                cls._singleton = cls()
+            return cls._singleton
+
+    # ── Spawn the persistent terminal ─────────────────────────────────────────
+    def spawn(self) -> bool:
+        """
+        Launch the operator xterm if it isn't already running.
+        Returns True if the terminal is (now) available.
+        """
+        import shutil
+
+        if not shutil.which("xterm"):
+            print("[OperatorTerminal] xterm not found — install with: apt install xterm")
+            return False
+        if not shutil.which("xdotool"):
+            print("[OperatorTerminal] xdotool not found — install with: apt install xdotool")
+            return False
+
+        # Kill previous orphan with same title (safe no-op if none)
+        subprocess.run(
+            ["xdotool", "search", "--name", self.WINDOW_TITLE, "windowkill"],
+            capture_output=True
+        )
+        time.sleep(0.3)
+
+        # Build the shell that runs inside xterm — it stays open as a bash REPL
+        init_script = (
+            "export PS1='\\n\\033[1;31m[ERR0RS]\\033[0m \\033[0;33m\\w\\033[0m $ ';"
+            "export TERM=xterm-256color;"
+            "clear;"
+            "echo ''"
+            "echo -e '\\033[0;31m  ███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗\\033[0m';"
+            "echo -e '\\033[0;31m  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\\033[0m';"
+            "echo -e '\\033[0;36m        OPERATOR TERMINAL — ERR0RS will type tool calls here\\033[0m';"
+            "echo -e '\\033[0;36m        You can interact freely between calls.\\033[0m';"
+            "echo '';"
+            "exec bash --norc --noprofile"
+        )
+
+        env = {**os.environ, "TERM": "xterm-256color", "DISPLAY": os.environ.get("DISPLAY", ":0")}
+
+        self._proc = subprocess.Popen(
+            self.XTERM_ARGS + ["-e", "bash", "-c", init_script],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env=env,
+        )
+
+        # Give xterm time to appear, then grab its window ID
+        for _ in range(20):
+            time.sleep(0.3)
+            result = subprocess.run(
+                ["xdotool", "search", "--name", self.WINDOW_TITLE],
+                capture_output=True, text=True
+            )
+            wids = result.stdout.strip().splitlines()
+            if wids:
+                self._wid   = wids[-1].strip()
+                self._ready = True
+                print(f"[OperatorTerminal] ✅ Spawned — WID {self._wid}")
+                return True
+
+        print("[OperatorTerminal] ⚠️  Window didn't appear within timeout")
+        return False
+
+    def is_alive(self) -> bool:
+        """Check xterm process is still running."""
+        if self._proc is None:
+            return False
+        return self._proc.poll() is None
+
+    def ensure_alive(self):
+        """Re-spawn the terminal if the operator closed it."""
+        if not self.is_alive():
+            print("[OperatorTerminal] Window was closed — re-spawning...")
+            self._ready = False
+            self._wid   = None
+            self.spawn()
+
+    # ── Type a command into the terminal ──────────────────────────────────────
+    def send_command(self, command: str, tool: str = "", announce: bool = True):
+        """
+        Focus the operator terminal and type `command` into it using xdotool.
+        ERR0RS types a short announcement line first so it's obvious this is
+        an AI-driven call, then the actual command, then hits Enter.
+
+        The operator can immediately start typing to interact with the tool.
+        """
+        self.ensure_alive()
+        if not self._ready or not self._wid:
+            return
+
+        tool_label = tool.upper() if tool else "TOOL"
+        announce_line = (
+            f"echo -e '\\n\\033[1;33m[ERR0RS] ▶ Calling {tool_label}\\033[0m'; "
+        )
+
+        try:
+            # Raise & focus the window
+            subprocess.run(["xdotool", "windowraise",  self._wid], capture_output=True)
+            subprocess.run(["xdotool", "windowfocus", "--sync", self._wid], capture_output=True)
+            time.sleep(0.15)
+
+            # Type the announce line then the real command
+            for text in ([announce_line] if announce else []) + [command]:
+                subprocess.run(
+                    ["xdotool", "type", "--window", self._wid,
+                     "--clearmodifiers", "--delay", "18", text],
+                    capture_output=True
+                )
+            # Press Enter to execute
+            subprocess.run(
+                ["xdotool", "key", "--window", self._wid, "Return"],
+                capture_output=True
+            )
+        except Exception as e:
+            print(f"[OperatorTerminal] xdotool error: {e}")
+
+    # ── Print a plain status/info line (no Enter) ─────────────────────────────
+    def print_status(self, message: str):
+        """Echo an informational message into the operator terminal."""
+        self.send_command(f"echo -e '\\033[0;36m[ERR0RS] {message}\\033[0m'",
+                          announce=False)
+
+
+# ── Module-level helper — always returns the singleton ────────────────────────
+def get_operator_terminal() -> OperatorTerminal:
+    return OperatorTerminal.instance()
+
+
+# ── Auto-spawn on import (background thread so import is non-blocking) ────────
+def _boot_operator_terminal():
+    """Called once at module import time — spawns the persistent terminal."""
+    ot = OperatorTerminal.instance()
+    if not ot.is_alive():
+        ot.spawn()
+
+_ot_boot_thread = threading.Thread(target=_boot_operator_terminal, daemon=True, name="operator-terminal-boot")
+_ot_boot_thread.start()
+
+
 # ── LIVE PROCESS RUNNER ──────────────────────────────────────────────────────
 # Runs a process with PTY for real interactive terminal behavior
 
@@ -341,8 +532,89 @@ class LiveProcess:
         self._running        = False
         self._stdin_queue    = []
 
+    # ── Terminal emulator preference order (Kali/Pi friendly) ────────────────
+    _TERM_EMULATORS = [
+        # (binary, [arg_to_run_command, ...])  — {title} and {cmd} filled in below
+        ("kitty",            ["kitty", "--title", "{title}", "--", "bash", "-c", "{cmd}"]),
+        ("xterm",            ["xterm", "-T", "{title}", "-fa", "Monospace", "-fs", "11",
+                               "-bg", "black", "-fg", "#00ff41",
+                               "-e", "bash", "-c", "{cmd}"]),
+        ("lxterminal",       ["lxterminal", "--title={title}", "-e", "bash -c '{cmd}'"]),
+        ("xfce4-terminal",   ["xfce4-terminal", "--title={title}", "-x", "bash", "-c", "{cmd}"]),
+        ("gnome-terminal",   ["gnome-terminal", "--title={title}", "--",
+                               "bash", "-c", "{cmd}"]),
+        ("mate-terminal",    ["mate-terminal", "--title={title}", "-x", "bash", "-c", "{cmd}"]),
+        ("konsole",          ["konsole", "--title", "{title}", "-e", "bash", "-c", "{cmd}"]),
+        ("tilix",            ["tilix", "--title={title}", "-e", "bash -c '{cmd}'"]),
+    ]
+
+    def _find_terminal(self):
+        """Return (binary, argv_template) for the first available terminal emulator."""
+        import shutil
+        for binary, argv in self._TERM_EMULATORS:
+            if shutil.which(binary):
+                return binary, argv
+        return None, None
+
+    def _spawn_popup_terminal(self):
+        """
+        Open a new, dedicated terminal window for this tool.
+        The window title shows the tool name; the command runs inside it.
+        A 'Press ENTER to close' hold is appended so the window stays open
+        after the tool finishes, letting you read the output.
+        Output is ALSO still streamed back to the browser UI via the PTY.
+        """
+        binary, argv_template = self._find_terminal()
+        if not binary:
+            self.output_callback({"type": "system",
+                "data": "[ERR0RS] No terminal emulator found (install xterm or kitty)"})
+            return
+
+        tool_label = self.tool.upper() if self.tool else "TOOL"
+        title      = f"ERR0RS ⟫ {tool_label}"
+
+        # Wrap command so window stays open with a pause at the end
+        hold_cmd = (
+            f"{self.command} ; "
+            f"echo '' ; "
+            f"echo '─────────────────────────────────────────────────' ; "
+            f"echo '[ERR0RS] {tool_label} finished. Press ENTER to close.' ; "
+            f"read _ignored"
+        )
+
+        # Build final argv, substituting {title} and {cmd}
+        argv = []
+        for part in argv_template:
+            part = part.replace("{title}", title).replace("{cmd}", hold_cmd)
+            argv.append(part)
+
+        try:
+            subprocess.Popen(
+                argv,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,   # detach — won't die when ERR0RS restarts
+                env={**os.environ, "TERM": "xterm-256color"},
+            )
+            self.output_callback({"type": "system",
+                "data": f"[ERR0RS] 🖥️  Popup terminal opened: {title}"})
+        except Exception as e:
+            self.output_callback({"type": "system",
+                "data": f"[ERR0RS] Popup terminal launch failed: {e}"})
+
     def start(self):
-        """Spawn process with PTY"""
+        """Spawn process with PTY (streams to UI) AND drives the operator terminal."""
+        # ── 1. Type command into the persistent operator terminal ─────────────
+        try:
+            ot = OperatorTerminal.instance()
+            ot.send_command(self.command, tool=self.tool)
+        except Exception as _ote:
+            pass   # never crash ERR0RS because of terminal issues
+
+        # ── 2. Open a dedicated popup terminal for this tool ─────────────────
+        self._spawn_popup_terminal()
+
+        # ── 3. Also stream output back to the browser UI via PTY ─────────────
         try:
             self.pid, self.fd = pty.fork()
         except Exception as e:

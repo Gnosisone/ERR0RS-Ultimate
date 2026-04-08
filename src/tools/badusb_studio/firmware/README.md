@@ -1,36 +1,30 @@
-# ERR0RS BadUSB Studio - Firmware Directory
+# ERR0RS BadUSB Studio — Firmware Directory
 
-Place your RP2040 UF2 firmware files here.
+Place RP2040 `.uf2` firmware files here. ERR0RS auto-detects them.
 
-## Required Firmware Files
+## Recommended Firmware
 
-### Option 1: pico-ducky (RECOMMENDED for Hak5 DuckyScript compatibility)
-- Download from: https://github.com/dbisu/pico-ducky
-- File: `pico-ducky.uf2` (or the duckyinpython .uf2)
-- After flashing: RP2040 appears as "DUCKY" drive
-- Drop `payload.txt` directly onto the drive
+### pico-ducky (DuckyScript on Pico)
+Download from: https://github.com/dbisu/pico-ducky/releases
+File: `pico-ducky.uf2`
+Flash method: Hold BOOTSEL → plug USB → RPI-RP2 drive appears → ERR0RS flashes it
 
-### Option 2: CircuitPython (for AI-generated Python payloads)
-- Download from: https://circuitpython.org/board/raspberry_pi_pico/
-- File: `adafruit-circuitpython-raspberry_pi_pico-*.uf2`
-- After flashing: RP2040 appears as "CIRCUITPY" drive
-- Drop `code.py` onto the drive
-- Also install adafruit_hid library in CIRCUITPY/lib/
+### CircuitPython (for AI-generated payloads)
+Download from: https://circuitpython.org/board/raspberry_pi_pico/
+File: `adafruit-circuitpython-raspberry_pi_pico-*.uf2`
+Required libraries (drop in CIRCUITPY/lib/):
+  - adafruit_hid (from Adafruit CircuitPython Bundle)
 
-### How to Flash Firmware
-1. Hold BOOTSEL button on RP2040
-2. Plug in USB while holding BOOTSEL
-3. RP2040 appears as "RPI-RP2" drive
-4. Use ERR0RS BadUSB Studio: studio.flash_firmware("path/to/firmware.uf2")
-   OR manually drag the .uf2 file onto the RPI-RP2 drive
+## Flash Workflow via ERR0RS UI
+1. Open Payload Studio → click "⚡ FLASH TO PICO"
+2. ERR0RS calls POST /api/rp2040 { "action": "detect" }
+3. If in bootloader mode → flash firmware automatically
+4. If running pico-ducky → drop payload.txt directly
+5. If running CircuitPython → convert DuckyScript → code.py and drop
 
-## RP2040 Compatible Hardware
-- Raspberry Pi Pico / Pico W / Pico 2
-- Adafruit Feather RP2040
-- SparkFun Pro Micro RP2040
-- Waveshare RP2040 Zero (tiny form factor, great for BadUSB)
-- Any board with RP2040 chip
-
-## Notes
-- .uf2 files are NOT included due to size. Download separately.
-- ERR0RS BadUSB Studio handles everything else automatically.
+## Manual Flash (fallback)
+```bash
+# Hold BOOTSEL, plug in Pico — RPI-RP2 drive mounts
+cp firmware/pico-ducky.uf2 /media/$USER/RPI-RP2/
+# Pico reboots as HID keyboard
+```

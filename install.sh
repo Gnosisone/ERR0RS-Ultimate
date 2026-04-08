@@ -271,6 +271,11 @@ main() {
   detect_distro
   banner
 
+  # Ensure all shell scripts are executable after Windows clone (CRLF strip)
+  echo -e "${CYAN}[*] Fixing script permissions...${NC}"
+  find "$SCRIPT_DIR" -maxdepth 2 -name "*.sh" -exec chmod +x {} \;
+  echo -e "  ${GREEN}✓${NC} All .sh scripts made executable"
+
   # Check if running as root for system installs
   if [ "$EUID" -ne 0 ]; then
     echo -e "${YELLOW}[!] Not running as root — skipping system package install${NC}"

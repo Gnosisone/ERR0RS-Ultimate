@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts — preserve LF line endings and executable bit
+*.sh text eol=lf
+start_err0rs.sh text eol=lf
+open_manual.sh text eol=lf
+install.sh text eol=lf

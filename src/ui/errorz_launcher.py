@@ -1240,6 +1240,18 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 stype = payload.get("type","")
                 self._json(self._stop_server(stype))
 
+            # ── Payload Studio: AI generate endpoint ─────────────────────────
+            elif self.path == "/api/payload_studio/generate":
+                self._json(self._generate_payload(payload))
+
+            # ── Payload Studio: DuckyScript → CircuitPython convert ───────────
+            elif self.path == "/api/payload_studio/convert":
+                self._json(self._convert_payload(payload))
+
+            # ── RP2040 / Pico BadUSB Programmer ──────────────────────────────
+            elif self.path == "/api/rp2040":
+                self._json(self._rp2040_handler(payload))
+
             elif self.path == "/api/rocketgod":
                 try:
                     from src.tools.rocketgod import handle_rocketgod_request
@@ -1592,6 +1604,174 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
         except Exception as exc:
             return {"status": "error", "error": str(exc)}
 
+    # ── AI Payload Generator ──────────────────────────────────────────────────
+    def _generate_payload(self, payload: dict) -> dict:
+        """
+        POST /api/payload_studio/generate
+        Body: { "description": "wifi harvester", "target_os": "windows",
+                "output_format": "duckyscript" }
+        """
+        try:
+            from src.tools.badusb_studio.payload_generator import PayloadGenerator
+            pg = PayloadGenerator()
+            description   = payload.get("description", "").strip()
+            target_os     = payload.get("target_os", "windows").strip()
+            output_format = payload.get("output_format", "duckyscript").strip()
+            if not description:
+                return {"status": "error", "error": "description required"}
+            script = pg.generate(description, target_os=target_os,
+                                 output_format=output_format)
+            return {
+                "status":  "ok",
+                "script":  script,
+                "target_os": target_os,
+                "format":  output_format,
+                "lines":   len(script.splitlines()),
+                "ai_used": pg._ollama_available,
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    # ── DuckyScript → CircuitPython converter ─────────────────────────────────
+    def _convert_payload(self, payload: dict) -> dict:
+        """
+        POST /api/payload_studio/convert
+        Body: { "code": "<duckyscript>", "target": "circuitpython" }
+        Returns converted CircuitPython code ready to drop on CIRCUITPY drive.
+        """
+        try:
+            from src.tools.badusb_studio.ducky_converter import DuckyConverter
+            code   = payload.get("code", "").strip()
+            target = payload.get("target", "circuitpython").strip()
+            if not code:
+                return {"status": "error", "error": "code required"}
+            dc     = DuckyConverter()
+            result = dc.convert(code, target=target)
+            return result   # already {"status","output","target","lines"}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    # ── RP2040 / Pico BadUSB Programmer ───────────────────────────────────────
+    def _rp2040_handler(self, payload: dict) -> dict:
+        """
+        POST /api/rp2040
+        Body: { "action": "detect|flash_ducky|flash_circuitpython|flash_uf2|
+                           wait|templates|get_template",
+                "code":     "<duckyscript or circuitpython>",
+                "filename": "code.py",
+                "uf2_path": "/path/to/firmware.uf2",
+                "template": "wifi_harvest",
+                "timeout":  30 }
+        """
+        try:
+            from src.tools.badusb_studio.rp2040_flasher import RP2040Flasher
+            from src.tools.badusb_studio.ducky_converter import DuckyConverter
+            from src.tools.badusb_studio.payload_generator import PayloadGenerator
+
+            action  = payload.get("action", "detect").strip()
+            flasher = RP2040Flasher()
+
+            # ── detect ────────────────────────────────────────────────────────
+            if action == "detect":
+                info = flasher.get_device_info()
+                status = flasher.detect_any_rp2040()
+                return {"status": "ok", "device": status, "info": info}
+
+            # ── flash DuckyScript payload (auto-converts to CircuitPython) ───
+            elif action == "flash_ducky":
+                code = payload.get("code", "").strip()
+                if not code:
+                    return {"status": "error", "error": "code required"}
+                # Auto-detect drive mode: prefer pico-ducky (drop payload.txt),
+                # fall back to CIRCUITPY (convert → CircuitPython)
+                pico_drive = flasher.find_pico_ducky()
+                if pico_drive:
+                    result = flasher.flash_duckyscript_payload(code)
+                    result["mode"] = "pico-ducky (payload.txt)"
+                    return {"status": "ok" if result["success"] else "error", **result}
+                else:
+                    circ_drive = flasher.find_circuitpy()
+                    if circ_drive:
+                        dc = DuckyConverter()
+                        conv = dc.convert(code, target="circuitpython")
+                        if conv["status"] != "ok":
+                            return conv
+                        result = flasher.flash_circuitpython_payload(
+                            conv["output"],
+                            filename=payload.get("filename", "code.py")
+                        )
+                        result["mode"] = "circuitpython (converted)"
+                        result["converted_lines"] = conv["lines"]
+                        return {"status": "ok" if result["success"] else "error", **result}
+                    else:
+                        return {
+                            "status": "error",
+                            "error": "No RP2040 found. Hold BOOTSEL and plug in USB, "
+                                     "or connect a flashed Pico.",
+                            "hint": "Need firmware? Use action=flash_uf2 first."
+                        }
+
+            # ── flash raw CircuitPython code ──────────────────────────────────
+            elif action == "flash_circuitpython":
+                code     = payload.get("code", "").strip()
+                filename = payload.get("filename", "code.py")
+                if not code:
+                    return {"status": "error", "error": "code required"}
+                result = flasher.flash_circuitpython_payload(code, filename)
+                return {"status": "ok" if result["success"] else "error", **result}
+
+            # ── flash UF2 firmware ────────────────────────────────────────────
+            elif action == "flash_uf2":
+                uf2_path = payload.get("uf2_path", "").strip()
+                if not uf2_path:
+                    # List available UF2s from firmware dir
+                    from pathlib import Path
+                    fw_dir = Path(__file__).resolve().parents[2] / \
+                             "src/tools/badusb_studio/firmware"
+                    uf2s = list(fw_dir.glob("*.uf2"))
+                    if not uf2s:
+                        return {
+                            "status": "error",
+                            "error": "No UF2 firmware found.",
+                            "hint": "Place .uf2 files in src/tools/badusb_studio/firmware/. "
+                                    "Download pico-ducky from: "
+                                    "https://github.com/dbisu/pico-ducky/releases"
+                        }
+                    return {"status": "ok", "available_firmware": [f.name for f in uf2s]}
+                result = flasher.flash_uf2(uf2_path)
+                return {"status": "ok" if result["success"] else "error", **result}
+
+            # ── wait for device to appear ─────────────────────────────────────
+            elif action == "wait":
+                mode    = payload.get("mode", "any")
+                timeout = int(payload.get("timeout", 30))
+                result  = flasher.wait_for_device(mode=mode, timeout=timeout)
+                return {"status": "ok", "result": result}
+
+            # ── list payload templates ────────────────────────────────────────
+            elif action == "templates":
+                pg = PayloadGenerator()
+                return {"status": "ok", "templates": pg.list_templates()}
+
+            # ── get specific template ─────────────────────────────────────────
+            elif action == "get_template":
+                key = payload.get("template", "").strip()
+                pg  = PayloadGenerator()
+                script = pg.get_template(key)
+                if script:
+                    return {"status": "ok", "template": key, "script": script}
+                return {"status": "error", "error": f"Template not found: {key}"}
+
+            else:
+                return {"status": "error", "error": f"Unknown action: {action}",
+                        "valid_actions": ["detect","flash_ducky","flash_circuitpython",
+                                          "flash_uf2","wait","templates","get_template"]}
+
+        except Exception as e:
+            import traceback
+            return {"status": "error", "error": str(e),
+                    "traceback": traceback.format_exc().splitlines()[-3:]}
+
     def _status(self) -> dict:
         import urllib.request as ur
         ollama_ok, ollama_models = False, []
@@ -1702,9 +1882,51 @@ def check_ws_deps():
 # BOOT
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _free_port(port: int):
+    """Kill any process holding the given TCP port so ERR0RS can always restart cleanly."""
+    import socket, signal
+    try:
+        import subprocess as _sp
+        result = _sp.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True
+        )
+        pids = [p.strip() for p in result.stdout.strip().splitlines() if p.strip()]
+        for pid_str in pids:
+            try:
+                pid = int(pid_str)
+                if pid != os.getpid():
+                    os.kill(pid, signal.SIGTERM)
+                    print(f"[ERR0RS] Freed port {port} — killed stale PID {pid}")
+            except (ValueError, ProcessLookupError, PermissionError):
+                pass
+        if pids:
+            import time as _t; _t.sleep(0.6)   # brief grace period
+    except Exception:
+        pass
+
+
 def start_server():
     if not UI_DIR.exists() or not (UI_DIR/"index.html").exists():
         print(f"[ERR0RS] ERROR: UI not found at {UI_DIR}"); sys.exit(1)
+
+    # Auto-free ports before binding — handles zombie ERR0RS processes
+    _free_port(HTTP_PORT)
+    _free_port(WS_PORT)
+
+    # ── Boot the persistent operator terminal on the desktop ──────────────────
+    if LIVE_TERMINAL:
+        try:
+            from src.core.live_terminal import OperatorTerminal
+            _ot = OperatorTerminal.instance()
+            if not _ot.is_alive():
+                threading.Thread(target=_ot.spawn, daemon=True,
+                                 name="operator-terminal").start()
+                print("[ERR0RS] 🖥️  Operator terminal spawning on desktop...")
+            else:
+                print("[ERR0RS] 🖥️  Operator terminal already running")
+        except Exception as _ote:
+            print(f"[ERR0RS] Operator terminal unavailable: {_ote}")
 
     # SO_REUSEADDR — survive port-in-use after a crash/restart
     import socket

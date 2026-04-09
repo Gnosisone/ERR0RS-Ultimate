@@ -976,8 +976,9 @@
         <div class="tb-icon">🌐</div><div class="tb-name">NMAP</div><div class="tb-cat">RECON</div>
         <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'metasploit','💣','Metasploit loaded. Choose your payload, operator.')">
+      <div class="tb offensive" onclick="openToolPanel('metasploit')" oncontextmenu="event.preventDefault();openToolPanel('metasploit')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">💣</div><div class="tb-name">MSF</div><div class="tb-cat">EXPLOIT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
       <div class="tb offensive"
            onclick="openToolPanel('sqlmap')"
@@ -1007,86 +1008,111 @@
         <div class="tb-icon">📂</div><div class="tb-name">GOBUSTER</div><div class="tb-cat">FUZZ</div>
         <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'aircrack-ng','📡','Aircrack-ng live. Capturing handshakes on the air.')">
+      <div class="tb offensive" onclick="openToolPanel('aircrack-ng')" oncontextmenu="event.preventDefault();openToolPanel('aircrack-ng')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">📡</div><div class="tb-name">AIRCRACK</div><div class="tb-cat">WIRELESS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'evilginx2','🎣','Evilginx2 proxy armed and listening.')">
+      <div class="tb offensive" onclick="openToolPanel('evilginx2')" oncontextmenu="event.preventDefault();openToolPanel('evilginx2')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🎣</div><div class="tb-name">EVILGINX</div><div class="tb-cat">PHISHING</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'hashcat','⚡','Hashcat cracking engine online. NPU engaged.')">
+      <div class="tb offensive" onclick="openToolPanel('hashcat')" oncontextmenu="event.preventDefault();openToolPanel('hashcat')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">⚡</div><div class="tb-name">HASHCAT</div><div class="tb-cat">CRACK</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'nuclei','☢️','Nuclei vuln scanner firing templates. Stand by.')">
+      <div class="tb offensive" onclick="openToolPanel('nuclei')" oncontextmenu="event.preventDefault();openToolPanel('nuclei')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">☢️</div><div class="tb-name">NUCLEI</div><div class="tb-cat">VULN</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'amass','🔍','AMASS mapping the attack surface. OSINT initiated.')">
+      <div class="tb offensive" onclick="openToolPanel('amass')" oncontextmenu="event.preventDefault();openToolPanel('amass')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🔍</div><div class="tb-name">AMASS</div><div class="tb-cat">OSINT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'subfinder','🌊','Subfinder passive subdomain enum — no direct contact.')">
+      <div class="tb offensive" onclick="openToolPanel('subfinder')" oncontextmenu="event.preventDefault();openToolPanel('subfinder')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🌊</div><div class="tb-name">SUBFINDER</div><div class="tb-cat">SUBDOMAIN</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'ffuf','💥','FFUF web fuzzer — fast, threaded, all params.')">
+      <div class="tb offensive" onclick="openToolPanel('ffuf')" oncontextmenu="event.preventDefault();openToolPanel('ffuf')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">💥</div><div class="tb-name">FFUF</div><div class="tb-cat">FUZZ</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'enum4linux','🏴','enum4linux — SMB/Samba enumeration. AD recon.')">
+      <div class="tb offensive" onclick="openToolPanel('enum4linux')" oncontextmenu="event.preventDefault();openToolPanel('enum4linux')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🏴</div><div class="tb-name">ENUM4LINUX</div><div class="tb-cat">SMB/AD</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
       <!-- BLUE TEAM / DEFENSIVE — SOC Tools -->
-      <div class="tb defensive" onclick="launchTool(this,'wireshark','🦈','Wireshark pcap analysis mode. Examining traffic.')">
+      <div class="tb defensive" onclick="openToolPanel('wireshark')" oncontextmenu="event.preventDefault();openToolPanel('wireshark')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🦈</div><div class="tb-name">WIRESHARK</div><div class="tb-cat">TRAFFIC</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('failed-logins')">
+      <div class="tb defensive" onclick="openToolPanel('tcpdump')" oncontextmenu="event.preventDefault();openToolPanel('tcpdump')" title="Click: Tool Anatomy Panel — tcpdump">
         <div class="tb-icon">🚨</div><div class="tb-name">FAILED LOGIN</div><div class="tb-cat">SOC/DETECT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('active-conns')">
+      <div class="tb defensive" onclick="openToolPanel('snort')" oncontextmenu="event.preventDefault();openToolPanel('snort')" title="Click: Tool Anatomy Panel — snort/IDS">
         <div class="tb-icon">🔌</div><div class="tb-name">ACTIVE CONNS</div><div class="tb-cat">SOC/NETWORK</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('open-ports')">
+      <div class="tb defensive" onclick="openToolPanel('nmap')" oncontextmenu="event.preventDefault();openToolPanel('nmap')" title="Click: Tool Anatomy Panel — port audit">
         <div class="tb-icon">🚪</div><div class="tb-name">OPEN PORTS</div><div class="tb-cat">SOC/HARDENING</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('running-procs')">
+      <div class="tb defensive" onclick="openToolPanel('volatility3')" oncontextmenu="event.preventDefault();openToolPanel('volatility3')" title="Click: Tool Anatomy Panel — process forensics">
         <div class="tb-icon">⚙️</div><div class="tb-name">PROC AUDIT</div><div class="tb-cat">SOC/TRIAGE</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('log-tail')">
+      <div class="tb defensive" onclick="openToolPanel('zeek')" oncontextmenu="event.preventDefault();openToolPanel('zeek')" title="Click: Tool Anatomy Panel — live log analysis">
         <div class="tb-icon">📋</div><div class="tb-name">LIVE LOGS</div><div class="tb-cat">SOC/SIEM</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('sudo-log')">
+      <div class="tb defensive" onclick="openToolPanel('suricata')" oncontextmenu="event.preventDefault();openToolPanel('suricata')" title="Click: Tool Anatomy Panel — privilege audit">
         <div class="tb-icon">🔐</div><div class="tb-name">SUDO AUDIT</div><div class="tb-cat">SOC/PRIV</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('firewall-rules')">
+      <div class="tb defensive" onclick="openToolPanel('bettercap')" oncontextmenu="event.preventDefault();openToolPanel('bettercap')" title="Click: Tool Anatomy Panel — firewall/network">
         <div class="tb-icon">🛡️</div><div class="tb-name">FIREWALL</div><div class="tb-cat">SOC/POLICY</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('who-online')">
+      <div class="tb defensive" onclick="openToolPanel('theHarvester')" oncontextmenu="event.preventDefault();openToolPanel('theHarvester')" title="Click: Tool Anatomy Panel — OSINT users">
         <div class="tb-icon">👁️</div><div class="tb-name">WHO ONLINE</div><div class="tb-cat">SOC/USERS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="socAction('cron-jobs')">
+      <div class="tb defensive" onclick="openToolPanel('linpeas')" oncontextmenu="event.preventDefault();openToolPanel('linpeas')" title="Click: Tool Anatomy Panel — persistence/cron audit">
         <div class="tb-icon">⏰</div><div class="tb-name">CRON AUDIT</div><div class="tb-cat">SOC/PERSIST</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
       <!-- BOTH / SHARED -->
-      <div class="tb both" onclick="launchTool(this,'badusb','💾','BadUSB Studio ready. Crafting HID payload now.')">
+      <div class="tb both" onclick="openToolPanel('badusb')" oncontextmenu="event.preventDefault();openToolPanel('badusb')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">💾</div><div class="tb-name">BADUSB</div><div class="tb-cat">HID</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb both" onclick="launchTool(this,'flipper','🐬','Flipper Zero bridge active. RF, NFC, RFID ready.')">
+      <div class="tb both" onclick="openToolPanel('flipper')" oncontextmenu="event.preventDefault();openToolPanel('flipper')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🐬</div><div class="tb-name">FLIPPER</div><div class="tb-cat">RF/NFC</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb both" onclick="launchTool(this,'villain','👿','Villain C2 framework up. Listener ready.')">
+      <div class="tb both" onclick="openToolPanel('villain')" oncontextmenu="event.preventDefault();openToolPanel('villain')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">👿</div><div class="tb-name">VILLAIN</div><div class="tb-cat">C2</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb both" onclick="launchTool(this,'ai','🧠','Hailo-10H NPU spinning up AI agent cluster. Online.')">
+      <div class="tb both" onclick="openToolPanel('bloodhound')" oncontextmenu="event.preventDefault();openToolPanel('bloodhound')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🧠</div><div class="tb-name">AI AGENT</div><div class="tb-cat">NPU</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <!-- NEW: Flipper Studio, BAS, Compliance, mr7 -->
-      <div class="tb both" onclick="launchFlipperStudio(this)">
+      <div class="tb both" onclick="openToolPanel('flipper')" oncontextmenu="event.preventDefault();openToolPanel('flipper')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🐬</div><div class="tb-name">FLIPPER LAB</div><div class="tb-cat">RF/NFC/IR</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="launchBAS(this)">
+      <div class="tb defensive" onclick="openToolPanel('autopsy')" oncontextmenu="event.preventDefault();openToolPanel('autopsy')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🎯</div><div class="tb-name">BAS ENGINE</div><div class="tb-cat">SIMULATE</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb defensive" onclick="launchCompliance(this)">
+      <div class="tb defensive" onclick="openToolPanel('crackmapexec')" oncontextmenu="event.preventDefault();openToolPanel('crackmapexec')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">📜</div><div class="tb-name">COMPLIANCE</div><div class="tb-cat">SOC2/PCI</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb both" onclick="launchERRZBrain(this)">
+      <div class="tb both" onclick="openToolPanel('mimikatz')" oncontextmenu="event.preventDefault();openToolPanel('mimikatz')" title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🧠</div><div class="tb-name">ERRZ BRAIN</div><div class="tb-cat">LOCAL AI</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
     </div>
     <div id="term-row">

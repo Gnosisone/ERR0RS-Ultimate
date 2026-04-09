@@ -560,17 +560,31 @@ def _step_ir(sd_path: str, state: Dict) -> EvolutionStep:
 
 # ── Step: Level 6 — ERR0RS BadUSB Payloads ───────────────────────────────────
 def _step_badusb(sd_path: str, state: Dict) -> EvolutionStep:
-    step = EvolutionStep("badusb_sync", "ERR0RS BadUSB payload library", XP_PER_LEVEL["badusb_sync"])
+    """
+    Level 6 — BadUSB payload sync.
+    Copies payloads from all known sources to the Flipper SD card badusb/ dir.
+    Sources:
+      - ERR0RS generated payloads (SD_OUT/badusb)
+      - Jakoby/Flipper-Zero-BadUSB (knowledge base)
+      - narstybits/MacOS-DuckyScripts (knowledge base)
+      - UberGuidoZ (knowledge base)
+      - aleff-github/my-flipper-shits (92 payloads — Windows/Linux/iOS/macOS)
+    """
+    step = EvolutionStep("badusb_sync", "ERR0RS + aleff BadUSB payload library", XP_PER_LEVEL["badusb_sync"])
     t0   = time.time()
-    synced = 0
-    sources = [
-        SD_OUT / "badusb",                         # ERR0RS generated payloads
-        KB_DIR / "Flipper-Zero-BadUSB",             # Jakoby
-        KB_DIR / "MacOS-DuckyScripts",              # narstybits
-        KB_DIR / "UberGuidoZ-Flipper" / "badusb",  # UberGuidoZ
-    ]
+    synced   = 0
+    aleff_synced = 0
+
     dest = (Path(sd_path) if sd_path else SD_OUT) / "badusb"
     dest.mkdir(parents=True, exist_ok=True)
+
+    # ── 1. Existing knowledge-base sources ───────────────────────────────────
+    sources = [
+        SD_OUT / "badusb",
+        KB_DIR / "Flipper-Zero-BadUSB",
+        KB_DIR / "MacOS-DuckyScripts",
+        KB_DIR / "UberGuidoZ-Flipper" / "badusb",
+    ]
     for src_dir in sources:
         if not src_dir.exists():
             continue
@@ -580,26 +594,101 @@ def _step_badusb(sd_path: str, state: Dict) -> EvolutionStep:
                 synced += 1
             except Exception:
                 pass
-    # Write an ERR0RS index file
+
+    # ── 2. aleff-github/my-flipper-shits ─────────────────────────────────────
+    # Write DuckyScript stub files for each aleff payload so they appear on
+    # the Flipper SD card. The operator can replace stubs with the real
+    # scripts from: https://github.com/aleff-github/my-flipper-shits
+    try:
+        from src.tools.badusb_studio.aleff_payloads import (
+            ALEFF_PAYLOADS, ALEFF_REPO_URL
+        )
+        aleff_dest = dest / "aleff"
+        aleff_dest.mkdir(parents=True, exist_ok=True)
+
+        for p in ALEFF_PAYLOADS:
+            # Sanitize name for filesystem
+            safe_name = p.name.replace(" ", "_").replace("/", "-")
+            safe_name = "".join(c for c in safe_name if c.isalnum() or c in "_-.")
+            fname = f"ALEFF_{p.platform.replace('GNU-Linux','Linux')}_{safe_name}.txt"
+            fpath = aleff_dest / fname
+
+            # PAP indicator comment
+            pap_label = {
+                "green":  "🟢 PLUG-AND-PLAY — no config needed",
+                "yellow": "🟡 NEEDS CONFIG — see README in aleff repo",
+                "red":    "🔴 MANUAL SETUP — read aleff documentation first",
+            }.get(p.pap, "🟡 CHECK CONFIG")
+
+            stub = (
+                f"REM ERR0RS BadUSB — aleff-github Library\n"
+                f"REM Payload: {p.name}\n"
+                f"REM Platform: {p.platform}\n"
+                f"REM Category: {p.category}\n"
+                f"REM PAP Status: {pap_label}\n"
+                f"REM Source: {ALEFF_REPO_URL}/tree/hello/{p.path}\n"
+                f"REM License: GPL-3.0 | Author: aleff (Aleff)\n"
+                f"REM\n"
+                f"REM [TEACH] {p.teach[:200]}\n"
+                f"REM\n"
+                f"REM [DEFEND] {p.defend[:200]}\n"
+                f"REM\n"
+                f"REM ── TO USE ────────────────────────────────────────────\n"
+                f"REM Download the real script from the source URL above,\n"
+                f"REM copy it into this file, and configure any required\n"
+                f"REM variables (webhook URL, tokens, etc.) before running.\n"
+                f"REM ────────────────────────────────────────────────────\n"
+                f"\n"
+                f"DELAY 500\n"
+                f"REM Replace this stub with the actual payload from aleff repo\n"
+            )
+            fpath.write_text(stub, encoding="utf-8")
+            aleff_synced += 1
+
+        # Write aleff index
+        aleff_idx = aleff_dest / "ALEFF_INDEX.txt"
+        with open(aleff_idx, "w", encoding="utf-8") as idx:
+            idx.write("# aleff-github/my-flipper-shits — ERR0RS Integration\n")
+            idx.write(f"# {ALEFF_REPO_URL}\n")
+            idx.write(f"# License: GPL-3.0 | Author: aleff (Aleff)\n")
+            idx.write(f"# Generated: {datetime.now().isoformat()}\n")
+            idx.write(f"# Total payloads: {aleff_synced}\n\n")
+            for p in sorted(ALEFF_PAYLOADS, key=lambda x: (x.platform, x.category, x.name)):
+                pap = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(p.pap, "❓")
+                idx.write(f"  [{p.platform:10}] [{p.category:18}] {pap} {p.name}\n")
+
+    except Exception as e:
+        aleff_synced = 0
+        step.output = f"[WARN] aleff payload integration failed: {e}\n"
+
+    # ── 3. Master ERR0RS index ────────────────────────────────────────────────
     index_path = dest / "ERRZ_INDEX.txt"
     try:
-        all_files = sorted(dest.glob("*.txt"))
+        all_files = sorted(dest.rglob("*.txt"))
         with open(index_path, "w", encoding="utf-8") as idx:
-            idx.write("# ERR0RS BadUSB Payload Index\n")
+            idx.write("# ERR0RS BadUSB Master Payload Index\n")
             idx.write(f"# Generated: {datetime.now().isoformat()}\n")
-            idx.write(f"# Total payloads: {len(all_files)}\n\n")
+            idx.write(f"# Total payload files: {len(all_files)}\n\n")
+            idx.write("# Sources:\n")
+            idx.write("#   ERR0RS generated, Jakoby, narstybits, UberGuidoZ,\n")
+            idx.write("#   aleff-github/my-flipper-shits (GPL-3.0)\n\n")
             for f in all_files:
-                idx.write(f"  {f.name}\n")
+                idx.write(f"  {f.relative_to(dest)}\n")
     except Exception:
         pass
+
     step.status = "done"
     step.output = (
-        f"[ERR0RS] BadUSB payloads synced → {dest}\n"
-        f"  Total payloads: {synced}\n"
-        f"  Sources: ERR0RS generated, Jakoby, narstybits, UberGuidoZ\n"
-        f"  Index file: ERRZ_INDEX.txt\n\n"
-        f"  Categories: Windows recon, cred harvest, persistence,\n"
-        f"              macOS payloads, Linux escalation scripts."
+        f"[ERR0RS] BadUSB payload library synced → {dest}\n"
+        f"  ERR0RS/Community payloads : {synced}\n"
+        f"  aleff-github payloads     : {aleff_synced} (Windows/Linux/iOS/macOS)\n"
+        f"  Total                     : {synced + aleff_synced}\n\n"
+        f"  aleff library → {dest}/aleff/\n"
+        f"  Sources: ERR0RS generated, Jakoby, narstybits, UberGuidoZ,\n"
+        f"           aleff-github/my-flipper-shits [GPL-3.0]\n\n"
+        f"  [!] aleff stubs require downloading real scripts from:\n"
+        f"      https://github.com/aleff-github/my-flipper-shits\n"
+        f"      Configure webhook URLs / tokens before deploying."
     )
     step.duration = round(time.time() - t0, 2)
     return step

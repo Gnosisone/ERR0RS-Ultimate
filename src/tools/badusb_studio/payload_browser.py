@@ -1,6 +1,7 @@
 """
 ERR0RS BadUSB Studio - Payload Browser
-Browses Hak5 PayloadHub (GitHub), local library, and opens Payload Studio
+Browses Hak5 PayloadHub (GitHub), local library, aleff-github payloads,
+and opens Payload Studio
 """
 
 import os
@@ -9,6 +10,16 @@ import time
 import urllib.request
 import urllib.error
 from pathlib import Path
+
+try:
+    from src.tools.badusb_studio.aleff_payloads import (
+        ALEFF_PAYLOADS, get_payloads_by_platform,
+        get_payloads_by_category, get_payloads_by_pap,
+        summary_stats as aleff_summary, ALEFF_REPO_URL
+    )
+    ALEFF_LOADED = True
+except ImportError:
+    ALEFF_LOADED = False
 
 CACHE_DIR = Path(__file__).parent / "payloads" / "cache"
 LOCAL_DIR = Path(__file__).parent / "payloads" / "local"
@@ -157,3 +168,93 @@ class PayloadBrowser:
             f"Payload saved to: {temp_path}\n"
             f"Payload Studio opened. Use File > Import to load your payload."
         )
+
+    # ── aleff-github/my-flipper-shits integration ─────────────────────────────
+
+    def list_aleff_payloads(self, platform: str = None, category: str = None,
+                             pap: str = None) -> list[dict]:
+        """
+        List payloads from the aleff-github/my-flipper-shits library.
+        Filters: platform (Windows/GNU-Linux/iOS/macOS), category, pap (green/yellow/red).
+        """
+        if not ALEFF_LOADED:
+            return [{"error": "aleff payload library not loaded"}]
+        payloads = ALEFF_PAYLOADS
+        if platform:
+            payloads = [p for p in payloads if platform.lower() in p.platform.lower()]
+        if category:
+            payloads = [p for p in payloads if category.lower() in p.category.lower()]
+        if pap:
+            payloads = [p for p in payloads if p.pap == pap]
+        return [
+            {
+                "name":          p.name,
+                "platform":      p.platform,
+                "category":      p.category,
+                "pap":           p.pap,
+                "description":   p.description,
+                "teach":         p.teach,
+                "defend":        p.defend,
+                "config_needed": p.config_needed,
+                "mitre":         p.mitre,
+                "source_url":    f"https://github.com/aleff-github/my-flipper-shits/tree/hello/{p.path}",
+            }
+            for p in payloads
+        ]
+
+    def get_aleff_payload(self, name: str) -> dict | None:
+        """Get a single aleff payload by name (partial match)."""
+        if not ALEFF_LOADED:
+            return None
+        name_lower = name.lower()
+        for p in ALEFF_PAYLOADS:
+            if name_lower in p.name.lower():
+                return {
+                    "name":          p.name,
+                    "platform":      p.platform,
+                    "category":      p.category,
+                    "pap":           p.pap,
+                    "description":   p.description,
+                    "teach":         p.teach,
+                    "defend":        p.defend,
+                    "config_needed": p.config_needed,
+                    "mitre":         p.mitre,
+                    "source_url":    f"https://github.com/aleff-github/my-flipper-shits/tree/hello/{p.path}",
+                }
+        return None
+
+    def aleff_summary(self) -> dict:
+        """Return stats summary for the aleff payload library."""
+        if not ALEFF_LOADED:
+            return {"error": "aleff library not loaded", "total": 0}
+        return aleff_summary()
+
+    def search_all_payloads(self, keyword: str) -> list[dict]:
+        """
+        Search across both Hak5 PayloadHub and aleff-github library.
+        Returns combined results tagged by source.
+        """
+        results = []
+        # Search aleff library (local, fast)
+        if ALEFF_LOADED:
+            kw = keyword.lower()
+            for p in ALEFF_PAYLOADS:
+                if (kw in p.name.lower() or kw in p.description.lower()
+                        or kw in p.category.lower() or kw in p.platform.lower()):
+                    results.append({
+                        "source":      "aleff-github",
+                        "name":        p.name,
+                        "platform":    p.platform,
+                        "category":    p.category,
+                        "pap":         p.pap,
+                        "description": p.description,
+                        "teach":       p.teach,
+                        "defend":      p.defend,
+                        "source_url":  f"https://github.com/aleff-github/my-flipper-shits/tree/hello/{p.path}",
+                    })
+        # Also search Hak5
+        hak5_results = self.search_hak5_payloads(keyword)
+        for r in hak5_results:
+            r["source"] = "hak5-payloadhub"
+            results.append(r)
+        return results

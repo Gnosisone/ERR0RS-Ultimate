@@ -110,6 +110,50 @@ The only comprehensive macOS-targeted DuckyScript library. Apple targets are not
 
 ---
 
+### 💾 aleff (Aleff) — The BadUSB Encyclopedia
+
+**GitHub:** [@aleff-github](https://github.com/aleff-github)
+**Repo:** [my-flipper-shits](https://github.com/aleff-github/my-flipper-shits) ⭐ 1.7k
+**License:** GPL-3.0
+**Integration:** `src/tools/badusb_studio/aleff_payloads.py` + Flipper auto-load
+
+> *"Free and libre source BadUSB payloads for Flipper Zero."*
+
+aleff built the most comprehensive free BadUSB payload library for Flipper Zero. Period. **92 payloads** across Windows, GNU-Linux, iOS, and macOS — organized, documented, and maintained with a level of quality that most commercial tool vendors don't match.
+
+What makes this library exceptional:
+- **Purple team philosophy** — each payload explains what it does and why it works
+- **PAP system** — 🟢 Plug-and-play, 🟡 Needs config, 🔴 Manual setup — honest about complexity
+- **Cross-platform coverage** — Windows (52), Linux (33), iOS (5), macOS (2)
+- **Incident Response category** — payloads that DEFEND and triage, not just attack
+- **Community contributions** — bst04, bad-antics, NexusWannaBe built on the foundation
+
+| Category | Count | Examples |
+|---|---|---|
+| Execution | 33 | Persistent reverse shells, Tor circuits, DNS changes |
+| Exfiltration | 21 | WiFi passwords, process info, browser cookies |
+| Prank | 19 | Rick Roll, alien messages, wallpaper pranks |
+| Incident Response | 7 | Linux forensic triage, IOC scanner, CVE mitigations |
+| Credentials | 2 | WiFi password dump, CVE-2023-23397 defense |
+| Phishing | 2 | Standard phishing, kdialog phishing |
+
+**ERR0RS Integration:**
+- All 92 payloads registered in `ALEFF_PAYLOADS` catalogue with teach + defend notes
+- Available in the BadUSB Studio payload browser (`PayloadBrowser.list_aleff_payloads()`)
+- Auto-loaded to Flipper SD card `badusb/aleff/` during Evolution Level 6
+- Searchable via `PayloadBrowser.search_all_payloads()` across Hak5 + aleff combined
+- Every payload has MITRE ATT&CK mappings and ERR0RS purple-team teach content
+
+**Special call-outs from the aleff library:**
+- 🛡️ `Linux_Forensic_Triage_Collector` (by bad-antics) — full IR in a USB drop
+- 🛡️ `Linux_IOC_Scanner` (by bad-antics) — hunt indicators of compromise
+- 🛡️ `Linux_Persistence_Hunter` (by bad-antics) — find backdoors via BadUSB
+- 🔴 `CVE-2023-23397` defense — Outlook NTLM hash theft mitigation
+- 🔴 `CVE-2023-36884` defense — Microsoft Office RCE mitigation
+- ⚡ `Persistent_Reverse_Shell-Telegram_Based` — Telegram C2 persistence
+
+Thank you aleff. This library is a gift to the security community and ERR0RS is proud to carry it.
+
 ---
 
 ## 🔴 THE RED TEAM GODS — NCC Group
@@ -416,6 +460,7 @@ ERR0RS Ultimate itself is released under the **MIT License**.
 | **greatscottgadgets** | [ubertooth](https://github.com/greatscottgadgets/ubertooth) | Ubertooth Bluetooth research hardware — 2k ⭐ |
 | **beigeworm** | [BadUSB-Files-For-FlipperZero](https://github.com/beigeworm/BadUSB-Files-For-FlipperZero) | 60+ BadUSB scripts for Flipper Zero — 1.2k ⭐ |
 | **hak5** | [usbrubberducky-payloads](https://github.com/hak5/usbrubberducky-payloads) | Official USB Rubber Ducky payload repository — 5.6k ⭐ |
+| **aleff-github** | [my-flipper-shits](https://github.com/aleff-github/my-flipper-shits) | 92 free BadUSB payloads for Flipper Zero — Windows/Linux/iOS/macOS [GPL-3.0] — 1.7k ⭐ |
 
 ---
 

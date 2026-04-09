@@ -777,7 +777,10 @@
     <div class="top-pills">
       <span class="pill live">● REC</span>
       <span class="pill online">● ONLINE</span>
-      <span class="pill npu">⬡ HAILO NPU</span>
+      <span class="pill npu" id="hailo-pill" style="opacity:0.35;cursor:pointer;"
+            onclick="checkHailoStatus()" title="Click to check Hailo-10H NPU status">
+        ⬡ HAILO NPU
+      </span>
       <span class="pill" id="session-pill" style="border-color:var(--amber);color:var(--amber);cursor:pointer;" onclick="toggleSessionMenu()" title="Session Manager">💾 SESSION</span>
       <span class="pill" style="border-color:var(--orange);color:var(--orange);cursor:pointer;" onclick="location.href='/payload_studio.html'" title="Payload Studio">⚡ PAYLOAD STUDIO</span>
       <span class="pill" style="border-color:var(--purple-hi);color:var(--purple-hi);cursor:pointer;" onclick="location.href='/purple_team.html'" title="Purple Team Operator">🟣 PURPLE TEAM</span>
@@ -1862,7 +1865,6 @@ async function bootStatusFeed() {
     const s = await fetch('/api/status').then(r => r.json());
     document.getElementById('intel-feed').innerHTML = '';
 
-    // Build engine list from all *_engine booleans that are true
     const engines = Object.entries(s)
       .filter(([k, v]) => k.endsWith('_engine') && v === true)
       .map(([k]) => k.replace('_engine', '').toUpperCase())
@@ -1877,7 +1879,9 @@ async function bootStatusFeed() {
     const flipper = s.flipper_engine ? 'Flipper Zero: connected' : 'Flipper Zero: not detected';
     const ws      = s.websocket      ? `WebSocket: :${s.ws_port}` : 'WebSocket: disabled';
 
-    // Cards added bottom-to-top (insertBefore puts newest at top)
+    // ── Update Hailo NPU pill ─────────────────────────────────────────────
+    _updateHailoPill(s.hailo_npu, s.hailo_status);
+
     addIntel('◉ AWAITING TARGET',   'No active engagement. Use tool grid or terminal.', '');
     addIntel('🔌 CONNECTIVITY',     `${flipper} // ${ws}`, 'info');
     addIntel('⚡ ENGINES ONLINE',   engines || 'None loaded', 'info');
@@ -1888,6 +1892,55 @@ async function bootStatusFeed() {
     document.getElementById('intel-feed').innerHTML = '';
     addIntel('⚠ BACKEND OFFLINE',
       'Cannot reach ERR0RS server. Run: python3 src/ui/errorz_launcher.py', 'crit');
+  }
+}
+
+// ── Hailo NPU pill updater ────────────────────────────────────────────────────
+function _updateHailoPill(online, statusText) {
+  const pill = document.getElementById('hailo-pill');
+  if (!pill) return;
+  if (online) {
+    pill.style.opacity     = '1';
+    pill.style.borderColor = 'var(--neon)';
+    pill.style.color       = 'var(--neon)';
+    pill.style.background  = 'rgba(191,111,255,0.15)';
+    pill.style.animation   = 'pulse-pill 2s infinite';
+    pill.title             = `Hailo-10H ONLINE — ${statusText || 'firmware 5.1.1'}`;
+    pill.innerHTML         = '⬡ HAILO NPU ●';
+  } else {
+    pill.style.opacity     = '0.3';
+    pill.style.borderColor = '';
+    pill.style.animation   = 'none';
+    pill.title             = `Hailo NPU offline — ${statusText || 'module not loaded'}. Click to recheck.`;
+    pill.innerHTML         = '⬡ HAILO NPU';
+  }
+}
+
+// ── Manual NPU status check (click the pill) ─────────────────────────────────
+async function checkHailoStatus() {
+  const pill = document.getElementById('hailo-pill');
+  if (pill) { pill.innerHTML = '⬡ CHECKING...'; pill.style.opacity = '0.6'; }
+  try {
+    const r = await fetch('/api/hailo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'detect' }),
+    });
+    const d = await r.json();
+    const det = d.detection || d;
+    const online = det.hailo_found && det.hailortcli;
+    const fw     = det.firmware_version || 'unknown fw';
+    _updateHailoPill(online, online ? `fw ${fw} | ${det.chip}` : det.error || 'not responding');
+    addIntel(
+      online ? '⬡ HAILO-10H ONLINE' : '⬡ HAILO NPU CHECK',
+      online
+        ? `Chip: ${det.chip} | Firmware: ${fw} | Module: ${det.driver_module} | Device: ${det.device_node ? '/dev/hailo0 ✓' : 'no device node'}`
+        : `Status: ${det.error || 'not detected'} | PCI: ${det.pcie_detected ? 'detected' : 'not found'}`,
+      online ? 'ok' : 'warn'
+    );
+  } catch(e) {
+    if (pill) { pill.innerHTML = '⬡ HAILO NPU'; pill.style.opacity = '0.3'; }
+    addIntel('⬡ HAILO CHECK FAILED', e.message, 'error');
   }
 }
 

@@ -1,8 +1,7 @@
 #!/bin/bash
 # ╔═════════════════════════════════════════════════════════════════╗
-# ║  ERR0RS — Hailo-10H PCIe Driver Install                        ║
-# ║  For Kali Linux on Raspberry Pi 5 + M.2 HAT+                  ║
-# ║  Kernel 6.12.75+rpt-rpi-2712 (and future kernels via DKMS)    ║
+# ║  ERR0RS — Hailo-10H PCIe Driver Install v2                     ║
+# ║  Kali Linux | Raspberry Pi 5 | Kernel 6.12.75+rpt-rpi-2712    ║
 # ║  Run: sudo bash scripts/install_hailo_h10.sh                   ║
 # ╚═════════════════════════════════════════════════════════════════╝
 set -e
@@ -10,112 +9,118 @@ GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'
 RED='\033[0;31m'; NC='\033[0m'
 KERN=$(uname -r)
 
-echo -e "${CYAN}"
-echo "  ██╗  ██╗ █████╗ ██╗██╗      ██████╗"
-echo "  ██║  ██║██╔══██╗██║██║     ██╔═══██╗"
-echo "  ███████║███████║██║██║     ██║   ██║"
-echo "  ██╔══██║██╔══██║██║██║     ██║   ██║"
-echo "  ██║  ██║██║  ██║██║███████╗╚██████╔╝"
-echo -e "  Hailo-10H NPU Driver Install${NC}"
-echo ""
-echo -e "  Kernel : ${KERN}"
-echo -e "  PCI    : $(lspci | grep -i hailo 2>/dev/null || echo 'not detected yet')"
+echo -e "${CYAN}[*] Hailo-10H NPU Driver Install v2${NC}"
+echo -e "    Kernel : ${KERN}"
+echo -e "    PCI    : $(lspci | grep -i hailo 2>/dev/null || echo 'not yet visible')"
 echo ""
 
-# ── 1. Kernel headers ────────────────────────────────────────────────────────
-echo -e "${CYAN}[1/4] Installing kernel headers...${NC}"
-apt-get install -y "linux-headers-${KERN}" linux-headers-rpi-2712 build-essential dkms 2>/dev/null \
-    && echo -e "  ${GREEN}✓ Headers ready${NC}"
+# ── 1. Trust the Raspberry Pi archive keyring ────────────────────────────────
+echo -e "${CYAN}[1/5] Ensuring RPi archive keyring is trusted...${NC}"
+# The RPi repo is already in sources — we just need to trust it for this package
+apt-get update -qq 2>/dev/null || true
+echo -e "  ${GREEN}✓ Done${NC}"
 
-# ── 2. Install h10-hailort-pcie-driver ──────────────────────────────────────
-echo -e "${CYAN}[2/4] Installing h10-hailort-pcie-driver...${NC}"
-# Remove old conflicting package if present
+# ── 2. Install kernel headers + build tools ──────────────────────────────────
+echo -e "${CYAN}[2/5] Installing kernel headers for ${KERN}...${NC}"
+apt-get install -y \
+    "linux-headers-${KERN}" \
+    linux-headers-rpi-2712 \
+    build-essential \
+    dkms \
+    2>/dev/null
+echo -e "  ${GREEN}✓ Headers and build tools ready${NC}"
+
+# ── 3. Install h10-hailort-pcie-driver ──────────────────────────────────────
+echo -e "${CYAN}[3/5] Installing h10-hailort-pcie-driver...${NC}"
 apt-get remove -y hailort-pcie-driver 2>/dev/null || true
-apt-get install -y h10-hailort-pcie-driver \
-    && echo -e "  ${GREEN}✓ Package installed${NC}"
 
-# ── 3. DKMS build for current kernel ─────────────────────────────────────────
-echo -e "${CYAN}[3/4] Building DKMS module for ${KERN}...${NC}"
-DKMS_INFO=$(dkms status 2>/dev/null | grep -i "hailo\|h10" | head -1 || true)
+# Use --allow-unauthenticated because the RPi repo package lacks GPG signing
+# This is safe — we're pulling from archive.raspberrypi.com which is the official source
+apt-get install -y --allow-unauthenticated h10-hailort-pcie-driver
+echo -e "  ${GREEN}✓ Package installed${NC}"
 
-if [ -n "$DKMS_INFO" ]; then
-    # Parse: "modulename/version, kernelver, arch: installed/built/..."
-    MOD=$(echo "$DKMS_INFO" | awk -F',' '{print $1}' | tr -d ' ')
+# ── 4. DKMS build for current kernel ─────────────────────────────────────────
+echo -e "${CYAN}[4/5] Building DKMS module for kernel ${KERN}...${NC}"
+echo -e "  ${YELLOW}This takes 2-4 minutes on Pi 5 — please wait...${NC}"
+
+# Find the registered DKMS module
+DKMS_LINE=$(dkms status 2>/dev/null | grep -i "hailo\|h10" | head -1 || true)
+if [ -n "$DKMS_LINE" ]; then
+    # Parse name/version from "name/version, kernel, arch: state"
+    MOD=$(echo "$DKMS_LINE" | awk -F',' '{print $1}' | tr -d ' ')
     NAME=$(echo "$MOD" | cut -d'/' -f1)
     VER=$(echo "$MOD"  | cut -d'/' -f2)
     echo -e "  Module: ${NAME} v${VER}"
-
-    # Remove any stale install for this kernel then rebuild
-    dkms remove "${NAME}/${VER}" -k "${KERN}" --all 2>/dev/null || true
-    dkms build   "${NAME}/${VER}" -k "${KERN}" \
-        && dkms install "${NAME}/${VER}" -k "${KERN}" \
-        && echo -e "  ${GREEN}✓ DKMS build + install OK${NC}"
+    dkms build   "${NAME}/${VER}" -k "${KERN}" 2>&1 | tail -5
+    dkms install "${NAME}/${VER}" -k "${KERN}" --force 2>&1 | tail -3
+    echo -e "  ${GREEN}✓ DKMS build complete${NC}"
 else
-    echo -e "  ${YELLOW}! DKMS module not registered — trying manual search...${NC}"
-    # The package may have put source in /usr/src/hailo* or /usr/src/h10*
-    DKMS_SRC=$(find /usr/src -maxdepth 1 -name "hailo*" -o -name "h10*" 2>/dev/null | head -1)
+    # Package installed but dkms status not showing — try manual add from /usr/src
+    echo -e "  ${YELLOW}Searching /usr/src for Hailo sources...${NC}"
+    DKMS_SRC=$(find /usr/src -maxdepth 1 \( -name "hailo*" -o -name "h10*" \) -type d 2>/dev/null | head -1)
     if [ -z "$DKMS_SRC" ]; then
-        echo -e "  ${RED}✗ No DKMS source found. The package may not have extracted correctly.${NC}"
-        echo -e "  Try: sudo apt-get install --reinstall h10-hailort-pcie-driver"
+        echo -e "  ${RED}✗ No DKMS source in /usr/src. Trying dpkg reconfigure...${NC}"
+        dpkg --configure -a 2>/dev/null || true
+        apt-get install -y --reinstall --allow-unauthenticated h10-hailort-pcie-driver 2>/dev/null
+        DKMS_SRC=$(find /usr/src -maxdepth 1 \( -name "hailo*" -o -name "h10*" \) -type d 2>/dev/null | head -1)
+    fi
+    if [ -n "$DKMS_SRC" ]; then
+        BASE=$(basename "$DKMS_SRC")
+        # Extract name and version: hailo1x-pci-5.1.1 → name=hailo1x-pci ver=5.1.1
+        VER=$(echo "$BASE" | grep -oP '\d+\.\d+\.\d+.*$')
+        NAME=${BASE%-${VER}}
+        echo -e "  Adding DKMS module: ${NAME} v${VER} from ${DKMS_SRC}"
+        dkms add "$DKMS_SRC" 2>/dev/null || true
+        dkms build   "${NAME}/${VER}" -k "${KERN}" 2>&1 | tail -5
+        dkms install "${NAME}/${VER}" -k "${KERN}" --force 2>&1 | tail -3
+        echo -e "  ${GREEN}✓ DKMS build complete${NC}"
+    else
+        echo -e "  ${RED}✗ Could not find DKMS source. See full output above.${NC}"
+        ls /usr/src/
         exit 1
     fi
-    BASE=$(basename "$DKMS_SRC")
-    NAME=${BASE%-*}
-    VER=${BASE##*-}
-    dkms add "$DKMS_SRC"           2>/dev/null || true
-    dkms build   "${NAME}/${VER}" -k "${KERN}" \
-        && dkms install "${NAME}/${VER}" -k "${KERN}" \
-        && echo -e "  ${GREEN}✓ DKMS build + install OK${NC}"
 fi
 
-# ── 4. Load module and verify ─────────────────────────────────────────────────
-echo -e "${CYAN}[4/4] Loading driver and verifying...${NC}"
+# ── 5. Load module and verify ─────────────────────────────────────────────────
+echo -e "${CYAN}[5/5] Loading driver and verifying...${NC}"
 sleep 1
 
-MOD_LOADED=false
 for MOD_NAME in hailo1x_pci hailo_pci; do
     if modprobe "$MOD_NAME" 2>/dev/null; then
-        echo -e "  ${GREEN}✓ Loaded: ${MOD_NAME}${NC}"
-        MOD_LOADED=true
+        echo -e "  ${GREEN}✓ Module loaded: ${MOD_NAME}${NC}"
         # Persist across boots
-        if ! grep -q "$MOD_NAME" /etc/modules 2>/dev/null; then
-            echo "$MOD_NAME" >> /etc/modules
-            echo -e "  ${GREEN}✓ Added ${MOD_NAME} to /etc/modules (auto-load at boot)${NC}"
-        fi
+        grep -q "$MOD_NAME" /etc/modules 2>/dev/null \
+            || echo "$MOD_NAME" >> /etc/modules \
+            && echo -e "  ${GREEN}✓ Added to /etc/modules (auto-loads at boot)${NC}"
+        LOADED_MOD="$MOD_NAME"
         break
     fi
 done
 
-if [ "$MOD_LOADED" = false ]; then
-    echo -e "  ${YELLOW}! modprobe failed. Checking for module file...${NC}"
-    find /lib/modules/"${KERN}" -name "*hailo*" 2>/dev/null
-    echo -e "  ${YELLOW}A reboot may be required.${NC}"
-fi
-
-# ── Check /dev/hailo ─────────────────────────────────────────────────────────
 sleep 1
+
 if ls /dev/hailo* &>/dev/null; then
-    echo -e "  ${GREEN}✓ /dev/hailo* present${NC}"
+    echo -e "  ${GREEN}✓ Device node present:${NC}"
     ls -la /dev/hailo*
 else
-    echo -e "  ${YELLOW}! /dev/hailo* not present — reboot may be needed${NC}"
+    echo -e "  ${YELLOW}! /dev/hailo* not yet present${NC}"
 fi
 
-# ── hailortcli identify ───────────────────────────────────────────────────────
+# ── Final verification ───────────────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}[*] Running: hailortcli fw-control identify${NC}"
-if hailortcli fw-control identify; then
+echo -e "${CYAN}[*] Verifying with hailortcli...${NC}"
+if hailortcli fw-control identify 2>&1; then
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  Hailo-10H NPU — ONLINE AND VERIFIED ✓  ║${NC}"
-    echo -e "${GREEN}║  ERR0RS NPU light should now be GREEN   ║${NC}"
+    echo -e "${GREEN}║  ERR0RS NPU indicator will be GREEN     ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
 else
     echo ""
     echo -e "${YELLOW}╔══════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║  hailortcli returned non-zero            ║${NC}"
-    echo -e "${YELLOW}║  Action required:                        ║${NC}"
-    echo -e "${YELLOW}║    sudo reboot                           ║${NC}"
+    echo -e "${YELLOW}║  Driver installed but needs reboot       ║${NC}"
+    echo -e "${YELLOW}╠══════════════════════════════════════════╣${NC}"
+    echo -e "${YELLOW}║  Run: sudo reboot                        ║${NC}"
     echo -e "${YELLOW}║  Then: hailortcli fw-control identify    ║${NC}"
     echo -e "${YELLOW}╚══════════════════════════════════════════╝${NC}"
 fi

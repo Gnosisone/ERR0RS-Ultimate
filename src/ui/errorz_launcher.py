@@ -98,11 +98,14 @@ except Exception as e:
 # ── Terminal Bridge — OS terminal spawner + tool anatomy panel ───────────────
 try:
     from src.tools.terminal_bridge import (
-        register_terminal_bridge_routes,
-        get_tool_panel_data, load_registry as load_tool_registry,
+        get_tool_panel_data,
+        load_registry as load_tool_registry,
+        spawn_terminal_with_command,
+        build_command_from_flags,
+        get_preset_command,
     )
     TERMINAL_BRIDGE = True
-    print("[ERR0RS] Terminal Bridge ready — OS terminal launcher active")
+    print("[ERR0RS] Terminal Bridge v2.0 ready — OS terminal launcher active")
 except Exception as e:
     TERMINAL_BRIDGE = False
     print(f"[ERR0RS] Terminal Bridge unavailable: {e}")
@@ -1206,12 +1209,22 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json({"error": "Terminal Bridge not loaded"})
             elif self.path.startswith("/api/tool/panel/"):
                 if TERMINAL_BRIDGE:
-                    parts = self.path.split("/")
-                    tool = parts[-1].split("?")[0]
                     from urllib.parse import urlparse, parse_qs
-                    qs = parse_qs(urlparse(self.path).query)
+                    parsed = urlparse(self.path)
+                    tool   = parsed.path.split("/")[-1]
+                    qs     = parse_qs(parsed.query)
                     target = qs.get("target", [""])[0]
                     self._json(get_tool_panel_data(tool, target))
+                else:
+                    self._json({"error": "Terminal Bridge not loaded"})
+            elif self.path.startswith("/api/tool/preset"):
+                if TERMINAL_BRIDGE:
+                    from urllib.parse import urlparse, parse_qs
+                    qs     = parse_qs(urlparse(self.path).query)
+                    tool   = qs.get("tool",   [""])[0]
+                    preset = qs.get("preset", [""])[0]
+                    target = qs.get("target", [""])[0]
+                    self._json(get_preset_command(tool, preset, target))
                 else:
                     self._json({"error": "Terminal Bridge not loaded"})
             else: super().do_GET()
@@ -1243,10 +1256,6 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
             # ── Terminal Bridge POST routes ────────────────────────────────
             elif self.path == "/api/terminal/launch":
                 if TERMINAL_BRIDGE:
-                    from src.tools.terminal_bridge import (
-                        build_command_from_flags, spawn_terminal_with_command,
-                        get_tool_panel_data as _get_panel
-                    )
                     tool    = payload.get("tool","").strip()
                     target  = payload.get("target","").strip()
                     flags   = payload.get("flags", [])
@@ -1259,14 +1268,13 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                         "tool":    tool,
                         "target":  target,
                         "terminal_info": spawn_result,
-                        "panel":   _get_panel(tool, target),
+                        "panel":   get_tool_panel_data(tool, target),
                     })
                 else:
                     self._json({"error": "Terminal Bridge not loaded"})
 
             elif self.path == "/api/terminal/fire":
                 if TERMINAL_BRIDGE:
-                    from src.tools.terminal_bridge import spawn_terminal_with_command
                     command = payload.get("command","").strip()
                     tool    = payload.get("tool","")
                     if not command:

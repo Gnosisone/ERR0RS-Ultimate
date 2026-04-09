@@ -966,28 +966,43 @@
     </div>
     <div id="tool-grid">
       <!-- RED TEAM / OFFENSIVE -->
-      <div class="tb offensive" onclick="launchTool(this,'nmap','🌐','Spinning up Nmap — mapping every open door on the target.')" oncontextmenu="event.preventDefault();openToolPanel('nmap')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
+      <div class="tb offensive"
+           onclick="openToolPanel('nmap')"
+           oncontextmenu="event.preventDefault();openToolPanel('nmap')"
+           title="Click: Tool Anatomy Panel — learn flags, build command, FIRE">
         <div class="tb-icon">🌐</div><div class="tb-name">NMAP</div><div class="tb-cat">RECON</div>
-        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
       <div class="tb offensive" onclick="launchTool(this,'metasploit','💣','Metasploit loaded. Choose your payload, operator.')">
         <div class="tb-icon">💣</div><div class="tb-name">MSF</div><div class="tb-cat">EXPLOIT</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'sqlmap','🗄️','SQLMap probing injection points... finding the cracks.')" oncontextmenu="event.preventDefault();openToolPanel('sqlmap')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
+      <div class="tb offensive"
+           onclick="openToolPanel('sqlmap')"
+           oncontextmenu="event.preventDefault();openToolPanel('sqlmap')"
+           title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🗄️</div><div class="tb-name">SQLMAP</div><div class="tb-cat">WEB</div>
-        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'hydra','🔑','Hydra brute-forcing credentials. Patience, operator.')" oncontextmenu="event.preventDefault();openToolPanel('hydra')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
+      <div class="tb offensive"
+           onclick="openToolPanel('hydra')"
+           oncontextmenu="event.preventDefault();openToolPanel('hydra')"
+           title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🔑</div><div class="tb-name">HYDRA</div><div class="tb-cat">CREDS</div>
-        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'nikto','🕷️','Nikto web scanner armed. Checking for misconfigs.')" oncontextmenu="event.preventDefault();openToolPanel('nikto')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
+      <div class="tb offensive"
+           onclick="openToolPanel('nikto')"
+           oncontextmenu="event.preventDefault();openToolPanel('nikto')"
+           title="Click: Tool Anatomy Panel">
         <div class="tb-icon">🕷️</div><div class="tb-name">NIKTO</div><div class="tb-cat">WEB SCAN</div>
-        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
-      <div class="tb offensive" onclick="launchTool(this,'gobuster','📂','Gobuster fuzzing directories. Finding the hidden paths.')" oncontextmenu="event.preventDefault();openToolPanel('gobuster')" title="Left-click: quick launch  |  Right-click: Learn &amp; Launch">
+      <div class="tb offensive"
+           onclick="openToolPanel('gobuster')"
+           oncontextmenu="event.preventDefault();openToolPanel('gobuster')"
+           title="Click: Tool Anatomy Panel">
         <div class="tb-icon">📂</div><div class="tb-name">GOBUSTER</div><div class="tb-cat">FUZZ</div>
-        <div style="position:absolute;top:2px;right:4px;font-size:8px;color:#4a2870;pointer-events:none;">📖</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
       </div>
       <div class="tb offensive" onclick="launchTool(this,'aircrack-ng','📡','Aircrack-ng live. Capturing handshakes on the air.')">
         <div class="tb-icon">📡</div><div class="tb-name">AIRCRACK</div><div class="tb-cat">WIRELESS</div>
@@ -2453,7 +2468,7 @@ const SNIPPETS = {
         color:#d4b8ff;font-family:'Share Tech Mono',monospace;font-size:13px;
         outline:none;
       "
-      oninput="ToolPanel._updateTarget(this.value)"
+      oninput="errzPanelTargetChanged(this.value)"
     />
   </div>
 
@@ -2469,46 +2484,47 @@ const SNIPPETS = {
 <!-- Tool Panel JS -->
 <script src="/tool_panel.js"></script>
 <script>
-  // ── Init panel on page load ───────────────────────────────────────────────
+  // ── Init ToolPanel on page load ───────────────────────────────────────────
   document.addEventListener("DOMContentLoaded", () => {
     ToolPanel.init("errz-tool-panel-wrap");
   });
 
-  // ── Global: open tool panel from any tool card ────────────────────────────
+  // ── openToolPanel — called by right-click on tool cards ──────────────────
+  // Also called directly for left-click on registry-enabled cards
   function openToolPanel(tool, target) {
-    target = target || document.getElementById("errz-panel-target")?.value || "";
-    const overlay  = document.getElementById('errz-panel-overlay');
-    const backdrop = document.getElementById('errz-panel-backdrop');
-    const inp      = document.getElementById('errz-panel-target');
-    overlay.style.display  = "block";
-    backdrop.style.display = "block";
+    target = target
+          || document.getElementById("errz-panel-target")?.value?.trim()
+          || "";
+
+    // Update the target input inside the panel
+    const inp = document.getElementById("errz-panel-target");
     if (inp) inp.value = target;
 
-    // ERR0RS reacts — lean toward the panel side (right)
-    if (typeof bgImg !== 'undefined') bgImg.className = 'lean-right';
-    if (typeof zoomBorder !== 'undefined') {
-      zoomBorder.classList.add('speaking');
-      setTimeout(() => zoomBorder.classList.remove('speaking'), 1200);
+    // ERR0RS visual reaction
+    if (typeof bgImg      !== "undefined") bgImg.className = "lean-right";
+    if (typeof zoomBorder !== "undefined") {
+      zoomBorder.classList.add("speaking");
+      setTimeout(() => zoomBorder.classList.remove("speaking"), 1200);
     }
-    if (typeof speechEl !== 'undefined') {
+    if (typeof speechEl !== "undefined") {
       speechEl.style.opacity = 0;
       setTimeout(() => {
-        speechEl.textContent = `📖 Loading ${tool.toUpperCase()} anatomy — right-click any flag for intel.`;
+        speechEl.textContent = `📖 ${tool.toUpperCase()} anatomy panel — learn every flag.`;
         speechEl.style.opacity = 1;
       }, 200);
     }
+
+    addIntel("🔍 TOOL PANEL", `Loading ${tool.toUpperCase()} anatomy...`, "info");
+
+    // ToolPanel.show() is called internally by loadPanel() after data arrives
     ToolPanel.loadPanel(tool, target);
   }
 
-  // Let the panel update command when target changes
-  ToolPanel._updateTarget = function(val) {
-    if (ToolPanel._state) ToolPanel._state.target = val;
-    if (typeof ToolPanel.rebuildCommand === "function") ToolPanel.rebuildCommand();
-  };
-
-  // ── Wire nmap card click if the tool grid exists ──────────────────────────
-  // Cards already have onclick handlers — this wires the "Learn & Launch" path
-  // Intercept any tool card's secondary button or add the path in the card HTML.
+  // ── Target input inside the panel wires into ToolPanel state ─────────────
+  // Uses the getter exposed in the v2.0 public API
+  function errzPanelTargetChanged(val) {
+    ToolPanel._updateTarget(val);
+  }
 </script>
 </body>
 </html>

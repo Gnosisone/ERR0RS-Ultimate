@@ -185,26 +185,41 @@ class HailoDetector:
 
     @classmethod
     def is_available(cls) -> bool:
-        """Quick check — is there a usable Hailo NPU backend?"""
+        """
+        True if Hailo-10H hardware is present and driver is loaded.
+        Hardware availability is what matters for the UI indicator —
+        hailo-ollama is an optional inference layer, not a requirement
+        for the NPU to be considered 'online'.
+        """
         d = cls.detect()
-        return d["hailo_found"] and (d["hailo_ollama"] or d["hailo_platform_py"])
+        # Hardware online = chip found + driver module loaded + hailortcli responds
+        return d["hailo_found"] and d["hailortcli"]
 
     @classmethod
     def summary(cls) -> str:
         """Human-readable status string for the ERR0RS status endpoint."""
         d = cls.detect()
         if not d["hailo_found"]:
-            return "❌ Hailo-10H not detected"
-        chip  = d.get("chip", "Hailo")
-        fw    = d.get("firmware_version", "unknown")
-        drv   = d.get("driver_module", "?")
-        parts = [f"✅ {chip} | FW {fw} | {drv}"]
+            return "❌ Hailo-10H not detected — check M.2 HAT+ connection"
+        chip = d.get("chip", "Hailo")
+        fw   = d.get("firmware_version", "unknown")
+        drv  = d.get("driver_module", "?")
+
+        # Hardware is the primary status — always show this first
+        if d["hailortcli"]:
+            status = f"✅ {chip} | FW {fw} | {drv}"
+        else:
+            status = f"⚠️ {chip} detected | driver: {drv} | hailortcli: not responding"
+
+        # hailo-ollama is secondary — note it but don't make it the headline
         if d["hailo_ollama"]:
-            models = ", ".join(d["hailo_ollama_models"][:3]) or "no models pulled"
-            parts.append(f"hailo-ollama: {models}")
-        if not d["hailo_ollama"]:
-            parts.append("⚠️  hailo-ollama not running")
-        return " | ".join(parts)
+            models = ", ".join(d["hailo_ollama_models"][:2]) or "no models"
+            status += f" | ollama: {models}"
+        # Only mention hailo-ollama absence if we have no inference path at all
+        elif not d["hailo_platform_py"]:
+            status += " | inference: ollama (CPU) fallback"
+
+        return status
 
 
 # ─── hailo-ollama inference client ────────────────────────────────────────────
@@ -807,7 +822,7 @@ def handle_hailo_request(payload: dict) -> dict:
 # ─── Module-level convenience functions (used by errz_inference.py) ───────────
 
 def hailo_available() -> bool:
-    """True if Hailo NPU is detected and hailo-ollama is running."""
+    """True if Hailo-10H hardware is present, driver loaded, and hailortcli responds."""
     return HailoDetector.is_available()
 
 

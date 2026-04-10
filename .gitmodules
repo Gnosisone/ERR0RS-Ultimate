@@ -127,3 +127,6 @@
 [submodule "knowledge/c2/PowerRemoteDesktop_LogonUI"]
 	path = knowledge/c2/PowerRemoteDesktop_LogonUI
 	url = https://github.com/DarkCoderSc/PowerRemoteDesktop_LogonUI.git
+[submodule "knowledge/windows/precompiled-binaries"]
+	path = knowledge/windows/precompiled-binaries
+	url = https://github.com/grejh0t/precompiled-binaries.git

@@ -192,7 +192,56 @@ ERR0RS uses these for Windows post-exploitation knowledge, evasion techniques, a
 
 ---
 
-## 🎩 THE CREDENTIAL MAESTRO — djhohnstein
+## 🏴 THE AD ARSENAL — jakobfriedl / grejh0t
+
+**GitHub (original):** [@jakobfriedl](https://github.com/jakobfriedl)
+**GitHub (fork):** [@grejh0t](https://github.com/grejh0t)
+**Repo:** [precompiled-binaries](https://github.com/grejh0t/precompiled-binaries) ⭐ 240
+**Integration:** `knowledge/windows/precompiled-binaries` (git submodule) + `src/ai/precompiled_bins_kb.py` (RAG)
+
+> *"Collection of useful pre-compiled .NET binaries or other executables for penetration testing Windows Active Directory environments."*
+
+This repository is the definitive pre-compiled toolkit for Windows Active Directory penetration testing. Every binary either downloaded from the official release page or compiled from source using Visual Studio — no trust issues, no mystery builds.
+
+**Why this matters for ERR0RS:** Active Directory compromise is the goal of 90% of enterprise red team engagements. This repo packages the exact tools professionals use in a single, organised collection. ERR0RS now has full RAG knowledge of every tool — what it does, how to use it, the attack chain it fits into, and how defenders can detect it.
+
+**24 tools across 5 categories:**
+
+| Category | Tools |
+|---|---|
+| **Enumeration** | SharpHound, Seatbelt, SharpUp, winPEAS, SharpView, NoPowerShell |
+| **Lateral Movement** | Rubeus, Whisker, Certify, RunasCS, SharpGPOAbuse, SharpSCCM, SharpRDP, SharpSQL, ADFSDump, Sharpmad, ADModule |
+| **Credential Gathering** | mimikatz, SharpDPAPI, SharpChrome, SharpLAPS, BetterSafetyKatz, GMSAPasswordReader, SharpKatz |
+| **Privilege Escalation** | GodPotato, JuicyPotato, PrintSpoofer, SharpEfsPotato, KrbRelayUp, KrbRelay |
+| **Scripts** | PowerView, Powermad, Inveigh, PowerUp, PowerUpSQL, LAPSToolkit |
+
+**The AD attack chain ERR0RS now teaches end-to-end:**
+
+```
+SharpHound → BloodHound (map attack paths)
+     ↓
+Rubeus (Kerberoast / AS-REP Roast → hashcat → plaintext)
+     ↓
+mimikatz / SharpDPAPI (LSASS dump / DPAPI decrypt)
+     ↓
+Certify (ADCS ESC1/ESC8 → rogue certificate → DA)
+     ↓
+Whisker (Shadow Credentials → persistent access)
+     ↓
+SharpGPOAbuse / SharpSCCM (domain-wide lateral movement)
+     ↓
+KrbRelayUp (SYSTEM on any machine without LDAP signing)
+     ↓
+ADSyncDecrypt (Azure AD pivot via AAD Connect)
+```
+
+**ERR0RS RAG integration:** 30 knowledge chunks across 6 categories, 83 trigger phrases. Ask ERR0RS about Kerberoasting, ADCS abuse, RBCD, DCSync, LAPS, gMSA, LLMNR poisoning, or any specific tool — the knowledge base has full teach + defend content for all of them.
+
+**Special attribution:** The original author (jakobfriedl) compiled each binary from official source code — critical for engagements where you need to trust the tool you're running. Every binary traces back to the original GhostPack, BloodHound, and open-source project release pages.
+
+Thank you jakobfriedl and grejh0t. This toolkit represents the professional standard for Windows AD pentesting and ERR0RS is a better platform for having it.
+
+---
 
 **GitHub:** [@djhohnstein](https://github.com/djhohnstein)
 
@@ -384,6 +433,7 @@ All third-party repositories remain under their original licenses:
 - greatscottgadgets: GPL-2.0
 - beigeworm: MIT
 - hak5: unlicensed
+- jakobfriedl / grejh0t (precompiled-binaries): MIT
 - Lissy93: MIT
 - trustedsec (ridenum): unlicensed
 - bashcrumb: unlicensed
@@ -423,6 +473,7 @@ ERR0RS Ultimate itself is released under the **MIT License**.
 | **djhohnstein** | [KittyLitter](https://github.com/djhohnstein/KittyLitter) | Credential dumper |
 | **djhohnstein** | [Priv2Admin](https://github.com/djhohnstein/Priv2Admin) | Windows privilege exploitation paths |
 | **nccgroup** | [redsnarf](https://github.com/nccgroup/redsnarf) | Pen-testing / red-teaming tool for Windows — 1.2k ⭐ |
+| **jakobfriedl / grejh0t** | [precompiled-binaries](https://github.com/grejh0t/precompiled-binaries) | Pre-compiled .NET AD pentest binaries: mimikatz, Rubeus, Certify, SharpDPAPI, SharpChrome, GMSAPasswordReader, SharpLAPS, GodPotato, KrbRelayUp — 240 ⭐ |
 
 ---
 
@@ -431,6 +482,7 @@ ERR0RS Ultimate itself is released under the **MIT License**.
 | Author | Repository | Description |
 |--------|-----------|-------------|
 | **mandiant** | [commando-vm](https://github.com/mandiant/commando-vm) | Complete Windows-based pentesting VM distribution — 7.5k ⭐ |
+| **jakobfriedl / grejh0t** | [precompiled-binaries](https://github.com/grejh0t/precompiled-binaries) | Pre-compiled .NET AD pentest toolkit: SharpHound, Seatbelt, SharpView, Rubeus, Certify, Whisker, SharpGPOAbuse, SharpSCCM, mimikatz, GodPotato, KrbRelayUp, PowerView, Inveigh — 240 ⭐ |
 | **nixawk** | [pentest-wiki](https://github.com/nixawk/pentest-wiki) | Free online security knowledge library — 3.7k ⭐ |
 | **OlivierLaflamme** | [Cheatsheet-God](https://github.com/OlivierLaflamme/Cheatsheet-God) | OSCP/PTP/PTX penetration testing reference bank — 5.4k ⭐ |
 | **JoasASantos** | [OSCE3-Complete-Guide](https://github.com/JoasASantos/OSCE3-Complete-Guide) | OSWE, OSEP, OSED, OSEE guide — 3.7k ⭐ |

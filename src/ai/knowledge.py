@@ -23,6 +23,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from src.education.knowledge_base import KNOWLEDGE_BASE
 from src.ai.darkcodersc_kb import build_darkcodersc_chunks, DARKCODERSC_TRIGGERS
+from src.ai.precompiled_bins_kb import build_precompiled_chunks, PRECOMPILED_TRIGGERS
 
 
 def _kb_to_chunks() -> list:
@@ -108,6 +109,13 @@ class ERR0RSKnowledgeBase:
             log.info(f"Merged {len(dcs_chunks)} DarkCoderSc chunks into RAG")
         except Exception as e:
             log.warning(f"DarkCoderSc KB merge failed (non-fatal): {e}")
+        # ── Merge in grejh0t/precompiled-binaries knowledge base ─────────────
+        try:
+            pc_chunks = build_precompiled_chunks()
+            chunks.extend(pc_chunks)
+            log.info(f"Merged {len(pc_chunks)} precompiled-binaries chunks into RAG")
+        except Exception as e:
+            log.warning(f"Precompiled-binaries KB merge failed (non-fatal): {e}")
         if self._use_chroma:
             if self.collection.count() > 0 and not force:
                 return self.collection.count()
@@ -128,11 +136,15 @@ class ERR0RSKnowledgeBase:
             return len(chunks)
 
     def search(self, query: str, n_results: int = 4) -> list:
-        # Check DarkCoderSc fast-path triggers first
+        # Check fast-path keyword triggers before vector search
         q_lower = query.lower()
-        for trigger, chunk_id in DARKCODERSC_TRIGGERS.items():
+        for trigger in DARKCODERSC_TRIGGERS:
             if trigger in q_lower:
-                log.debug(f"DarkCoderSc trigger match: '{trigger}' → {chunk_id}")
+                log.debug(f"DarkCoderSc trigger match: '{trigger}'")
+                break
+        for trigger in PRECOMPILED_TRIGGERS:
+            if trigger in q_lower:
+                log.debug(f"Precompiled-bins trigger match: '{trigger}'")
                 break
         if self._use_chroma:
             return self._search_chroma(query, n_results)

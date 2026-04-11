@@ -184,3 +184,5 @@ cython_debug/
 .claude/
 # Flipper SD output — large binaries, never commit
 src/output/
+errors.db
+reports/

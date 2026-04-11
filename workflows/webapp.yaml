@@ -1,0 +1,36 @@
+id: webapp
+name: Web Application Assessment
+
+steps:
+  - name: Port & Service Recon
+    command: scan
+    args:
+      target: "{target}"
+    learn: true
+    timeout: 120
+
+  - name: Analyse Services
+    type: analyze
+
+  - name: Web Vulnerability Scan
+    command: web_scan
+    args:
+      target: "{target}"
+    condition: '"http" in services or "https" in services'
+    learn: true
+    timeout: 180
+
+  - name: Directory Bruteforce
+    command: dirb
+    args:
+      target: "{target}"
+    condition: '"http" in services or "https" in services'
+    timeout: 300
+
+  - name: SQL Injection Test
+    command: sqlmap
+    args:
+      target: "{target}"
+    condition: 'forms_detected == True'
+    learn: true
+    timeout: 300

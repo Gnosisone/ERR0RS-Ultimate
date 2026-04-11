@@ -5,6 +5,9 @@
 import json
 import re
 import time
+import logging
+
+logger = logging.getLogger("AutoPilot")
 
 # ── Kill chain stage order ───────────────────────────────────────────────────
 KILL_CHAIN = ["scan", "vuln", "portscan", "full"]
@@ -74,6 +77,59 @@ def _should_escalate(output: str, stage: str) -> bool:
     return any(t.lower() in lower for t in triggers)
 
 
+def _build_autopilot_context(target: str, result: str, ctx=None) -> dict:
+    """
+    Build the shared context dict passed to plugin.conditions() and .suggest().
+    Populated from live scan output + SharedContext state.
+    """
+    import re
+    open_ports = [int(m) for m in re.findall(r"(\d+)/tcp\s+open", result)]
+    services   = []
+    for svc in ["http", "https", "ssh", "ftp", "smb", "rdp", "mysql",
+                "mssql", "postgresql", "telnet", "smtp", "dns"]:
+        if svc in result.lower():
+            services.append(svc)
+
+    # Pull additional state from SharedContext if available
+    os_guess   = ""
+    findings   = []
+    if ctx:
+        os_guess = ctx.get("os_guess", "")
+        findings = ctx.get_findings() if hasattr(ctx, "get_findings") else []
+
+    return {
+        "last_output":   result,
+        "open_ports":    open_ports,
+        "services":      services,
+        "os_guess":      os_guess,
+        "active_target": target,
+        "findings":      findings,
+    }
+
+
+def _collect_plugin_suggestions(plugin_manager, context: dict) -> list:
+    """
+    Ask every loaded plugin if it wants to run given the current context.
+    Returns list of (suggestion_str, plugin_name) tuples, sorted by priority.
+    """
+    suggestions = []
+    for name, entry in plugin_manager.plugins.items():
+        instance = entry["instance"]
+        try:
+            if hasattr(instance, "conditions") and instance.conditions(context):
+                suggestion = None
+                if hasattr(instance, "suggest"):
+                    suggestion = instance.suggest(context)
+                suggestions.append({
+                    "plugin":     name,
+                    "suggestion": suggestion or f"Run {name}",
+                    "category":   entry["manifest"].get("category", "misc"),
+                })
+        except Exception as e:
+            logger.debug(f"Plugin '{name}' conditions() error: {e}")
+    return suggestions
+
+
 class AutoPilot:
     def __init__(self, router, ctx=None, delay: float = 1.0):
         self.router      = router
@@ -119,6 +175,26 @@ class AutoPilot:
             next_cmd, itp_reason = self.interpreter.top_command(plugin_result)
             itp_findings = self.interpreter.analyze_output(plugin_result)
             itp_priority = itp_findings[0]["priority"] if itp_findings else 99
+
+            # ── 2b. Plugin conditions/suggest sweep ───────────────
+            plugin_ctx  = _build_autopilot_context(
+                target, plugin_result, self.ctx
+            )
+            suggestions = _collect_plugin_suggestions(
+                self.router.plugin_manager, plugin_ctx
+            )
+            if suggestions:
+                print(f"\n  \033[95m⚡ Plugin suggestions:\033[0m")
+                for s in suggestions[:3]:
+                    print(f"    [{s['category']}] {s['suggestion']}")
+            # If a plugin strongly suggests itself and interpreter didn't
+            # already override, surface the first suggestion as a candidate
+            if suggestions and not (next_cmd and itp_priority <= 2):
+                top = suggestions[0]
+                logger.debug(
+                    f"Plugin autopilot candidate: {top['plugin']} — "
+                    f"{top['suggestion']}"
+                )
 
             # ── 3. AI structured decision ─────────────────────────
             prompt   = _build_prompt(target, stage, plugin_result)

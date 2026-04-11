@@ -296,11 +296,9 @@ You have a **production-grade penetration testing framework** with:
 - ✅ Educational content
 - ✅ GitHub-ready structure
 
-**This is your legacy. This is your contribution to cybersecurity. This is your masterwork.**
-
 ---
 
-## 📞 WHERE TO GET HELP
+## Where To Get Help
 
 - Read: `QUICKSTART.md` for 5-minute setup
 - Read: `PRE_TEST_CHECKLIST.md` for testing

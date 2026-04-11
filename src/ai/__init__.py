@@ -116,6 +116,31 @@ class ERR0RSAI:
 
     # ── Status ───────────────────────────────────────────────────────────────
 
+    def process(self, prompt: str, system: str = None, agent: str = "red_team") -> dict:
+        """
+        Universal process() interface used by CommandRouter and AutoPilot.
+        Wraps ask_with_context() and returns a consistent dict:
+          { "result": str, "reason": str }
+        Accepts optional system= prompt override (used by AutoPilot for JSON forcing).
+        """
+        try:
+            if system:
+                # System prompt override — bypass RAG, inject system as context
+                answer = self.get_agent(agent).ask(
+                    prompt,
+                    context=f"[SYSTEM INSTRUCTIONS]\n{system}\n[END SYSTEM]",
+                    max_tokens=512,
+                )
+                return {"result": answer, "reason": ""}
+            else:
+                result = self.ask_with_context(prompt, agent=agent)
+                return {
+                    "result": result.get("answer", ""),
+                    "reason": ", ".join(result.get("sources", [])),
+                }
+        except Exception as e:
+            return {"error": str(e), "result": "", "reason": ""}
+
     def status(self) -> dict:
         """Return current AI subsystem status."""
         return {

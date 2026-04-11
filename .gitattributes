@@ -1,8 +1,22 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# ERR0RS-Ultimate — git line ending policy
+# Only enforce on source files — exclude flipper SD content
 
-# Shell scripts — preserve LF line endings and executable bit
-*.sh text eol=lf
-start_err0rs.sh text eol=lf
-open_manual.sh text eol=lf
-install.sh text eol=lf
+# Source files: always LF
+*.py        text eol=lf
+*.sh        text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf
+*.json      text eol=lf
+
+# Binary — never touch line endings
+*.pdf       binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.ico       binary
+*.db        binary
+*.bin       binary
+
+# Flipper SD content — preserve as-is (mixed Windows/Linux sources)
+src/output/flipper_sd/**  -text

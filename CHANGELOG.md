@@ -5,6 +5,76 @@ All notable changes to ERR0RS ULTIMATE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-11
+
+### Added
+
+#### Plugin System
+- `BasePlugin` extended with `conditions()`, `suggest()`, `explain()`, `analyze()` autopilot/education hooks
+- `PluginResult` structured return type carrying findings, metadata, success state
+- `shell()` safe subprocess helper on every plugin
+- `emit_finding()` direct finding → EventBus shortcut
+
+#### Workflow Engine (`src/core/workflow/`)
+- `WorkflowLoader` — YAML + 4 built-in workflows (`webapp`, `network`, `hardware_attack`, `quick`)
+- `WorkflowExecutor` — condition eval, arg interpolation, safe_mode gate, per-step education, EventBus emission
+- `WorkflowEngine` — top-level runner wired to CLI, dashboard, and API
+- `workflows/webapp.yaml` and `workflows/network.yaml` on disk
+
+#### Hardware Layer (`src/core/hardware/`)
+- `DeviceBase` abstract class with lifecycle, safe_mode, event bus
+- `FlipperDevice` — wraps `flipper_bridge.py` serial driver; mount-path fallback
+- `Hak5Device` — Ducky, BashBunny, WiFi Pineapple Nano, Shark Jack
+- `HardwareManager` — single registry, `set_safe_mode()`, `probe_all()`, `list_devices()`
+
+#### Report Generator (`src/reporting/`)
+- `Finding` dataclass with severity ranking and MITRE fields
+- Heuristic output parser (SSH, SMB, RDP, SQLi, XSS, traversal)
+- Markdown, HTML (styled dark theme), and JSON export
+- AI narrative enhancement hook
+- MITRE ATT&CK hyperlinks in all output formats
+
+#### Live Dashboard (`src/ui/dashboard/`)
+- Flask + SocketIO app factory with dependency injection
+- 14 REST API endpoints (plugins, hardware, workflows, reports, session)
+- Real-time WebSocket event feed bridged from SharedContext EventBus
+- `dashboard.html` — device panel, live feed, workflow launcher, payload deployer
+- `reports.html` + `report_view.html` templates
+
+#### Auth + Database (`src/core/db.py`, `src/ui/dashboard/auth.py`)
+- SQLite with WAL mode and foreign keys
+- bcrypt password hashing (sha256 fallback)
+- `create_user`, `authenticate`, session and finding persistence, audit log
+- Flask blueprints: `login_required`, `role_required` decorators
+- Inline login/register HTML templates (no extra files needed)
+
+#### Autopilot (`src/core/autopilot.py`)
+- `_build_autopilot_context()` — parses live output into structured context dict
+- `_collect_plugin_suggestions()` — sweeps all plugin `conditions()` each kill-chain step
+
+#### `main.py`
+- Full rewrite — `--workflow`, `--report`, `--dashboard`, `--learn`, `--safe` flags
+- All 5 subsystems booted and injected into every mode
+- `interactive_mode()` extended with workflow, hardware, report, learn commands
+
+### Changed
+- `main.py` — complete rewrite; all subsystems wired; backward-compatible flags preserved
+- `src/core/plugin_base.py` — complete professional rewrite
+- `src/reporting/report_generator.py` — upgraded with Finding model, full formatters
+
+### Removed (repo cleanup)
+- 27 root-level dev/debug/session scripts
+- 15 stale session `.md` status files
+- All `__pycache__` directories
+
+### Infrastructure
+- `.gitignore` — comprehensive (venv, db, reports, logs, secrets, IDE)
+- `.gitattributes` — LF enforcement, binary flags, flipper SD excluded
+- `docs/ARCHITECTURE.md` — full technical reference
+- `QUICKSTART.md` — rewritten clean
+
+---
+
 ## [1.0.0] - 2025-02-04
 
 ### 🎉 Initial Release

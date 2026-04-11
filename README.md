@@ -1,731 +1,478 @@
 <div align="center">
 
 ```
- ███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗
- ██╔════╝██╔══██╗██╔══██╗██╔═════╝██╔══██╗██╔════╝
- █████╗  ██████╔╝██████╔╝██║  ███╗██████╔╝███████╗
- ██╔══╝  ██╔══██╗██╔══██╗██║   ██║██╔══██╗╚════██║
- ███████╗██║  ██║██║  ██║╚███████╔╝██║  ██║███████║
- ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══════╝ ╚═╝  ╚═╝╚══════╝
+  ███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗
+  ██╔════╝██╔══██╗██╔══██╗██╔═████╗██╔══██╗██╔════╝
+  █████╗  ██████╔╝██████╔╝██║██╔██║██████╔╝███████╗
+  ██╔══╝  ██╔══██╗██╔══██╗████╔╝██║██╔══██╗╚════██║
+  ███████╗██║  ██║██║  ██║╚██████╔╝██║  ██║███████║
+  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
+                        U L T I M A T E
 ```
 
-### **AI-Powered Penetration Testing Assistant, Instructor & Red Team Platform**
-*The Clippy of Kali Linux — on steroids. The de facto cybersecurity training curriculum.*
+**AI-Powered Penetration Testing Platform · Purple Team · Cybersecurity Education**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Kali%20%7C%20Parrot%20%7C%20Pi5-557C94?style=flat-square&logo=linux&logoColor=white)](https://kali.org)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v1.0.0-brightgreen?style=flat-square)](https://github.com/Gnosisone/ERR0RS-Ultimate/releases/tag/v1.0.0)
-[![Tests](https://img.shields.io/badge/Tests-28%2F28%20passing-brightgreen?style=flat-square)]()
-[![Modules](https://img.shields.io/badge/Modules-25%20integrated-blue?style=flat-square)]()
-[![Tools](https://img.shields.io/badge/Kali%20Tools-120%2B-red?style=flat-square)]()
-[![Ollama](https://img.shields.io/badge/LLM-Ollama%20100%25%20Local-orange?style=flat-square)](https://ollama.com)
+[![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
+[![Release](https://img.shields.io/badge/Release-v1.0.0-7c3aed?style=flat-square)](https://github.com/Gnosisone/ERR0RS-Ultimate/releases)
+[![Modules](https://img.shields.io/badge/Tool%20Modules-25%2B-0ea5e9?style=flat-square)]()
+[![Local](https://img.shields.io/badge/LLM-100%25%20Local-f97316?style=flat-square)](https://ollama.com)
 [![Pi5](https://img.shields.io/badge/Hardware-Pi%205%20%2B%20Hailo--10H-c51a4a?style=flat-square&logo=raspberry-pi&logoColor=white)]()
 
-**100% Local · Zero Data Leaves the OS · Built for Professional Red Teams & Security Education**
+*100% local · zero data leaves the OS · built for professional red teams and security education*
+
+[Installation](#-installation) · [Quick Start](#-quick-start) · [Architecture](docs/ARCHITECTURE.md) · [Philosophy](PHILOSOPHY.md) · [Research](RESEARCH.md)
 
 </div>
 
 ---
 
-## 🤖 What is ERR0RS?
+## What is ERR0RS?
 
-ERR0RS ULTIMATE is a fully local, AI-powered security platform that lives inside Kali Linux
-and Parrot OS. It wraps 120+ security tools in a conversational interface, automates complete
-penetration testing engagements, teaches offensive and defensive techniques in real time,
-generates professional client reports, and delivers enterprise-grade threat intelligence
-briefings — all without sending a single byte of client data to the cloud.
+ERR0RS-Ultimate is a fully local, AI-powered security platform that runs inside Kali Linux and Parrot OS. It wraps 25+ security tool modules in a conversational interface, autonomously executes kill-chain workflows, teaches offensive and defensive techniques inline, and generates professional pentest reports — all without sending a single byte of client data to the cloud.
 
-Think of it as having a senior red teamer sitting next to you: pressing the buttons,
-explaining every command, correlating findings, and writing the report at the end.
+Think of it as a senior red teamer sitting next to you: running the tools, explaining every decision, correlating findings across the engagement, and writing the report at the end.
 
 > *"Technology cannot be patched. Humans cannot be patched. ERR0RS teaches you to attack and defend both."*
 
-### Why ERR0RS Exists
-
-The cybersecurity training gap is real and growing. AI has democratized sophisticated
-attacks — WormGPT, FraudGPT, and AI-powered deepfakes are available to criminals for
-$200/month. The defenders must think ahead of the pack. ERR0RS exists to close that gap:
-to give security professionals, students, and enterprises the same depth of understanding
-that the adversary already has.
-
 ---
 
-## 🎯 Core Capabilities
+## Core Capabilities
 
-| | Capability | Description |
+| | Capability | Detail |
 |---|---|---|
-| 🧠 | **AI Brain** | Local LLM (Ollama) or cloud — 5 operator modes, zero cloud dependency option |
-| 🧙 | **Smart Wizard** | Guided option menus for 15+ tools — no syntax memorization required |
-| 📚 | **Teach Mode** | Every command explained inline with real-time education — learn while operating |
-| 🎯 | **Auto Kill Chain** | Full automated pentest: recon → scan → exploit → post → report |
-| 📋 | **Campaign Manager** | Full engagement lifecycle — objectives, findings, credentials, timeline |
-| 💥 | **BAS Engine** | Breach & Attack Simulation — MITRE ATT&CK-aligned defense validation |
-| 🧬 | **Credential Engine** | Auto hash detection, hashcat pipeline, spray automation, pattern analytics |
-| 🎭 | **Social Engineering** | Phishing campaign builder, vishing scripts, pretext framework, OSINT tools |
-| 🕵️ | **AI Threat Intel** | WormGPT/FraudGPT profiles, deepfake briefings, Fortune 500 board decks |
-| ⚡ | **Payload Studio** | AI-assisted DuckyScript for Flipper Zero, Rubber Ducky, pico-ducky |
-| 🟣 | **Purple Team Mode** | Red, Blue, and Purple operator modes — attack AND detect simultaneously |
-| 📊 | **Pro Reporter** | Executive-grade HTML/PDF reports with CVSS scoring and remediation roadmaps |
-| 🌐 | **Language Layer** | 500+ natural language variants — operators speak human, ERR0RS listens |
-
+| 🧠 | **AI Brain** | Local Ollama LLM with ReAct agent loop · 5 operator modes · cloud optional |
+| 🚀 | **Autopilot** | Autonomous kill-chain runner · scan → enumerate → exploit → report |
+| 📋 | **Workflow Engine** | YAML-defined multi-step engagements · `webapp`, `network`, `hardware_attack` |
+| 📚 | **Teach Mode** | Every command explained inline · 41 offline lessons · MITRE ATT&CK mapped |
+| 🔌 | **Hardware Control** | Flipper Zero · USB Rubber Ducky · Bash Bunny · WiFi Pineapple · Shark Jack |
+| 🌐 | **Live Dashboard** | Flask + SocketIO real-time web UI · device status · live event feed |
+| 📄 | **Report Generator** | Professional Markdown + HTML + JSON · severity ranked · MITRE linked |
+| 🔐 | **Auth + Audit** | bcrypt auth · SQLite session store · full audit log |
+| 🧬 | **Knowledge Base** | 50+ curated security repos as RAG-indexed submodules |
+| 🛡️ | **Purple Team** | Every offensive technique paired with defensive countermeasures |
 
 ---
 
-## ⚡ Quick Install
+## Quick Start
 
 ```bash
-git clone https://github.com/Gnosisone/ERR0RS-Ultimate.git
+# Clone with submodules
+git clone --recurse-submodules https://github.com/Gnosisone/ERR0RS-Ultimate.git
 cd ERR0RS-Ultimate
-sudo bash install.sh
-python3 src/ui/errorz_launcher.py
+
+# Install (Kali / Parrot)
+chmod +x install.sh && ./install.sh
+
+# Configure
+cp configs/config.template.env .env
+nano .env   # Set LLM_BACKEND, FLIPPER_PORT, etc.
+
+# Launch
+python main.py              # Interactive terminal
+python main.py --dashboard  # Live web dashboard → http://127.0.0.1:5000
+python main.py --api        # REST API → http://0.0.0.0:8000/docs
 ```
 
-> **Web UI:** `http://127.0.0.1:8765`
-> **WebSocket Terminal:** `ws://127.0.0.1:8766`
+---
+
+## Launch Modes
 
 ```bash
-# Optional — full knowledge base (~50 curated security repos)
-git submodule update --init --recursive
-
-# Optional — offline AI (fully local, no API key)
-ollama pull llama3.2
-
-# Optional — cloud AI (highest quality)
-export ANTHROPIC_API_KEY=your_key_here
+python main.py                              # Interactive terminal (default)
+python main.py --dashboard                  # Flask + SocketIO live dashboard
+python main.py --api                        # FastAPI REST server + Swagger docs
+python main.py --workflow webapp 10.0.0.1   # Run a workflow directly
+python main.py --report 10.0.0.1            # Generate report and exit
+python main.py --query "enum SMB shares"    # Single query mode
+python main.py --learn                      # Enable inline education mode
+python main.py --safe                       # Safe mode — no real hardware execution
+python main.py --agent blue_team            # Start in blue team analyst mode
 ```
 
 ---
 
----
+## Terminal Commands
 
-## 🖥️ Live Demo
-
-```
-  ERR0RS [red_team]> scan 192.168.1.0/24 for live hosts and open ports
-
-  [ERR0RS] 🧙 RECON WIZARD
-  ┌─────────────────────────────────────────────────┐
-  │  Target: 192.168.1.0/24                         │
-  │  Mode:   Stealth SYN scan (-sS)                 │
-  │  Ports:  Top 1000 + service detection           │
-  └─────────────────────────────────────────────────┘
-  [*] Running: nmap -sS -sV -O --top-ports 1000 192.168.1.0/24
-
-  HOSTS DISCOVERED:
-  192.168.1.1   — Cisco router      | 22/ssh 80/http 443/https
-  192.168.1.50  — Windows Server    | 445/smb 3389/rdp 5985/winrm
-  192.168.1.100 — Ubuntu 22.04      | 22/ssh 80/http 8080/http-alt
-
-  [ERR0RS] 🎯 Attack surface identified. Suggested next steps:
-    [1] SMB enumeration on .50  → "enum smb 192.168.1.50"
-    [2] Web app scan on .100    → "nikto scan http://192.168.1.100"
-    [3] Full kill chain auto    → "auto pentest 192.168.1.50"
-
-  [TEACH]  Port 445 (SMB) is Microsoft's file/printer sharing protocol.
-           It's historically the most exploited service on Windows networks
-           (EternalBlue, MS17-010, PrintNightmare, etc.).
-  [DEFEND] Block inbound 445 at perimeter. Require SMB signing. Patch monthly.
-```
+Once inside the interactive shell:
 
 ```
-  ERR0RS [red_team]> auto pentest 192.168.1.50
-
-  [ERR0RS] ⚡ AUTO KILL CHAIN — MITRE ATT&CK Mapped
-  Phase 1/5 [RECON]     → nmap -A 192.168.1.50            ✓ 3 vulns found
-  Phase 2/5 [EXPLOIT]   → MS17-010 EternalBlue attempt    ✓ SYSTEM shell
-  Phase 3/5 [POSTEX]    → hashdump, persistence, loot      ✓ 4 hashes
-  Phase 4/5 [LATERAL]   → CrackMapExec spray              ✓ 2 pivots
-  Phase 5/5 [REPORT]    → HTML report generated            ✓ output/reports/
-
-  [ERR0RS] Engagement complete. CVSS Critical: 1 | High: 2 | Medium: 3
+ERR0RS [red_team]> target 192.168.1.10        # Set active target
+ERR0RS [red_team]> run scan 192.168.1.10      # Execute a plugin command
+ERR0RS [red_team]> workflow webapp 10.0.0.1   # Run full web app assessment
+ERR0RS [red_team]> autopilot 10.0.0.1         # Autonomous kill chain
+ERR0RS [red_team]> devices                    # List connected hardware
+ERR0RS [red_team]> deploy flipper rfid_read   # Deploy hardware payload
+ERR0RS [red_team]> explain sql injection      # Teach engine — any topic
+ERR0RS [red_team]> report 10.0.0.1            # Generate pentest report
+ERR0RS [red_team]> agent blue_team            # Switch operator mode
+ERR0RS [red_team]> learn                      # Toggle education mode on/off
 ```
 
 ---
 
-## 🛠️ Tool Coverage — 120+ Tools, Every Phase
+## Architecture
 
-| Phase | Tools Integrated |
-|-------|-----------------|
-| **Recon** | nmap, amass, subfinder, theHarvester, shodan, masscan, dnsrecon |
-| **Web** | sqlmap, nikto, gobuster, ffuf, nuclei, wfuzz, feroxbuster, wpscan |
-| **Exploitation** | metasploit, msfvenom, armitage, searchsploit, exploitdb |
-| **Credentials** | hydra, hashcat, john, LaZagne, mimikatz, secretsdump |
-| **Windows/AD** | BloodHound, CrackMapExec, impacket, enum4linux, WinPwn, PowerSharpPack |
-| **Post-Exploit** | meterpreter, chisel, proxychains, ligolo, portforward automation |
-| **Wireless** | aircrack-ng, airodump-ng, aireplay-ng, hcxdumptool, WiFi Pineapple |
-| **BadUSB/HID** | Flipper Zero, USB Rubber Ducky, pico-ducky, USBArmyKnife |
-| **Cloud** | AWS/Azure/GCP enumeration, Prowler, IAM auditing |
-| **OSINT/SE** | theHarvester, Maltego, Sherlock, GoPhish, SET, Evilginx2 |
-| **Mobile** | frida, MobSF, AndroRAT, iOS attack tools |
-| **CTF** | Web/PWN/Crypto/Forensics/Reversing solver framework |
-| **Reporting** | Auto HTML/PDF generation, CVSS scoring, MITRE mapping |
+```
+User Input (CLI / Dashboard / API)
+         │
+         ▼
+   CommandRouter ──── NLI / Language Layer
+         │
+    ┌────┴────┐
+    │         │
+PluginManager  AI Brain (Ollama / Claude / GPT)
+    │         │
+    │    ┌────┴────────────────┐
+    │    │  ReAct Agent Loop   │
+    │    │  ChromaDB RAG       │
+    │    │  Knowledge Base     │
+    │    └────────────────────-┘
+    │
+    ▼
+Kali Tools (nmap · sqlmap · metasploit · aircrack · hydra · 25+ more)
+    │
+    ▼
+Interpreter → Findings → Report Generator
+    │
+    ▼
+EventBus → SocketIO Dashboard (real-time)
+```
+
+**Key subsystems:**
+
+- `src/core/plugin_base.py` — Every tool is a `BasePlugin` subclass with `conditions()`, `suggest()`, `explain()`, `analyze()` hooks wired into autopilot and education
+- `src/core/autopilot.py` — Autonomous kill-chain: sweeps plugin conditions, calls LLM for structured JSON next-action, escalates through stages
+- `src/core/workflow/` — YAML-driven multi-step workflows with condition evaluation, safe_mode gate, and per-step education
+- `src/core/hardware/` — `HardwareManager` registry over `DeviceBase` subclasses for Flipper Zero, Hak5, and more
+- `src/ui/dashboard/` — Flask + SocketIO live dashboard with 14 REST endpoints and bcrypt-authenticated sessions
+- `src/reporting/` — `Finding` dataclass, heuristic output parser, MITRE ATT&CK links, Markdown + HTML + JSON export
+
+Full technical reference: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ---
 
-## 🎯 Auto Kill Chain — Full Automated Engagement
+## Hardware Stack
 
-ERR0RS runs a complete penetration test autonomously:
+ERR0RS runs as a portable field unit on Raspberry Pi 5 (Cyberdeck build):
 
-```
-ERR0RS> auto pentest 10.10.10.0/24
+| Component | Purpose |
+|---|---|
+| Raspberry Pi 5 8GB | Main compute |
+| Hailo-10H NPU (40 TOPS) | Local AI inference acceleration |
+| Geekworm X1004 NVMe HAT | Fast storage |
+| WiFi Pineapple Nano | 2.4GHz wireless attacks |
+| Alfa AWUS036ACM | 5GHz wireless coverage |
+| Flipper Zero (RogueMaster) | Sub-GHz · NFC · BadUSB · IR |
+| ESP32 w/ Marauder | WiFi / Bluetooth probing |
+| CC1101 | Sub-GHz RF |
 
-══════════════════════════════════════════════════════════
-  ERR0RS AUTO KILL CHAIN — SUPERVISED MODE
-  Target: 10.10.10.0/24  |  7 Phases
-══════════════════════════════════════════════════════════
-
-Phase 1 — Reconnaissance      [nmap discovery, subfinder, theHarvester]
-Phase 2 — Scanning             [nmap deep, nuclei, nikto, gobuster]
-Phase 3 — Vulnerability Assess [nuclei CVE, nmap vuln scripts, searchsploit]
-
-⏸  Phase complete. Found 12 findings. Continue? [Y/n]: Y
-
-Phase 4 — Exploitation         [sqlmap, hydra]  ← pauses for authorization
-Phase 5 — Post-Exploitation    [local_exploit_suggester, hashdump]
-Phase 6 — Lateral Movement     [crackmapexec sweep]
-Phase 7 — Report Generation    [pro_reporter → HTML/PDF]
-
-══════════════════════════════════════════════════════════
-  COMPLETE: 7 phases | 34 findings | 3 credentials
-  🔴 CRITICAL: 2  🟠 HIGH: 8  🟡 MEDIUM: 14  🟢 LOW: 10
-══════════════════════════════════════════════════════════
-```
-
-**Modes:** `SUPERVISED` (pauses between phases) · `FULL_AUTO` (lab/CTF) · `DRY_RUN` (plan only)
+Also runs on any standard x86_64 Kali / Parrot installation.
 
 ---
 
-## 📋 Campaign Manager — Professional Engagement Tracking
+## Plugin System
 
-Every engagement tracked from first scan to final report:
+Every tool is a plugin — a directory with `manifest.json` + a `Plugin(BasePlugin)` class.
 
 ```python
-# ERR0RS tracks everything automatically
-ERR0RS> new campaign "ACME Corp Q2 Assessment" --client "ACME Inc" --scope 10.10.10.0/24
+class Plugin(BasePlugin):
+    def run(self, command, args) -> PluginResult:
+        # Execute the tool
+        return self.shell(f"nmap -sV {args['target']}")
 
-Campaign created: ID=a3f7b2c1
-  Objectives:  0/9 achieved
-  Findings:    0 total
-  Credentials: 0 captured
-  Sessions:    0 active
+    def conditions(self, context) -> bool:
+        # When should autopilot invoke this?
+        return len(context.get("open_ports", [])) > 0
 
-# Findings logged automatically as tools run
-# Credentials captured and correlated
-# Timeline maintained throughout
-# Final report generated on close
+    def suggest(self, context) -> str:
+        # What to recommend in autopilot output
+        return f"Run service version scan on {context['active_target']}"
+
+    def explain(self) -> dict:
+        # Teaching card rendered in --learn mode and reports
+        return {
+            "name": "Nmap",
+            "description": "Network mapper — port scanning and service detection",
+            "mitre_id": "T1046",
+            "mitre_tactic": "Discovery",
+            "defend": "Monitor for SYN flood patterns; deploy honeypots on unused ports",
+        }
+
+    def analyze(self, output) -> list:
+        # Extract structured findings from raw tool output
+        findings = []
+        if "22/tcp open" in output:
+            findings.append({"title": "SSH Exposed", "severity": "medium", ...})
+        return findings
 ```
 
 ---
 
-## 💥 BAS Engine — Breach & Attack Simulation
+## Workflow Engine
 
-Validate your defenses without sending data outside. Competes with Pentera, SafeBreach, Cymulate:
+Define multi-step engagements in YAML:
 
+```yaml
+id: webapp
+name: Web Application Assessment
+
+steps:
+  - name: Port & Service Recon
+    command: scan
+    args: { target: "{target}" }
+    learn: true
+
+  - name: Analyse Services
+    type: analyze
+
+  - name: Web Vulnerability Scan
+    command: web_scan
+    args: { target: "{target}" }
+    condition: '"http" in services or "https" in services'
+    learn: true
+
+  - name: SQL Injection Test
+    command: sqlmap
+    args: { target: "{target}" }
+    condition: 'forms_detected == True'
 ```
-ERR0RS> run bas credential_access
-
-[ERR0RS BAS] Credential Access Simulation
-MITRE: T1003, T1558.003, T1110, T1555
-
-  ✅ LSASS Access Check     — Detection: Event ID 4656 should trigger SIEM
-  ✅ SAM Database Access     — Detection: Unexpected /etc/shadow read should alert
-  ✅ Password Manager Detect — Finding: KeePass running, credential access target
-
-Playbooks: credential_access · lateral_movement · persistence ·
-           defense_evasion · ransomware_sim · c2_beacon_sim
-```
-
-
----
-
-## 🎭 Social Engineering Engine — The Human Variable
-
-The human is the primary attack surface. ERR0RS knows it.
-
-```
-ERR0RS> teach me social engineering
-ERR0RS> build phishing campaign --company "ACME" --domain acme.com --pretext it_password_reset
-ERR0RS> vishing script --pretext it_helpdesk --target "John Smith" --company "ACME"
-ERR0RS> pretext recommend --role "CFO" --department "Finance"
-```
-
-**Phishing Campaign Builder** — Complete GoPhish campaign configs with:
-- 5 production-ready pretext templates (IT password reset, HR benefits, CEO wire, MFA alert, shared document)
-- Infrastructure setup guidance (domain aging, SPF/DKIM/DMARC, SSL)
-- Per-target tracking, credential capture, redirect-after-capture
-- GoPhish step-by-step setup workflow
-
-**Vishing Script Generator** — Populated call scripts:
-- IT helpdesk security incident (yes ladder, elicitation, escalation handling)
-- HR payroll verification (bracketing technique)
-- Corporate security audit (technical intimidation)
-
-**OSINT Human Recon** — theHarvester, Maltego, Sherlock, Hunter.io, LinkedIn, breach data
-
-**Physical SE** — Tailgating techniques, badge cloning (Proxmark3/Flipper Zero),
-USB drops, impersonation pretexts, dumpster diving, shoulder surfing
-
-**Defense** — DMARC enforcement, GoPhish simulation programs, FIDO2 MFA,
-security awareness training with AI-quality phishing examples
-
----
-
-## 🕵️ AI Threat Intelligence — What Criminals Are Using Right Now
-
-ERR0RS teaches and briefs on the current criminal AI ecosystem:
-
-```
-ERR0RS> teach me wormgpt
-ERR0RS> teach me fraudgpt
-ERR0RS> teach me deepfake fraud
-ERR0RS> teach me prompt injection
-ERR0RS> teach me mitre atlas
-ERR0RS> corporate briefing --company "Fortune 500 Inc" --industry "Financial Services"
-```
-
-**Threat Profiles:**
-- **WormGPT** (July 2023) — Uncensored LLM for BEC, phishing at scale, malware assistance
-- **FraudGPT** (Aug 2023) — $200/month financial fraud: fake bank portals, vishing scripts
-- **AI Voice Cloning** — $30/month, 3-second sample, real-time clone ($25.6M Hong Kong incident)
-- **Real-Time Video Deepfakes** — Live video call impersonation, documented enterprise losses
-- **Prompt Injection** — MITRE ATLAS AML.T0051, attacking enterprise AI systems
-
-**Corporate Briefing Generator** — Produces executive-ready HTML briefings:
-- Financial risk quantification (BEC $125K avg, ransomware $812K avg, deepfake $25.6M)
-- SEC 2023 regulatory exposure, board liability
-- Prioritized investment recommendations (Immediate/90-day/Strategic)
-- Red team demonstration framework for boards
-
----
-
-## 🧬 Credential Engine — Automated Credential Pipeline
-
-```
-ERR0RS> crack all hashes                    # auto-detect type, run hashcat
-ERR0RS> spray credentials --service smb    # spray cracked creds across network
-ERR0RS> analyze passwords                  # pattern analytics for report
-ERR0RS> import hashes secretsdump.txt      # bulk import from secretsdump/hashdump
-```
-
-**Auto Hash Detection** — NTLM, MD5, SHA1, SHA256, bcrypt, sha512crypt,
-NetNTLMv2, Kerberos TGS, AS-REP, DCC2 — detected automatically
-
-**Crack Pipeline** — Groups by type, builds hashcat commands, parses cracked output
-
-**Spray Automation** — CrackMapExec integration, lockout-aware (configurable delay/rounds)
-
-**Pattern Analytics** — Season+Year, Company+Number, Length<8, No special chars
-— generates remediation language for client reports
-
----
-
-## 📊 Professional Reporter — Client-Grade Output
-
-```
-ERR0RS> generate report
-ERR0RS> pro report --client "ACME Corp" --operator "Eros"
-```
-
-Produces a full HTML engagement report with:
-- **Cover page** — client, operator, dates, target count
-- **Risk matrix** — Critical/High/Medium/Low/Info with visual risk score
-- **Executive summary** — auto-generated from findings data
-- **Detailed findings** — CVSS scores, MITRE ATT&CK IDs, per-finding remediation
-- **Credential harvest table** — username, domain, type, cracked status
-- **Remediation roadmap** — color-coded priority ranking
-- **Engagement timeline** — every operator action logged
-- **Scope section** — all tested targets documented
-
----
-
-## 🧠 Natural Language Interface — 500+ Phrasings
-
-ERR0RS understands how operators actually talk:
-
-```
-"scan that ip"                → nmap
-"poke that machine"           → nmap
-"pop the box"                 → metasploit
-"crack the wifi"              → aircrack/hashcat
-"can mimikatz crack wifi?"    → corrects + teaches right tool
-"dump the hashes"             → mimikatz/secretsdump
-"loot the machine"            → post-exploitation
-"pivot to internal"           → lateral movement
-"yo how do i root this"       → privilege escalation
-"brief the board on ai threats" → corporate briefing generator
-```
-
-**Typo correction** — "mataslpoit" → metasploit (80+ corrections, silent)
-**Operator slang** — "pop", "pwn", "da", "loot", "beacon", "pivot", "da"
-**Compound intents** — "scan then exploit then escalate then dump creds"
-**Tone detection** — beginner/intermediate/expert/operator — adapts explanation depth
-**Phase detection** — detects kill chain phase from context, suggests next steps
-
-
----
-
-## 🧙 Smart Wizard — Guided Tool Menus
-
-Type a vague command or click a tool — ERR0RS presents guided options:
-
-```
-┌─────────────────────────────────────────────────────┐
-│  ERR0RS // NMAP WIZARD                              │
-│                                                     │
-│  [1] Quick Scan      — nmap -F {target}             │
-│  [2] Version Scan    — nmap -sV {target}            │
-│  [3] Full + Scripts  — nmap -sV -sC -p- {target}    │
-│  [4] Stealth SYN     — nmap -sS {target}            │
-│  [5] UDP Scan        — nmap -sU --top-ports 100     │
-│  [6] Vuln Scripts    — nmap --script vuln {target}  │
-│                                                     │
-│  💡 -sV probes ports to determine service versions  │
-└─────────────────────────────────────────────────────┘
-  Target: [___________________] [ ⚡ RUN ]
-```
-
-Wizards for: nmap · sqlmap · hydra · gobuster · hashcat · metasploit ·
-nikto · nuclei · aircrack-ng · subfinder · enum4linux · msfvenom · mimikatz
-
----
-
-## 📚 Teaching System — Learn While You Operate
-
-Every tool run can include inline education:
-
-```
-ERR0RS> nmap -sV 10.10.10.100 --teach
-
-[ERR0RS TEACHES] Nmap — Network Mapper
-====================================================
-[TL;DR] The essential reconnaissance tool. Discovers hosts,
-open ports, services, versions, and OS information.
-
-HOW IT WORKS:
-  Nmap sends carefully crafted packets and analyzes responses
-  to determine what's running on remote hosts...
-
-[Running: nmap -sV -sC --top-ports 1000 10.10.10.100]
-
-22/tcp  open  ssh    OpenSSH 8.2p1
-  [ERR0RS] Port 22 = SSH. Try: hydra -l root -P rockyou.txt ssh://10.10.10.100
-
-80/tcp  open  http   Apache 2.4.49
-  [ERR0RS] Port 80 = HTTP. Apache 2.4.49 → CHECK for CVE-2021-41773 (Path Traversal!)
-  [ERR0RS] Run: nuclei -u http://10.10.10.100 -tags cve-2021-41773
-
-445/tcp open  smb
-  [ERR0RS] Port 445 = SMB. Check MS17-010 IMMEDIATELY:
-  [ERR0RS] nmap -p 445 --script smb-vuln-ms17-010 10.10.10.100
-```
-
-**16 built-in offline lessons** (no Ollama needed):
-nmap · sqlmap · nikto · gobuster · hydra · metasploit · hashcat · aircrack ·
-nuclei · subfinder · xss · sql injection · meterpreter · privilege escalation ·
-burp suite · wireshark · mimikatz · wifi cracking · social engineering · ai threats
-
-**24 annotated ports** — every open port triggers contextual attack guidance
-
----
-
-## 🟣 Purple Team Mode — Attack AND Detect Simultaneously
-
-```
-ERR0RS> purple team this
-ERR0RS> attack then detect
-ERR0RS> simulate and build detection rule
-
-[ERR0RS PURPLE] Running attack AND detection simultaneously.
-I'll execute the offensive action, then show what a defender sees:
-
-OFFENSIVE: Running credential access simulation...
-  → LSASS memory access attempted
-
-DEFENSIVE: What the SOC should see:
-  → Sysmon Event 10: Process accessing lsass.exe
-  → Windows Event 4656: Handle to LSASS requested
-  → EDR Alert: Suspicious memory read on protected process
-
-SIGMA RULE GENERATED:
-  title: Suspicious LSASS Access
-  detection:
-    selection:
-      EventID: 10
-      TargetImage|contains: 'lsass.exe'
-  condition: selection
-
-MITRE ATT&CK: T1003.001 — OS Credential Dumping: LSASS Memory
-```
-
----
-
-## 🍓 Cyberdeck Hardware (Pi 5 Reference Build)
-
-ERR0RS runs natively on a Raspberry Pi 5 Cyberdeck — a portable, self-contained
-penetration testing rig that fits in a bag and operates fully airgapped.
-
-| Component | Spec | Role |
-|-----------|------|------|
-| **Raspberry Pi 5** | 8GB RAM, ARM64 | Main compute |
-| **Hailo-10H NPU** | AI HAT+ 2, 40 TOPS | Local LLM acceleration |
-| **512GB NVMe SSD** | M.2 via HAT | Tool storage + knowledge base |
-| **WiFi Pineapple Nano** | 802.11 b/g/n | WiFi recon + evil twin |
-| **Alfa AWUS036ACM** | 802.11 ac, monitor mode | Packet capture + deauth |
-| **Flipper Zero** | Sub-GHz/IR/NFC/BLE | Multi-protocol RF + BadUSB |
-| **ESP32 + Marauder** | BT/BLE attacks | Bluetooth HID + BLE scanning |
-| **CC1101** | 300-928 MHz | Sub-GHz capture + replay |
-| **7× 18650 cells** | ~40Wh | Field power (6+ hours) |
 
 ```bash
-# On Pi 5: ERR0RS auto-detects hardware at boot
-bash start_err0rs.sh
-# [ERR0RS] Hailo-10H NPU: driver loaded (hailo1x_pci)
-# [ERR0RS] FLIPPER DETECTED! Port=/dev/ttyACM0 Level=7 XP=1350
-# [ERR0RS] Flipper Evolution Sequence starting...
+# Run from CLI
+python main.py --workflow webapp 192.168.1.10
+
+# Or interactively
+ERR0RS [red_team]> workflow webapp 192.168.1.10
+
+# Built-in workflows: webapp · network · hardware_attack · quick
 ```
 
 ---
 
-## 🏗️ Architecture
+## LLM Backends
+
+| Backend | Privacy | Cost | Best For |
+|---|---|---|---|
+| **Ollama** (default) | 🟢 100% local | Free | All client work · air-gapped ops |
+| **Anthropic Claude** | 🟡 API calls | Paid | Highest quality reasoning |
+| **OpenAI GPT** | 🟡 API calls | Paid | Alternative cloud option |
+
+```bash
+# .env configuration
+LLM_BACKEND=ollama          # default — fully offline
+LLM_BACKEND=anthropic       # Claude via API key
+LLM_BACKEND=openai          # GPT via API key
+
+# Default local model
+OLLAMA_MODEL=qwen2.5-coder:7b   # runs well on Pi 5 with Hailo-10H
+```
+
+---
+
+## Installation
+
+### Kali Linux / Parrot OS (recommended)
+
+```bash
+git clone --recurse-submodules https://github.com/Gnosisone/ERR0RS-Ultimate.git
+cd ERR0RS-Ultimate
+chmod +x install.sh && ./install.sh
+cp configs/config.template.env .env
+```
+
+### Raspberry Pi 5 (field deployment)
+
+```bash
+# Run the Pi 5 first-boot setup script
+chmod +x scripts/pi5_first_boot.sh && ./scripts/pi5_first_boot.sh
+
+# Install Hailo-10H NPU driver
+chmod +x scripts/install_hailo_h10.sh && ./scripts/install_hailo_h10.sh
+
+# Then standard install
+./install.sh
+```
+
+### Manual dependency install
+
+```bash
+pip install -r requirements-kali.txt --break-system-packages
+
+# Optional: Flask dashboard
+pip install flask flask-socketio --break-system-packages
+
+# Optional: bcrypt auth
+pip install bcrypt --break-system-packages
+```
+
+### Required environment variables (`configs/config.template.env`)
+
+```bash
+LLM_BACKEND=ollama
+OLLAMA_MODEL=qwen2.5-coder:7b
+OLLAMA_HOST=http://localhost:11434
+
+# Optional: cloud LLM
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+
+# Hardware
+FLIPPER_PORT=/dev/ttyACM0
+ERR0RS_SAFE_MODE=false
+
+# Dashboard
+ERR0RS_SECRET=change-me-in-production
+ERR0RS_DB=errors.db
+```
+
+---
+
+## REST API
+
+Start with `python main.py --api` — Swagger UI at `http://localhost:8000/docs`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Health check + AI status |
+| `POST` | `/ask` | Natural language query |
+| `GET` | `/plugins` | List loaded plugins |
+| `POST` | `/plugins/run` | Execute plugin command |
+| `GET` | `/session` | Current session summary |
+| `GET` | `/devices` | Hardware device list |
+| `POST` | `/devices/deploy` | Deploy hardware payload |
+| `GET` | `/workflows` | Available workflows |
+| `POST` | `/workflows/run` | Run a workflow |
+| `POST` | `/report` | Generate pentest report |
+
+Dashboard API (port 5000): `GET /api/health` · `POST /api/reports/generate` · `POST /api/devices/safe_mode` · and 10 more.
+
+---
+
+## Knowledge Base
+
+50+ curated security researcher repositories indexed as RAG-ready git submodules:
+
+```
+knowledge/
+├── evasion/         # AV/EDR bypass techniques
+├── windows/         # Windows exploitation (PowerSharpPack, WinPwn)
+├── credentials/     # Credential harvesting and cracking
+├── badusb/          # BadUSB payloads (rocketgod collection)
+├── threat-intel/    # CTI frameworks and datasets
+├── osint/           # OSINT tools and techniques
+├── social-engineering/  # SET and SE frameworks
+├── mobile/          # iOS/Android security research
+├── ai-security/     # AI/ML attack and defense research
+└── ...
+```
+
+Powered by ChromaDB vector search — every lesson, suggest, and AI response is grounded in curated research.
+
+---
+
+## Research & Citation
+
+ERR0RS-Ultimate is a published academic research artifact. Full paper: [`RESEARCH.md`](RESEARCH.md)
+
+```bibtex
+@software{schneider2025err0rs,
+  author    = {Schneider, Gary Holden},
+  title     = {{ERR0RS-Ultimate}: An AI-Powered Purple Team Security Platform},
+  year      = {2025},
+  url       = {https://github.com/Gnosisone/ERR0RS-Ultimate},
+  note      = {Penetration testing automation with inline cybersecurity education}
+}
+```
+
+---
+
+## Philosophy
+
+ERR0RS is built on three pillars:
+
+**1. Purple team by default.** Every offensive technique surfaces its defensive countermeasure. Attackers and defenders train on the same platform.
+
+**2. Sovereignty over data.** Client data never leaves the machine. Local LLM, local RAG, local database. Air-gap deployable.
+
+**3. Education at every step.** The platform teaches while it operates. Every scan result, every finding, every payload is explained in plain language. The goal is an operator who understands their tools — not one who just runs them.
+
+Full manifesto: [`PHILOSOPHY.md`](PHILOSOPHY.md)
+
+---
+
+## Project Structure
 
 ```
 ERR0RS-Ultimate/
-├── main.py                          ← CLI entry (--api / --query / interactive)
+├── main.py                   # Single entry point — all modes
 ├── src/
-│   ├── ui/
-│   │   ├── errorz_launcher.py       ← Main HTTP+WebSocket server (port 8765/8766)
-│   │   └── web/                     ← Browser UI (index.html, payload_studio.html)
-│   ├── ai/
-│   │   ├── __init__.py              ← ERR0RSAI class (LLM + RAG + agents)
-│   │   ├── llm_router.py            ← Ollama / Anthropic / OpenAI routing
-│   │   ├── errz_brain.py            ← 5-mode native AI brain (no cloud required)
-│   │   └── agents/                  ← Red/Blue/Purple/Bug Bounty agents
+│   ├── ai/                   # LLM routing, RAG, ReAct agents
 │   ├── core/
-│   │   ├── language_layer.py        ← Central NLP — all triggers, classify_command()
-│   │   ├── language_expansion_v2.py ← 500+ phrasings, typos, slang, compound intents
-│   │   ├── smart_wizard.py          ← Guided tool menus
-│   │   ├── live_terminal.py         ← WebSocket PTY streaming
-│   │   └── tool_executor.py         ← Async subprocess engine
-│   ├── orchestration/
-│   │   ├── campaign_manager.py      ← Engagement lifecycle management
-│   │   ├── auto_killchain.py        ← Automated 7-phase kill chain
-│   │   └── execution_modes.py       ← INTERACTIVE / YOLO / SUPERVISED
-│   ├── education/
-│   │   └── teach_engine.py          ← Bridge to education_new
-│   ├── education_new/
-│   │   └── teach_engine.py          ← Full offline lesson library (16+ topics)
-│   ├── reporting/
-│   │   └── pro_reporter.py          ← Executive HTML report generator
-│   ├── tools/
-│   │   ├── credentials/
-│   │   │   └── credential_engine.py ← Hash detect, crack, spray, analytics
-│   │   ├── se_engine/
-│   │   │   └── se_engine.py         ← Phishing builder, vishing scripts, OSINT
-│   │   ├── threat/
-│   │   │   └── ai_threat_engine.py  ← AI criminal tool intel + board briefings
-│   │   ├── breach/
-│   │   │   └── bas_engine.py        ← Breach & Attack Simulation (6 playbooks)
-│   │   ├── postex/                  ← Post-exploitation, privesc, lateral movement
-│   │   ├── wireless/                ← WiFi attack automation
-│   │   ├── social/                  ← SE automation wrapper
-│   │   ├── cloud/                   ← AWS/Azure/GCP security
-│   │   ├── ctf/                     ← CTF solver modes
-│   │   ├── opsec/                   ← OPSEC checklists and tradecraft
-│   │   ├── badusb_studio/           ← Flipper Zero / HID suite
-│   │   └── payload_studio/          ← DuckyScript AI engine
-│   ├── memory/
-│   │   └── engagement_memory.py     ← Knowledge graph — learns from every job
-│   └── security/
-│       ├── blue_team.py             ← Hardening, audit, PCAP analysis
-│       └── guardrails.py            ← Ethical controls
-├── knowledge/                       ← RAG knowledge base
-│   ├── social-engineering/HUMAN_VARIABLE/  ← SE deep knowledge
-│   ├── threat-intelligence/ai-powered-threats/ ← WormGPT/FraudGPT intel
-│   ├── wireless/                    ← WiFi attack reference
-│   ├── windows/ credentials/ evasion/ exploitation/ mobile/ recon/
-│   └── [50+ curated security repos as git submodules]
-├── knowledge.json                   ← RAG-ready entries (~45 topics)
-└── docs/
-    └── Metasploit_Armitage_RedTeam_Book.md  ← 2,182-line reference book
-```
-
-
----
-
-## 🔌 Complete API Reference
-
-**HTTP API** at `http://127.0.0.1:8765` | **WebSocket** at `ws://127.0.0.1:8766`
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/status` | Full system status — all engine flags |
-| `POST` | `/api/command` | Route any natural language command |
-| `POST` | `/api/tool` | Execute specific tool with target + params |
-| `POST` | `/api/shell` | Raw shell execution |
-| `POST` | `/api/teach` | Query teaching engine |
-| `POST` | `/api/wizard` | Get guided option menu for a tool |
-| `POST` | `/api/wizard/run` | Execute wizard option with target |
-| `POST` | `/api/brain` | ERR0RS native AI brain (5 modes) |
-| `POST` | `/api/bas` | Breach & Attack Simulation playbooks |
-| `POST` | `/api/campaign` | Campaign manager — create/status/findings |
-| `POST` | `/api/killchain` | Automated kill chain — specify target + mode |
-| `POST` | `/api/pro_report` | Generate professional HTML report |
-| `POST` | `/api/credentials` | Credential engine — add/crack/spray/analyze |
-| `POST` | `/api/se` | Social engineering engine commands |
-| `POST` | `/api/ai_threat` | AI threat intelligence queries + briefings |
-| `POST` | `/api/blue_team` | Blue team — harden/audit/report |
-| `POST` | `/api/harden` | Auto-hardening for a specific finding |
-| `POST` | `/api/report` | Security audit PDF report |
-| `POST` | `/api/soc` | SOC actions — failed logins, open ports, logs |
-| `POST` | `/api/compliance` | Compliance mapping — MITRE/CIS/NIST |
-| `POST` | `/api/ollama` | Direct Ollama AI query |
-| `POST` | `/api/flipper` | Flipper Zero Studio commands |
-| `POST` | `/api/badusb` | BadUSB/DuckyScript generation |
-| `POST` | `/api/rocketgod` | RF/HackRF/SubGHz tools |
-| `GET` | `/api/payload_studio/snippets` | Full indexed payload library |
-| `POST` | `/api/payload_studio/explain` | Explain a DuckyScript line |
-| `POST` | `/api/payload_studio/suggest` | Next-line suggestions |
-| `POST` | `/api/payload_studio/validate` | Validate a complete payload |
-| `WS` | `/ws/terminal` | Live streaming PTY terminal |
-
----
-
-## 🍓 Hardware Stack — Pi 5 Field Deployment
-
-ERR0RS runs as a portable, self-contained pentest unit:
-
-| Component | Purpose |
-|-----------|---------|
-| Raspberry Pi 5 (16GB RAM) | Main compute |
-| Geekworm X1004 v1.1 dual NVMe HAT | Fast SSD storage |
-| Raspberry Pi AI HAT+ 2 (Hailo-10H, 40 TOPS) | Local AI inference (needs Debian Trixie) |
-| Waveshare PCIe TO 2-CH PCIe HAT | PCIe lane splitting |
-| PiSquare RP2040+ESP-12E | Wireless GPIO bridge |
-| WiFi Pineapple Nano (AR9331/AR9271) | 2.4GHz wireless attacks |
-| Alfa AWUS036ACM (MT7612U) | 5GHz wireless, monitor mode + injection |
-| Flipper Zero | Sub-GHz RF, NFC, RFID, BadUSB, IR |
-
----
-
-## 🧠 AI Backends
-
-| Backend | Privacy | Cost | Best For |
-|---------|---------|------|----------|
-| **Ollama** (default) | 🟢 100% local | Free | Client work, air-gapped, Pi 5 |
-| **Anthropic Claude** | 🟡 API | Paid | Highest quality responses |
-| **OpenAI GPT** | 🟡 API | Paid | Alternative cloud option |
-
-```bash
-LLM_BACKEND=ollama       # fully offline — recommended for client work
-LLM_BACKEND=anthropic    # Claude API
-LLM_BACKEND=openai       # GPT API
-ANTHROPIC_API_KEY=sk-...
+│   │   ├── plugin_base.py    # BasePlugin + PluginResult
+│   │   ├── autopilot.py      # Autonomous kill-chain runner
+│   │   ├── workflow/         # YAML workflow engine
+│   │   ├── hardware/         # Flipper Zero, Hak5, device registry
+│   │   ├── context.py        # SharedContext + EventBus
+│   │   └── db.py             # SQLite — auth, sessions, findings, audit
+│   ├── tools/                # 25+ Kali tool plugin wrappers
+│   ├── education_new/        # Teach engine · 41 offline lessons
+│   ├── reporting/            # MD / HTML / JSON report generator
+│   └── ui/
+│       ├── cli.py            # Interactive terminal
+│       └── dashboard/        # Flask + SocketIO live dashboard
+├── workflows/                # YAML kill-chain definitions
+├── knowledge/                # 50+ security repos (git submodules)
+├── docs/                     # ARCHITECTURE.md + reference docs
+├── scripts/                  # Install + Pi setup scripts
+├── configs/                  # config.template.env · tools.conf
+└── tests/                    # Test suite
 ```
 
 ---
 
-## 📚 Knowledge Base — 50+ Curated Security Repos + RAG
+## Contributing
 
-**`knowledge.json`** — 45+ RAG-ready entries covering:
-CIA Triad · OSI Model · Pentesting Methodology · Nmap · SQLMap · Nikto · Gobuster ·
-Hydra · Metasploit · Hashcat · Aircrack · Nuclei · Subfinder · XSS · SQL Injection ·
-Privilege Escalation (Linux + Windows) · Active Directory · Post-Exploitation ·
-Mimikatz · WiFi Cracking · Wireless Tool Selection · Social Engineering ·
-Phishing · Vishing · Physical SE · SE Defense · WormGPT · FraudGPT ·
-Deepfake Fraud · Prompt Injection · MITRE ATLAS · Corporate AI Briefing
+Pull requests welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
 
-**Git submodules** — Knowledge categories:
+**High-value contributions:**
+- New tool plugins (any `BasePlugin` subclass with `manifest.json`)
+- Additional YAML workflows
+- Education content (new lessons for `teach_engine.py`)
+- Report template improvements
+- Hardware device adapters (`DeviceBase` subclasses)
 
-| Category | Notable Sources |
-|----------|----------------|
-| `evasion/` | AMSI bypass, OffensiveVBA, PowerShell evasion |
-| `windows/` | WinPwn, PowerSharpPack |
-| `credentials/` | hate_crack, SharpChromium, SharpWeb |
-| `exploitation/` | Singularity |
-| `mobile/` | AndroRAT, beerus-android, house-frida |
-| `badusb/` | Flipper BadUSB, MacOS DuckyScripts, PowerShell-for-Hackers |
-| `c2/` | CS-Situational-Awareness-BOF |
-| `redteam/` | SteppingStones |
-| `rocketgod/` | HackRF Treasure Chest, WiGLE Vault, SubGHz Toolkit, ProtoPirate |
-| `social-engineering/` | SET, HUMAN_VARIABLE field guide |
-| `threat-intelligence/` | AI criminal tool profiles, field guides |
-| `wireless/` | WiFi attack reference, tool selection guide |
+**Before submitting:** run `python tests/test_errors.py` — all tests must pass.
 
 ---
 
-## 📖 Documentation
+## Credits & Shoutouts
 
-| Document | Contents |
-|----------|----------|
-| [`docs/err0rs_prompt_manual.html`](docs/err0rs_prompt_manual.html) | **Interactive prompt manual** — 10-chapter guide to prompting ERR0RS (open in browser) |
-| [`QUICKSTART.md`](QUICKSTART.md) | Step-by-step setup for Kali, Parrot, and Pi 5 |
-| [`PRODUCTION_READY.md`](PRODUCTION_READY.md) | Full production readiness checklist + audit results |
-| [`docs/Metasploit_Armitage_RedTeam_Book.md`](docs/Metasploit_Armitage_RedTeam_Book.md) | 2,182-line Metasploit reference: msfconsole, msfvenom, kill chain playbooks |
-| [`docs/ERR0RS_Deep_Reference.md`](docs/ERR0RS_Deep_Reference.md) | Every function in the framework documented |
-| [`PHILOSOPHY.md`](PHILOSOPHY.md) | Purple team philosophy — why ERR0RS teaches while it attacks |
-| `knowledge/social-engineering/` | SE field guide: psychology, phishing, vishing, physical |
-| `knowledge/threat-intelligence/` | WormGPT, FraudGPT, deepfakes, enterprise defense roadmap |
-| `knowledge/wireless/` | WiFi attack reference: WPA2, PMKID, evil twin, deauth |
+Built by **Gary Holden Schneider (Eros)** | [github.com/Gnosisone](https://github.com/Gnosisone)
+
+Standing on the shoulders of the security community. Full credits: [`CREDITS.md`](CREDITS.md) · [`SHOUTOUTS.md`](SHOUTOUTS.md)
+
+Special recognition: [@rocketgod-git](https://github.com/rocketgod-git) · [@justcallmekoko](https://github.com/justcallmekoko) · [@UNC0V3R3D](https://github.com/UNC0V3R3D) · [@xssnick](https://github.com/xssnick) · and the entire Flipper Zero + Hak5 open source community.
 
 ---
 
-## ⚙️ Requirements
+## Legal
 
-- **OS:** Kali Linux · Parrot OS · Ubuntu 22.04+ · Debian 12+ · Raspberry Pi OS (Trixie for AI HAT)
-- **Python:** 3.10+
-- **RAM:** 4GB minimum · 8GB+ recommended · 16GB for Pi 5 + Hailo NPU
-- **Storage:** 10GB free minimum (50GB+ with all knowledge submodules)
-- **Optional:** Ollama (local AI) · ANTHROPIC_API_KEY (cloud AI)
+ERR0RS-Ultimate is designed exclusively for **authorized penetration testing, security research, and cybersecurity education**.
 
----
-
-## 🤝 Contributing
-
-PRs welcome for:
-- New tool integrations in `src/tools/`
-- Wizard flows in `src/core/smart_wizard.py`
-- Language triggers in `src/core/language_layer.py` or `language_expansion_v2.py`
-- Knowledge base entries in `knowledge.json`
-- Teaching lessons in `src/education_new/teach_engine.py`
-- Bug fixes verified with the test suite
-
----
-
-## 🎖️ Credits
-
-Built on the shoulders of the open-source security community.
-Full credits in [CREDITS.md](CREDITS.md).
-
-Notable contributors: vxunderground · RocketGod · djhohnstein · S3cur3Th1sSh1t ·
-trustedsec · nccgroup · mandiant · AlessandroZ · justcallmekoko · DarkFlippers ·
-hak5 · i-am-shodan · BushidoUK · CyberMonitor · Lissy93 · and many more.
-
----
-
-## ⚖️ Legal & Ethics
-
-**For authorized penetration testing, security education, and research ONLY.**
-
-- Only use against systems you own or have **explicit written permission** to test
-- All social engineering modules require written client authorization
-- The author assumes no liability for misuse
-- See [SECURITY.md](SECURITY.md) for the full security policy
-
-Every technique in ERR0RS has an equal defensive component.
-Understanding the attack is the foundation of building the defense.
+- Only use against systems you own or have explicit written permission to test
+- The authors accept no liability for unauthorized or illegal use
+- See [`SECURITY.md`](SECURITY.md) for responsible disclosure policy
 
 ---
 
 <div align="center">
 
-**Built by [Gary "Eros" Holden Schneider](https://github.com/Gnosisone)**
-*Cybersecurity Student · Network Administrator · Offensive Security Practitioner*
-*CompTIA Tech+ · Microsoft Certified · Oklahoma City, OK*
+**Built in Oklahoma City · Runs on a Raspberry Pi · Ships on a Cyberdeck**
 
-*"Technology cannot be patched. Humans cannot be patched.*
-*ERR0RS teaches you to attack and defend both."*
+*"Stay ethical out there."*
 
-⭐ Star this repo. Star the repos in [CREDITS.md](CREDITS.md). Pay it forward.
+[![GitHub](https://img.shields.io/badge/GitHub-Gnosisone-181717?style=flat-square&logo=github)](https://github.com/Gnosisone/ERR0RS-Ultimate)
 
 </div>

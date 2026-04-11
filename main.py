@@ -26,6 +26,51 @@ except ImportError:
 
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s [ERR0RS] %(message)s")
 
+# ── Plugin system boot ────────────────────────────────────────────────────────
+def _boot_plugin_system(config: dict = None) -> tuple:
+    """
+    Initialize SharedContext + PluginManager.
+    Returns (ctx, pm) — both are safe to use even if plugins fail to load.
+    """
+    try:
+        from src.core.context import SharedContext
+        from src.core.plugin_manager import PluginManager
+
+        ctx = SharedContext(config=config or {})
+
+        # Global event listeners
+        ctx.event_bus.on("finding.added",
+            lambda e, d: logging.getLogger("ERR0RS").info(
+                f"[FIND] {d.get('type','?')} | {d.get('target','')}"
+            )
+        )
+        ctx.event_bus.on("hardware.connected",
+            lambda e, d: logging.getLogger("ERR0RS").info(
+                f"[HW] {d.get('name','?')} online"
+            )
+        )
+        ctx.event_bus.on("scan.complete",
+            lambda e, d: logging.getLogger("ERR0RS").info(
+                f"[SCAN] Complete: {d.get('target','?')}"
+            )
+        )
+
+        pm = PluginManager(
+            plugin_dir=os.path.join(os.path.dirname(__file__), "src", "plugins"),
+            context=ctx,
+        )
+        pm.load_plugins()
+
+        loaded = [p["name"] for p in pm.list_plugins()]
+        if loaded:
+            logging.getLogger("ERR0RS").warning(f"Plugins loaded: {', '.join(loaded)}")
+
+        return ctx, pm
+
+    except Exception as e:
+        logging.getLogger("ERR0RS").error(f"Plugin system boot failed: {e}")
+        return None, None
+
 BANNER = r"""
   ███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗
   ██╔════╝██╔══██╗██╔══██╗██╔═████╗██╔══██╗██╔════╝
@@ -37,14 +82,19 @@ BANNER = r"""
    Built by Gary Holden Schneider | GitHub: Gnosisone
 """
 
-def interactive_mode(ai, agent_type: str = "red_team"):
+def interactive_mode(ai, agent_type: str = "red_team", ctx=None, pm=None):
     from src.ai.agents import list_agents
     print(BANNER)
     print(f"  Active agent : {agent_type}")
     print(f"  LLM backend  : {ai.llm.backend} ({ai.llm.model})")
     print(f"  Knowledge RAG: {'✅ Active' if ai._kb_available else '⚠️  Keyword fallback'}")
     print(f"  Agents       : {', '.join(list_agents())}")
-    print("\n  Commands: 'agent <n>' to switch | 'status' | 'exit'")
+    if pm:
+        cmds = []
+        for p in pm.list_plugins():
+            cmds.extend(p["commands"])
+        print(f"  Plugins      : {len(pm.list_plugins())} loaded | Commands: {', '.join(cmds)}")
+    print("\n  Commands: 'agent <n>' to switch | 'status' | 'plugins' | 'run <cmd> <target>' | 'exit'")
     print("  ─────────────────────────────────────────────────────\n")
 
     current_agent = agent_type
@@ -64,6 +114,26 @@ def interactive_mode(ai, agent_type: str = "red_team"):
                 current_agent = user_input.split(None, 1)[1].strip()
                 print(f"  Switched to: {current_agent}\n")
                 continue
+            # ── Plugin commands ───────────────────────────────────
+            if user_input.lower() == "plugins" and pm:
+                import json as _json
+                print(_json.dumps(pm.list_plugins(), indent=2))
+                continue
+            if user_input.lower().startswith("run ") and pm:
+                parts  = user_input.split(None, 2)
+                cmd    = parts[1] if len(parts) > 1 else ""
+                target = parts[2] if len(parts) > 2 else (ctx.get_active_target() if ctx else None)
+                if ctx and target:
+                    ctx.set_active_target(target)
+                result = pm.execute(cmd, {"target": target})
+                print(f"\n{result}\n")
+                continue
+            if user_input.lower().startswith("target ") and ctx:
+                target = user_input.split(None, 1)[1].strip()
+                ctx.set_active_target(target)
+                print(f"  Target set: {target}\n")
+                continue
+            # ─────────────────────────────────────────────────────
             result = ai.ask_with_context(user_input, agent=current_agent)
             print(f"\n{result['answer']}\n")
             if result["sources"]:
@@ -73,7 +143,7 @@ def interactive_mode(ai, agent_type: str = "red_team"):
             break
 
 
-def start_api(ai, host: str = "0.0.0.0", port: int = 8000):
+def start_api(ai, host: str = "0.0.0.0", port: int = 8000, ctx=None, pm=None):
     try:
         from fastapi import FastAPI
         import uvicorn
@@ -95,6 +165,37 @@ def start_api(ai, host: str = "0.0.0.0", port: int = 8000):
         @app.get("/knowledge/search")
         def search(q: str, n: int = 4):
             return {"query": q, "results": ai.search_knowledge(q, n)}
+
+        # ── Plugin system API routes ──────────────────────────────
+        if pm and ctx:
+            @app.get("/plugins")
+            def list_plugins_route():
+                return {"plugins": pm.list_plugins()}
+
+            @app.get("/plugins/commands")
+            def plugin_commands():
+                return {"commands": pm.get_available_commands()}
+
+            @app.post("/plugins/run")
+            def run_plugin(command: str, target: str = None, flags: str = ""):
+                if target:
+                    ctx.set_active_target(target)
+                args = {"target": target or ctx.get_active_target(), "flags": flags}
+                result = pm.execute(command, args)
+                return {"command": command, "target": target, "result": result}
+
+            @app.get("/plugins/findings")
+            def get_findings(plugin: str = None, type: str = None):
+                return {"findings": ctx.get_findings(plugin=plugin, finding_type=type)}
+
+            @app.get("/plugins/hardware")
+            def get_hardware():
+                return {"hardware": ctx.hardware}
+
+            @app.get("/plugins/summary")
+            def session_summary():
+                return ctx.summary()
+        # ─────────────────────────────────────────────────────────
 
         # ── Flipper Zero integration ──────────────
         try:
@@ -127,12 +228,32 @@ if __name__ == "__main__":
     from src.ai import ERR0RSAI
     ai = ERR0RSAI(backend=args.backend, model=args.model)
 
+    # Boot plugin system
+    plugin_config = {
+        "flipper_port": os.environ.get("FLIPPER_PORT", "/dev/ttyACM0"),
+        "output_dir":   os.path.join(os.path.dirname(__file__), "output"),
+    }
+    ctx, pm = _boot_plugin_system(config=plugin_config)
+
+    # Boot router, interpreter, CLI
+    from src.core.interpreter    import Interpreter
+    from src.core.command_router import CommandRouter
+    from src.ui.cli              import start_cli
+
+    interpreter = Interpreter()
+    router      = CommandRouter(
+        ai_brain       = ai,
+        plugin_manager = pm,
+        interpreter    = interpreter,
+        context        = ctx,
+    )
+
     if args.query:
         result = ai.ask_with_context(args.query, agent=args.agent)
         print(f"\n{result['answer']}\n")
         if result["sources"]:
             print(f"Sources: {', '.join(result['sources'])}")
     elif args.api:
-        start_api(ai, port=args.port)
+        start_api(ai, port=args.port, ctx=ctx, pm=pm)
     else:
-        interactive_mode(ai, agent_type=args.agent)
+        start_cli(router=router, ctx=ctx, pm=pm, agent=args.agent)

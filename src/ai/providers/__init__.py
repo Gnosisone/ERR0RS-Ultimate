@@ -44,18 +44,6 @@ class LLMRouter:
         api_key   : only used for remote providers
     """
 
-    DEFAULT_MODELS = {
-        "ollama":     os.getenv("OLLAMA_MODEL",    "llama3.2"),
-        "lmstudio":   "local-model",
-        "anthropic":  "claude-haiku-4-5-20251001",
-        "openai":     "gpt-4o-mini",
-    }
-
-    DEFAULT_URLS = {
-        "ollama":    os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-        "lmstudio":  "http://localhost:1234",
-    }
-
     def __init__(
         self,
         backend:  str = None,
@@ -67,9 +55,22 @@ class LLMRouter:
             backend = os.getenv("LLM_BACKEND", "ollama")
 
         self.backend = backend.lower()
-        self.model   = model or self.DEFAULT_MODELS.get(self.backend, "llama3.2")
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
-        self._base_url = self.DEFAULT_URLS.get(self.backend, "")
+
+        # Resolve defaults at instantiation time (after .env is loaded), not at class-definition time
+        _default_models = {
+            "ollama":    os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b"),
+            "lmstudio":  "local-model",
+            "anthropic": "claude-haiku-4-5-20251001",
+            "openai":    "gpt-4o-mini",
+        }
+        _default_urls = {
+            "ollama":   os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+            "lmstudio": "http://localhost:1234",
+        }
+
+        self.model     = model or _default_models.get(self.backend, "qwen2.5-coder:7b")
+        self.api_key   = api_key or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
+        self._base_url = _default_urls.get(self.backend, "")
 
         log.info(f"LLMRouter init — backend={self.backend}, model={self.model}")
 
@@ -124,24 +125,48 @@ class LLMRouter:
             "stream": False,
         }
         try:
-            r = requests.post(url, json=payload, timeout=90)
+            r = requests.post(url, json=payload, timeout=180)
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+            result = r.json()["choices"][0]["message"]["content"]
+            if result:
+                return result
         except Exception:
             pass
 
-        # Fallback: Ollama native /api/chat
+        # Fallback 1: Ollama native /api/chat
         if self.backend == "ollama":
-            url_native = f"{self._base_url}/api/chat"
-            payload_native = {
-                "model": self.model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": temperature, "num_predict": max_tokens},
-            }
-            r = requests.post(url_native, json=payload_native, timeout=90)
-            r.raise_for_status()
-            return r.json()["message"]["content"]
+            try:
+                url_native = f"{self._base_url}/api/chat"
+                payload_native = {
+                    "model": self.model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {"temperature": temperature, "num_predict": max_tokens},
+                }
+                r = requests.post(url_native, json=payload_native, timeout=180)
+                r.raise_for_status()
+                result = r.json()["message"]["content"]
+                if result:
+                    return result
+            except Exception:
+                pass
+
+            # Fallback 2: /api/generate — most compatible on ARM/Pi
+            try:
+                url_gen = f"{self._base_url}/api/generate"
+                flat = ""
+                for m in messages:
+                    flat += f"[{m['role'].upper()}]\n{m['content']}\n\n"
+                flat += "[ASSISTANT]\n"
+                r = requests.post(url_gen, json={
+                    "model": self.model, "prompt": flat,
+                    "stream": False,
+                    "options": {"temperature": temperature, "num_predict": max_tokens},
+                }, timeout=180)
+                r.raise_for_status()
+                return r.json().get("response", "")
+            except Exception:
+                pass
 
         return "[ERR0RS] LM Studio not responding."
 

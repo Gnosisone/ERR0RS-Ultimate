@@ -67,9 +67,9 @@ class LLMResponse:
 DEFAULT_CONFIGS: Dict[LLMProvider, LLMConfig] = {
     LLMProvider.OLLAMA: LLMConfig(
         provider   = LLMProvider.OLLAMA,
-        model      = "mistral",            # good balance speed/quality; user can swap
+        model      = "qwen2.5-coder:7b",   # ERR0RS default — Pi 5 Cyberdeck
         base_url   = "http://127.0.0.1:11434",
-        timeout    = 90,
+        timeout    = 180,                  # Pi 5 needs more time for 7B model
     ),
     LLMProvider.LMSTUDIO: LLMConfig(
         provider   = LLMProvider.LMSTUDIO,
@@ -234,23 +234,49 @@ class LLMRouter:
             r = requests.post(url, json=payload, timeout=cfg.timeout)
             r.raise_for_status()
             data = r.json()
+            if not data.get("choices"):
+                raise ValueError("Empty choices in response")
         except Exception:
-            # Ollama native endpoint fallback
-            url_native = f"{cfg.base_url}/api/chat"
-            payload_native = {
-                "model"   : cfg.model,
-                "messages": messages,
-                "stream"  : False,
-                "options" : {"temperature": cfg.temperature, "num_predict": cfg.max_tokens},
-            }
-            r = requests.post(url_native, json=payload_native, timeout=cfg.timeout)
-            r.raise_for_status()
-            data = r.json()
-            # Normalize to OpenAI shape
-            data = {
-                "choices": [{"message": {"content": data.get("message", {}).get("content", "")}}],
-                "usage"  : {"total_tokens": 0},
-            }
+            try:
+                # Fallback 1: /api/chat native
+                url_native = f"{cfg.base_url}/api/chat"
+                payload_native = {
+                    "model"   : cfg.model,
+                    "messages": messages,
+                    "stream"  : False,
+                    "options" : {"temperature": cfg.temperature, "num_predict": cfg.max_tokens},
+                }
+                r = requests.post(url_native, json=payload_native, timeout=cfg.timeout)
+                r.raise_for_status()
+                data = r.json()
+                if not data.get("message"):
+                    raise ValueError("Empty message in response")
+                data = {
+                    "choices": [{"message": {"content": data.get("message", {}).get("content", "")}}],
+                    "usage"  : {"total_tokens": 0},
+                }
+            except Exception:
+                # Fallback 2: /api/generate — most compatible, confirmed working on Pi 5
+                url_generate = f"{cfg.base_url}/api/generate"
+                # Flatten messages into a single prompt
+                flat_prompt = ""
+                for m in messages:
+                    role = m["role"].upper()
+                    flat_prompt += f"[{role}]\n{m['content']}\n\n"
+                flat_prompt += "[ASSISTANT]\n"
+                payload_generate = {
+                    "model"  : cfg.model,
+                    "prompt" : flat_prompt,
+                    "stream" : False,
+                    "options": {"temperature": cfg.temperature, "num_predict": cfg.max_tokens},
+                }
+                r = requests.post(url_generate, json=payload_generate, timeout=cfg.timeout)
+                r.raise_for_status()
+                gen_data = r.json()
+                data = {
+                    "choices": [{"message": {"content": gen_data.get("response", "")}}],
+                    "usage"  : {"total_tokens": gen_data.get("eval_count", 0)},
+                }
 
         elapsed_ms = int((time.time() - start) * 1000)
         content = data["choices"][0]["message"]["content"]

@@ -309,8 +309,4 @@ You have a **production-grade penetration testing framework** with:
 
 ---
 
-**Everything is complete. Everything is ready. Time to test and release! 🚀**
 
-**Built with 💚 by Eros & ERR0RS AI**
-
-*"Making the internet safer, one test at a time."*

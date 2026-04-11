@@ -1,11 +1,10 @@
-# ERR0RS Next Session Handoff
-## Cue: "finish last sessions debug"
+# ERR0RS Ultimate — Sprint Status: Phoenix OS Integration
 
 ---
 
 ## Current State Summary — Sprint: Phoenix OS Full Integration
 
-### What Was Accomplished This Session
+## Sprint Summary — Phoenix OS Full Integration
 1. **Phoenix-OS build_pi_image.sh v2.0 — PUSHED** (`506aec9`)
    - Self-healing Kali ARM downloader — auto-detects latest version
    - Validates XZ magic bytes before trusting cache
@@ -96,11 +95,6 @@ All engines are implemented. All import gracefully with fallback if deps missing
 - Repo Windows: `H:\ERR0RS-Ultimate`
 - Repo Pi: `/opt/ERR0RS-Ultimate`
 - Main launcher: `src/ui/errorz_launcher.py`
-- Start script: `start_err0rs.sh` (FIXED — use this, not uvicorn directly)
+- Start script: `start_err0rs.sh`
 - Pi first boot: `scripts/pi5_first_boot.sh`
 - Desktop icon installer: `scripts/install_desktop_icon.sh`
-
-## Desktop Commander Config
-- allowedDirectories: `H:\ERR0RS-Ultimate`, `C:\Users\Err0r\Documents\GitHub\ERR0RS-Ultimate`
-- fileWriteLineLimit: 501
-- defaultShell: powershell.exe

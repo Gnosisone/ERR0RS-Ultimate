@@ -88,7 +88,10 @@ class LLMRouter:
         Routes to the configured backend.
         """
         try:
-            if self.backend in ("ollama", "lmstudio"):
+            if self.backend == "ollama":
+                return self._chat_ollama_generate(system_prompt, user_message,
+                                                  max_tokens, temperature)
+            elif self.backend == "lmstudio":
                 return self._chat_openai_compat(system_prompt, user_message,
                                                 max_tokens, temperature)
             elif self.backend == "anthropic":
@@ -100,6 +103,44 @@ class LLMRouter:
         except Exception as e:
             log.error(f"LLM chat error ({self.backend}): {e}")
             return f"[ERR0RS] LLM error: {e}"
+
+    # ── Ollama /api/generate — primary Pi 5 path ─────────────────────────────
+
+    def _chat_ollama_generate(self, system_prompt: str, user_message: str,
+                               max_tokens: int, temperature: float) -> str:
+        try:
+            import requests
+        except ImportError:
+            return "[ERR0RS] requests not installed."
+
+        # Build a flat prompt — /api/generate doesn't use message arrays
+        prompt = ""
+        if system_prompt:
+            prompt += f"[SYSTEM]\n{system_prompt}\n\n"
+        prompt += f"[USER]\n{user_message}\n\n[ASSISTANT]\n"
+
+        try:
+            r = requests.post(
+                f"{self._base_url}/api/generate",
+                json={
+                    "model":   self.model,
+                    "prompt":  prompt,
+                    "stream":  False,
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": max_tokens,
+                    },
+                },
+                timeout=180,
+            )
+            r.raise_for_status()
+            response = r.json().get("response", "").strip()
+            if response:
+                return response
+        except Exception as e:
+            log.error(f"LLM chat error (ollama): {e}")
+
+        return "[ERR0RS] Ollama not responding — is it running? (ollama serve)"
 
     # ── Ollama / LM Studio (OpenAI-compatible) ───────────────────────────────
 

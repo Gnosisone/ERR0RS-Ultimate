@@ -6,19 +6,29 @@ import re
 
 # ── Intent map: keyword → (plugin_name, command) ────────────────────────────
 INTENT_MAP = {
-    "scan":         ("nmap_plugin", "scan"),
-    "portscan":     ("nmap_plugin", "portscan"),
-    "port scan":    ("nmap_plugin", "portscan"),
-    "stealth":      ("nmap_plugin", "stealth"),
-    "udp":          ("nmap_plugin", "udp"),
-    "vuln":         ("nmap_plugin", "vuln"),
-    "vulnerabilit": ("nmap_plugin", "vuln"),
-    "full scan":    ("nmap_plugin", "full"),
-    "subghz":       ("flipper_plugin", "subghz"),
-    "badusb":       ("flipper_plugin", "badusb"),
-    "nfc":          ("flipper_plugin", "nfc"),
-    "infrared":     ("flipper_plugin", "ir"),
-    "flipper":      ("flipper_plugin", "status"),
+    # nmap — natural language
+    "scan":          ("nmap_plugin", "scan"),
+    "portscan":      ("nmap_plugin", "portscan"),
+    "port scan":     ("nmap_plugin", "portscan"),
+    "stealth":       ("nmap_plugin", "stealth"),
+    "udp":           ("nmap_plugin", "udp"),
+    "vuln":          ("nmap_plugin", "vuln"),
+    "vulnerabilit":  ("nmap_plugin", "vuln"),
+    "full scan":     ("nmap_plugin", "full"),
+    # nmap — shell-style passthrough
+    "nmap":          ("nmap_plugin", "scan"),
+    "nmap -sv":      ("nmap_plugin", "scan"),
+    "nmap -ss":      ("nmap_plugin", "stealth"),
+    "nmap -su":      ("nmap_plugin", "udp"),
+    "nmap -a":       ("nmap_plugin", "full"),
+    "nmap -p":       ("nmap_plugin", "portscan"),
+    "nmap --script": ("nmap_plugin", "vuln"),
+    # flipper
+    "subghz":        ("flipper_plugin", "subghz"),
+    "badusb":        ("flipper_plugin", "badusb"),
+    "nfc":           ("flipper_plugin", "nfc"),
+    "infrared":      ("flipper_plugin", "ir"),
+    "flipper":       ("flipper_plugin", "status"),
 }
 
 _TARGET_RE = re.compile(

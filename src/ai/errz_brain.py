@@ -27,17 +27,39 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 
 # ── Pi-aware model selection ──────────────────────────────────────────────────
 def _default_model() -> str:
-    """Return the right Ollama model based on hardware."""
-    env_model = os.getenv("OLLAMA_MODEL", "")
+    """
+    Return the right Ollama model based on hardware and .env config.
+    Priority: OLLAMA_MODEL env var → Pi detection → desktop default
+    """
+    # 1. Explicit env var wins (set by fix_ollama_pi5.sh or .env)
+    env_model = os.getenv("OLLAMA_MODEL", "").strip()
     if env_model:
         return env_model
+
+    # 2. Auto-detect Pi — use RAM-tuned variant
     try:
         with open("/proc/cpuinfo") as f:
             if "Raspberry Pi" in f.read():
-                return "qwen2.5-coder:7b"   # Pi 5 — fits in 16GB RAM
+                # Check if the Pi-optimized model exists in Ollama
+                import urllib.request, json
+                try:
+                    r = urllib.request.urlopen(
+                        "http://localhost:11434/api/tags", timeout=2
+                    )
+                    models = [m["name"] for m in json.loads(r.read()).get("models", [])]
+                    if "err0rs-pi5" in models:
+                        return "err0rs-pi5"        # tuned model available
+                    # fallback to base model — still works, just not optimized
+                    if "qwen2.5-coder:7b" in models:
+                        return "qwen2.5-coder:7b"
+                except Exception:
+                    pass
+                return "qwen2.5-coder:7b"          # Pi default
     except Exception:
         pass
-    return "qwen2.5-coder:32b"              # Desktop — full quality
+
+    # 3. Desktop — full quality
+    return "qwen2.5-coder:32b"
 
 _MODEL = _default_model()
 

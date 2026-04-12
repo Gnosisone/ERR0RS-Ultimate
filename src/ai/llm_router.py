@@ -66,16 +66,18 @@ class LLMResponse:
 
 DEFAULT_CONFIGS: Dict[LLMProvider, LLMConfig] = {
     LLMProvider.OLLAMA: LLMConfig(
-        provider   = LLMProvider.OLLAMA,
-        model      = "qwen2.5-coder:7b",   # ERR0RS default — Pi 5 Cyberdeck
-        base_url   = "http://127.0.0.1:11434",
-        timeout    = 180,                  # Pi 5 needs more time for 7B model
+        provider    = LLMProvider.OLLAMA,
+        model       = "qwen2.5-coder:7b",   # ERR0RS default — Pi 5 Cyberdeck
+        base_url    = "http://127.0.0.1:11434",
+        timeout     = 240,                  # Pi 5 needs time — 90s was too short
+        max_tokens  = 1024,                 # was 2048 — halved for RAM headroom
+        temperature = 0.2,
     ),
     LLMProvider.LMSTUDIO: LLMConfig(
         provider   = LLMProvider.LMSTUDIO,
         model      = "local-model",
         base_url   = "http://127.0.0.1:1234",
-        timeout    = 90,
+        timeout    = 120,
     ),
 }
 
@@ -244,7 +246,12 @@ class LLMRouter:
                     "model"   : cfg.model,
                     "messages": messages,
                     "stream"  : False,
-                    "options" : {"temperature": cfg.temperature, "num_predict": cfg.max_tokens},
+                    "options" : {
+                        "temperature": cfg.temperature,
+                        "num_predict": min(cfg.max_tokens, 1024),  # cap for Pi RAM
+                        "num_ctx":     2048,                        # half of default
+                        "num_thread":  4,
+                    },
                 }
                 r = requests.post(url_native, json=payload_native, timeout=cfg.timeout)
                 r.raise_for_status()
@@ -268,7 +275,12 @@ class LLMRouter:
                     "model"  : cfg.model,
                     "prompt" : flat_prompt,
                     "stream" : False,
-                    "options": {"temperature": cfg.temperature, "num_predict": cfg.max_tokens},
+                    "options": {
+                        "temperature": cfg.temperature,
+                        "num_predict": min(cfg.max_tokens, 1024),
+                        "num_ctx":     2048,
+                        "num_thread":  4,
+                    },
                 }
                 r = requests.post(url_generate, json=payload_generate, timeout=cfg.timeout)
                 r.raise_for_status()

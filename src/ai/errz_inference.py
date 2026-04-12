@@ -448,20 +448,33 @@ class ERRZInference:
 
     def _call_ollama(self, url: str, prompt: str,
                      system: str, model: str) -> dict:
-        """Call Ollama's native API."""
+        """Call Ollama's native API — Pi 5 tuned for 8GB RAM headroom."""
+        # ── Pi 5 RAM-aware options ────────────────────────────────
+        # qwen2.5-coder:7b uses ~5GB RSS — keep context small to avoid OOM
+        # num_ctx 2048 vs default 4096 saves ~800MB RAM
+        # num_predict 1024 keeps responses fast and memory-bounded
+        # num_thread = physical cores only (4 on Pi5) avoids scheduler thrash
         body = json.dumps({
             "model":   model,
             "system":  system,
             "prompt":  prompt,
             "stream":  False,
-            "options": {"temperature": 0.2, "num_predict": 2048},
+            "options": {
+                "temperature":  0.2,
+                "num_predict":  1024,   # was 2048 — halved to save RAM + speed
+                "num_ctx":      2048,   # was 4096 — halved saves ~800MB RAM
+                "num_thread":   4,      # Pi 5 has 4 cores — don't over-subscribe
+                "num_keep":     0,      # don't keep KV cache between requests
+                "repeat_penalty": 1.1,
+            },
         }).encode()
         try:
             req = urllib.request.Request(
                 f"{url}/api/generate", data=body,
                 headers={"Content-Type": "application/json"}, method="POST"
             )
-            with urllib.request.urlopen(req, timeout=90) as r:
+            # 240s timeout — Pi 5 can be slow on first load, but 90s was too short
+            with urllib.request.urlopen(req, timeout=240) as r:
                 data = json.loads(r.read())
                 return {"status": "success", "response": data.get("response", "")}
         except Exception as e:

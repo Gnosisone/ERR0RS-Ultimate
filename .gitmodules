@@ -184,3 +184,6 @@
 [submodule "knowledge/exploitation/jdwp-shellifier"]
 	path = knowledge/exploitation/jdwp-shellifier
 	url = https://github.com/lanjelot/jdwp-shellifier.git
+[submodule "knowledge/wireless/flipperzero-bruteforce"]
+	path = knowledge/wireless/flipperzero-bruteforce
+	url = https://github.com/tobiabocchi/flipperzero-bruteforce.git

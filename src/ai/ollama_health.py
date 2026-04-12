@@ -81,17 +81,24 @@ def check_model() -> tuple[bool, str, str]:
         return False, "Cannot reach Ollama to check models", OLLAMA_MODEL
 
     models = [m["name"] for m in data.get("models", [])]
+    # Normalize — Ollama appends :latest if no tag specified
+    models_normalized = [m.split(":")[0] for m in models]
 
-    if OLLAMA_MODEL in models:
-        return True, f"'{OLLAMA_MODEL}' available ✅", OLLAMA_MODEL
+    target_base   = OLLAMA_MODEL.split(":")[0]
+    fallback_base = FALLBACK_MODEL.split(":")[0]
 
-    if FALLBACK_MODEL in models:
+    if target_base in models_normalized:
+        # Use exact name from list (may have :latest suffix)
+        exact = next(m for m in models if m.split(":")[0] == target_base)
+        return True, f"'{exact}' available ✅", exact
+
+    if fallback_base in models_normalized:
+        exact = next(m for m in models if m.split(":")[0] == fallback_base)
         return True, (
-            f"'{OLLAMA_MODEL}' not found — falling back to '{FALLBACK_MODEL}'\n"
+            f"'{OLLAMA_MODEL}' not found — falling back to '{exact}'\n"
             f"  Run: bash scripts/fix_ollama_pi5.sh  to build the optimized model"
-        ), FALLBACK_MODEL
+        ), exact
 
-    # Neither found
     return False, (
         f"Neither '{OLLAMA_MODEL}' nor '{FALLBACK_MODEL}' found.\n"
         f"  Available: {', '.join(models) or 'none'}\n"

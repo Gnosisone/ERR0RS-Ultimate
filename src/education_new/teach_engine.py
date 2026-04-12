@@ -17,6 +17,16 @@ Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
 import logging
 logger = logging.getLogger(__name__)
 
+# ── Web App Exploitation Lesson Pack (PayloadsAllTheThings) ───────────────
+try:
+    from src.education_new.webapp_lessons import WEBAPP_LESSONS, resolve_webapp_lesson
+    _WEBAPP_LOADED = True
+    logger.info("[TeachEngine] Web app lessons loaded (%d topics)", len([k for k,v in WEBAPP_LESSONS.items() if v]))
+except ImportError:
+    _WEBAPP_LOADED = False
+    WEBAPP_LESSONS = {}
+    def resolve_webapp_lesson(kw): return None
+
 # ── Language Expansion Layer ──────────────────────────────────────────────
 try:
     from src.core.language_layer import (
@@ -113,6 +123,34 @@ ATTCK_KEYWORD_MAP = {
     "adversarial example":  {"id": "AML.T0015", "lesson": "atlas_adversarial",
                               "title": "Adversarial Examples",
                               "desc": "Inputs crafted to fool ML models into wrong predictions."},
+    # ── Web App Exploitation (PayloadsAllTheThings) ───────────────────────
+    "sql injection":        {"id": "T1190", "lesson": "sql injection",   "title": "SQL Injection",          "desc": "Manipulate DB queries via unsanitized input — auth bypass, data dump, RCE."},
+    "sqli":                 {"id": "T1190", "lesson": "sql injection",   "title": "SQL Injection",          "desc": "Manipulate DB queries via unsanitized input — auth bypass, data dump, RCE."},
+    "xss":                  {"id": "T1059.007", "lesson": "xss",         "title": "Cross-Site Scripting",   "desc": "Inject JavaScript into pages viewed by other users — cookie theft, session hijack."},
+    "cross-site scripting": {"id": "T1059.007", "lesson": "xss",         "title": "XSS",                    "desc": "Inject JavaScript into pages viewed by other users."},
+    "ssrf":                 {"id": "T1090", "lesson": "ssrf",            "title": "SSRF",                   "desc": "Force server to make requests to internal resources — cloud metadata, pivoting."},
+    "server side request forgery": {"id": "T1090", "lesson": "ssrf",    "title": "SSRF",                   "desc": "Force server to make internal requests."},
+    "command injection":    {"id": "T1059", "lesson": "command injection","title": "Command Injection",      "desc": "Inject OS commands into app inputs — instant RCE."},
+    "cmdi":                 {"id": "T1059", "lesson": "command injection","title": "Command Injection",      "desc": "Inject OS commands into app inputs."},
+    "file inclusion":       {"id": "T1190", "lesson": "file inclusion",  "title": "LFI/RFI",                "desc": "Include arbitrary local or remote files — file read → RCE via log poisoning."},
+    "lfi":                  {"id": "T1190", "lesson": "file inclusion",  "title": "LFI",                    "desc": "Read local server files via path manipulation."},
+    "rfi":                  {"id": "T1190", "lesson": "file inclusion",  "title": "RFI",                    "desc": "Execute remote attacker-hosted file."},
+    "directory traversal":  {"id": "T1083", "lesson": "directory traversal","title": "Path Traversal",      "desc": "Use ../ to escape web root and read sensitive files."},
+    "path traversal":       {"id": "T1083", "lesson": "directory traversal","title": "Path Traversal",      "desc": "Use ../ sequences to read files outside web root."},
+    "xxe":                  {"id": "T1190", "lesson": "xxe",            "title": "XXE Injection",           "desc": "Abuse XML parsers to read local files or conduct SSRF."},
+    "xml external entity":  {"id": "T1190", "lesson": "xxe",            "title": "XXE",                    "desc": "Malicious XML DOCTYPE entities for file read / SSRF."},
+    "ssti":                 {"id": "T1190", "lesson": "ssti",           "title": "SSTI",                    "desc": "Inject into server-side templates — often leads to full RCE."},
+    "template injection":   {"id": "T1190", "lesson": "ssti",           "title": "SSTI",                    "desc": "Template engine code execution via user-controlled input."},
+    "jwt":                  {"id": "T1552", "lesson": "jwt",            "title": "JWT Attacks",             "desc": "Forge/tamper JWT tokens — alg:none, secret crack, key confusion."},
+    "json web token":       {"id": "T1552", "lesson": "jwt",            "title": "JWT Attacks",             "desc": "Forge/tamper JWT tokens."},
+    "idor":                 {"id": "T1078", "lesson": "idor",           "title": "IDOR",                    "desc": "Access other users' objects by changing IDs — horizontal/vertical privesc."},
+    "insecure direct object reference": {"id": "T1078", "lesson": "idor","title": "IDOR",                  "desc": "Missing authorization on object access."},
+    "cors":                 {"id": "T1557", "lesson": "cors",           "title": "CORS Misconfiguration",   "desc": "Cross-origin requests read victim's authenticated data."},
+    "deserialization":      {"id": "T1190", "lesson": "insecure deserialization","title": "Insecure Deserialization","desc": "Tamper serialized objects — logic bypass or RCE via gadget chains."},
+    "insecure deserialization": {"id": "T1190", "lesson": "insecure deserialization","title": "Insecure Deserialization","desc": "RCE via malicious serialized object payloads."},
+    "request smuggling":    {"id": "T1190", "lesson": "request smuggling","title": "HTTP Request Smuggling","desc": "Desync frontend/backend HTTP parsing to bypass controls."},
+    "prototype pollution":  {"id": "T1059.007", "lesson": "prototype pollution","title": "Prototype Pollution","desc": "Pollute Object.prototype to corrupt JS app logic or get Node.js RCE."},
+    "race condition":       {"id": "T1499", "lesson": "race condition", "title": "Race Condition",          "desc": "Concurrent requests exploit check-then-act timing windows."},
 }
 
 
@@ -157,12 +195,18 @@ class TeachEngine:
         """
         Retrieve a lesson for the given keyword.
         Priority:
-          1. MITRE ATT&CK tactic/technique lookup (ATTCK_KEYWORD_MAP)
-          2. ChromaDB RAG augmentation (if collection available)
-          3. Built-in LESSONS dict (always available, no dependencies)
+          1. Web App lesson pack (full lessons — PayloadsAllTheThings)
+          2. Built-in LESSONS dict (existing deep lessons)
+          3. MITRE ATT&CK tactic/technique lookup + ChromaDB RAG
           4. Generic security tip fallback
         """
         kw = keyword.lower().strip()
+
+        # ── Step 0: Check Web App lesson pack FIRST (full lessons win) ────
+        if _WEBAPP_LOADED:
+            webapp = resolve_webapp_lesson(kw)
+            if webapp and isinstance(webapp, dict) and webapp.get("what"):
+                return format_lesson(webapp)
 
         # ── Step 1: Check MITRE ATT&CK map ───────────────────────────────
         meta = ATTCK_KEYWORD_MAP.get(kw)
@@ -213,7 +257,13 @@ class TeachEngine:
                 )
             return base
 
-        # ── Step 4: Fall through to find_lesson() ────────────────────────
+        # ── Step 4: Check Web App lesson pack (PayloadsAllTheThings) ────────
+        if _WEBAPP_LOADED:
+            webapp = resolve_webapp_lesson(kw)
+            if webapp and isinstance(webapp, dict) and webapp.get("what"):
+                return format_lesson(webapp)
+
+        # ── Step 5: Fall through to find_lesson() ────────────────────────
         lesson = find_lesson(kw)
         if lesson:
             return format_lesson(lesson)

@@ -130,3 +130,33 @@
 [submodule "knowledge/windows/precompiled-binaries"]
 	path = knowledge/windows/precompiled-binaries
 	url = https://github.com/grejh0t/precompiled-binaries.git
+[submodule "knowledge/exploitation/PayloadsAllTheThings"]
+	path = knowledge/exploitation/PayloadsAllTheThings
+	url = https://github.com/swisskyrepo/PayloadsAllTheThings.git
+[submodule "knowledge/exploitation/bugbounty-cheatsheet"]
+	path = knowledge/exploitation/bugbounty-cheatsheet
+	url = https://github.com/cyber-niz/bugbounty-cheatsheet.git
+[submodule "knowledge/advanced_tradecraft/OSCP_Notes"]
+	path = knowledge/advanced_tradecraft/OSCP_Notes
+	url = https://github.com/cyber-niz/OSCP_Notes.git
+[submodule "knowledge/recon/can-i-take-over-xyz"]
+	path = knowledge/recon/can-i-take-over-xyz
+	url = https://github.com/cyber-niz/can-i-take-over-xyz.git
+[submodule "knowledge/exploitation/SSRF-Testing"]
+	path = knowledge/exploitation/SSRF-Testing
+	url = https://github.com/cyber-niz/SSRF-Testing.git
+[submodule "knowledge/exploitation/JSONBee"]
+	path = knowledge/exploitation/JSONBee
+	url = https://github.com/cyber-niz/JSONBee.git
+[submodule "knowledge/recon/awesome-bug-bounty"]
+	path = knowledge/recon/awesome-bug-bounty
+	url = https://github.com/cyber-niz/awesome-bug-bounty.git
+[submodule "knowledge/exploitation/enumXFF"]
+	path = knowledge/exploitation/enumXFF
+	url = https://github.com/cyber-niz/enumXFF.git
+[submodule "knowledge/exploitation/webshell"]
+	path = knowledge/exploitation/webshell
+	url = https://github.com/cyber-niz/webshell.git
+[submodule "knowledge/advanced_tradecraft/hackthebox-writeups"]
+	path = knowledge/advanced_tradecraft/hackthebox-writeups
+	url = https://github.com/cyber-niz/hackthebox-writeups.git

@@ -27,6 +27,16 @@ except ImportError:
     WEBAPP_LESSONS = {}
     def resolve_webapp_lesson(kw): return None
 
+# ── Wireless / RF / Flipper Zero Lesson Pack ──────────────────────────────
+try:
+    from src.education_new.wireless_lessons import WIRELESS_LESSONS, resolve_wireless_lesson
+    _WIRELESS_LOADED = True
+    logger.info("[TeachEngine] Wireless lessons loaded (%d topics)", len([k for k,v in WIRELESS_LESSONS.items() if isinstance(v,dict) and v.get("what")]))
+except ImportError:
+    _WIRELESS_LOADED = False
+    WIRELESS_LESSONS = {}
+    def resolve_wireless_lesson(kw): return None
+
 # ── Language Expansion Layer ──────────────────────────────────────────────
 try:
     from src.core.language_layer import (
@@ -151,6 +161,15 @@ ATTCK_KEYWORD_MAP = {
     "request smuggling":    {"id": "T1190", "lesson": "request smuggling","title": "HTTP Request Smuggling","desc": "Desync frontend/backend HTTP parsing to bypass controls."},
     "prototype pollution":  {"id": "T1059.007", "lesson": "prototype pollution","title": "Prototype Pollution","desc": "Pollute Object.prototype to corrupt JS app logic or get Node.js RCE."},
     "race condition":       {"id": "T1499", "lesson": "race condition", "title": "Race Condition",          "desc": "Concurrent requests exploit check-then-act timing windows."},
+    # ── Wireless / RF / Flipper Zero ──────────────────────────────────────
+    "subghz bruteforce":    {"id": "T0803", "lesson": "subghz bruteforce", "title": "Sub-GHz OOK Bruteforce",  "desc": "Brute force fixed-code RF remotes (garage/gate) with Flipper Zero .sub files."},
+    "ook bruteforce":       {"id": "T0803", "lesson": "subghz bruteforce", "title": "OOK Bruteforce",          "desc": "On-Off Keying fixed-code brute force via Flipper Zero."},
+    "flipper bruteforce":   {"id": "T0803", "lesson": "subghz bruteforce", "title": "Flipper RF Bruteforce",   "desc": "Flipper Zero Sub-GHz replay/bruteforce attack on fixed-code remotes."},
+    "subghz":               {"id": "T0803", "lesson": "subghz bruteforce", "title": "Sub-GHz RF Attack",       "desc": "Sub-GHz radio frequency attacks: capture, replay, bruteforce."},
+    "rf bruteforce":        {"id": "T0803", "lesson": "subghz bruteforce", "title": "RF Bruteforce",           "desc": "Brute force RF remotes using Flipper Zero .sub file attack."},
+    "garage door":          {"id": "T0803", "lesson": "subghz bruteforce", "title": "Garage Door Attack",      "desc": "Sub-GHz bruteforce of fixed-code garage door / gate openers."},
+    "came":                 {"id": "T0803", "lesson": "subghz bruteforce", "title": "CAME Protocol Attack",    "desc": "CAME 12-bit 433/868MHz fixed-code brute force (~224 seconds)."},
+    "fixed code":           {"id": "T0803", "lesson": "subghz bruteforce", "title": "Fixed Code RF Attack",    "desc": "Attacks against legacy fixed-code OOK RF systems."},
 }
 
 
@@ -202,11 +221,16 @@ class TeachEngine:
         """
         kw = keyword.lower().strip()
 
-        # ── Step 0: Check Web App lesson pack FIRST (full lessons win) ────
+        # ── Step 0: Check lesson packs FIRST (full lessons win) ──────────
         if _WEBAPP_LOADED:
             webapp = resolve_webapp_lesson(kw)
             if webapp and isinstance(webapp, dict) and webapp.get("what"):
                 return format_lesson(webapp)
+
+        if _WIRELESS_LOADED:
+            wireless = resolve_wireless_lesson(kw)
+            if wireless and isinstance(wireless, dict) and wireless.get("what"):
+                return format_lesson(wireless)
 
         # ── Step 1: Check MITRE ATT&CK map ───────────────────────────────
         meta = ATTCK_KEYWORD_MAP.get(kw)

@@ -160,3 +160,27 @@
 [submodule "knowledge/advanced_tradecraft/hackthebox-writeups"]
 	path = knowledge/advanced_tradecraft/hackthebox-writeups
 	url = https://github.com/cyber-niz/hackthebox-writeups.git
+[submodule "knowledge/advanced_tradecraft/lanjelot-kb"]
+	path = knowledge/advanced_tradecraft/lanjelot-kb
+	url = https://github.com/lanjelot/kb.git
+[submodule "knowledge/enumeration/patator"]
+	path = knowledge/enumeration/patator
+	url = https://github.com/lanjelot/patator.git
+[submodule "knowledge/advanced_tradecraft/lanjelot-ctfs"]
+	path = knowledge/advanced_tradecraft/lanjelot-ctfs
+	url = https://github.com/lanjelot/ctfs.git
+[submodule "knowledge/advanced_tradecraft/pentest-tricks"]
+	path = knowledge/advanced_tradecraft/pentest-tricks
+	url = https://github.com/lanjelot/pentest-tricks.git
+[submodule "knowledge/exploitation/albatar"]
+	path = knowledge/exploitation/albatar
+	url = https://github.com/lanjelot/albatar.git
+[submodule "knowledge/recon/web-hunter"]
+	path = knowledge/recon/web-hunter
+	url = https://github.com/lanjelot/web-hunter.git
+[submodule "knowledge/recon/pillage-svn"]
+	path = knowledge/recon/pillage-svn
+	url = https://github.com/lanjelot/pillage-svn.git
+[submodule "knowledge/exploitation/jdwp-shellifier"]
+	path = knowledge/exploitation/jdwp-shellifier
+	url = https://github.com/lanjelot/jdwp-shellifier.git

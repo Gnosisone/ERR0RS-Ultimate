@@ -37,6 +37,16 @@ except ImportError:
     WIRELESS_LESSONS = {}
     def resolve_wireless_lesson(kw): return None
 
+# ── BadUSB / Physical Access Lesson Pack ──────────────────────────────────
+try:
+    from src.education_new.badusb_lessons import BADUSB_LESSONS, resolve_badusb_lesson
+    _BADUSB_LOADED = True
+    logger.info("[TeachEngine] BadUSB lessons loaded (%d topics)", len([k for k,v in BADUSB_LESSONS.items() if isinstance(v,dict) and v.get("what")]))
+except ImportError:
+    _BADUSB_LOADED = False
+    BADUSB_LESSONS = {}
+    def resolve_badusb_lesson(kw): return None
+
 # ── Language Expansion Layer ──────────────────────────────────────────────
 try:
     from src.core.language_layer import (
@@ -170,6 +180,14 @@ ATTCK_KEYWORD_MAP = {
     "garage door":          {"id": "T0803", "lesson": "subghz bruteforce", "title": "Garage Door Attack",      "desc": "Sub-GHz bruteforce of fixed-code garage door / gate openers."},
     "came":                 {"id": "T0803", "lesson": "subghz bruteforce", "title": "CAME Protocol Attack",    "desc": "CAME 12-bit 433/868MHz fixed-code brute force (~224 seconds)."},
     "fixed code":           {"id": "T0803", "lesson": "subghz bruteforce", "title": "Fixed Code RF Attack",    "desc": "Attacks against legacy fixed-code OOK RF systems."},
+    # ── BadUSB / Physical Access ──────────────────────────────────────────
+    "winrm backdoor":       {"id": "T1021.006", "lesson": "winrm backdoor", "title": "WinRM Backdoor",         "desc": "BadUSB plants hidden admin + enables WinRM — full remote shell in 10 seconds."},
+    "winrm":                {"id": "T1021.006", "lesson": "winrm backdoor", "title": "WinRM",                  "desc": "Windows Remote Management — used for legitimate admin and backdoor persistence."},
+    "evil-winrm":           {"id": "T1021.006", "lesson": "winrm backdoor", "title": "Evil-WinRM",             "desc": "Post-exploitation WinRM shell tool — full PowerShell admin session."},
+    "badusb":               {"id": "T1200",    "lesson": "badusb",        "title": "BadUSB / HID Attack",     "desc": "USB device impersonates keyboard — silently executes payload on plug-in."},
+    "hid attack":           {"id": "T1200",    "lesson": "badusb",        "title": "HID Attack",              "desc": "Human Interface Device attack — Flipper Zero / Rubber Ducky keystroke injection."},
+    "rubber ducky":         {"id": "T1200",    "lesson": "badusb",        "title": "Rubber Ducky",            "desc": "USB HID device that auto-executes DuckyScript payloads as keyboard input."},
+    "duckyscript":          {"id": "T1200",    "lesson": "badusb",        "title": "DuckyScript",             "desc": "Scripting language for BadUSB/HID keystroke injection payloads."},
 }
 
 
@@ -231,6 +249,11 @@ class TeachEngine:
             wireless = resolve_wireless_lesson(kw)
             if wireless and isinstance(wireless, dict) and wireless.get("what"):
                 return format_lesson(wireless)
+
+        if _BADUSB_LOADED:
+            badusb = resolve_badusb_lesson(kw)
+            if badusb and isinstance(badusb, dict) and badusb.get("what"):
+                return format_lesson(badusb)
 
         # ── Step 1: Check MITRE ATT&CK map ───────────────────────────────
         meta = ATTCK_KEYWORD_MAP.get(kw)

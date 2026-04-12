@@ -187,3 +187,6 @@
 [submodule "knowledge/wireless/flipperzero-bruteforce"]
 	path = knowledge/wireless/flipperzero-bruteforce
 	url = https://github.com/tobiabocchi/flipperzero-bruteforce.git
+[submodule "knowledge/badusb/nocomp-hack5-payloads"]
+	path = knowledge/badusb/nocomp-hack5-payloads
+	url = https://github.com/nocomp/Flipper_Zero_Badusb_hack5_payloads.git

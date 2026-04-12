@@ -289,6 +289,20 @@ MODULES = {
         "competes_with": ["Dradis Pro ($paid)", "PlexTrac ($paid)", "AttackForge ($paid)"],
     },
 
+    # ── RAG / KNOWLEDGE BASE ───────────────────────────────────────
+    "rag_ingestor": {
+        "name":        "GitHub RAG Ingestor",
+        "desc":        "Add any GitHub repo to ERR0RS's ChromaDB RAG knowledge base in one command",
+        "category":    "knowledge",
+        "module":      "src.tools.rag_ingestor",
+        "entry":       "handle_add_to_rag",
+        "commands":    [
+            "add to rag", "add rag", "rag add", "ingest", "rag ingest",
+            "learn from", "add github", "index repo", "index github",
+        ],
+        "competes_with": ["Manual submodule + custom ingester (what we did before)"],
+    },
+
     # ── CTF & LEARNING ─────────────────────────────────────────────
     "ctf": {
         "name":        "CTF Solver",

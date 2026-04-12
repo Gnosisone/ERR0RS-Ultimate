@@ -299,6 +299,17 @@ def interactive_mode(ai, agent_type="red_team", ctx=None, pm=None,
             print(f"     Findings : {report['stats']['critical']}C "
                   f"{report['stats']['high']}H {report['stats']['medium']}M\n")
 
+        # ── Add to RAG ────────────────────────────────────────────
+        elif raw.lower().startswith(("add to rag", "add rag", "rag add",
+                                     "ingest ", "rag ingest", "learn from ",
+                                     "add github", "index repo", "index github")):
+            try:
+                from src.tools.rag_ingestor import handle_add_to_rag
+                result = handle_add_to_rag(raw)
+                print(f"\n{result.get('stdout', '')}\n")
+            except Exception as e:
+                print(f"\n  ❌ RAG ingestor error: {e}\n")
+
         # ── Toggle learn mode ─────────────────────────────────────
         elif cmd == "learn" and len(parts) == 1:
             learn_mode = not learn_mode

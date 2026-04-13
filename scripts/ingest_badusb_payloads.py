@@ -27,6 +27,18 @@ BADUSB_ROOT = REPO_ROOT / "knowledge" / "badusb"
 CHROMA_PATH = REPO_ROOT / "errors_knowledge_db"
 COLLECTION  = "badusb_payloads"
 
+# Repo-specific ingestion configs
+# Maps repo dir name → (category_detection_mode, description)
+REPO_CONFIGS = {
+    "nocomp-hack5-payloads":      "category_dirs",   # credentials/execution/etc at root
+    "I-Am-Jakoby-FlipperBadUSB": "payloads_dir",    # Payloads/Flip-*/
+    "Flipper-Zero-BadUSB":        "payloads_dir",    # same author, same structure
+    "aleff-flipper-shits":        "flat_payloads",   # payload dirs at root
+    "bad_ducky":                  "flat_payloads",   # demo_scripts/ at root
+    "WHID-injector":              "flat_payloads",   # Payloads/ + misc dirs
+    "WHID-31337":                 "flat_payloads",   # RF/HID attack dirs at root
+}
+
 # Category → MITRE mapping
 CATEGORY_MITRE = {
     "credentials":       "T1056",    # Input Capture / Credential Harvesting
@@ -165,103 +177,74 @@ def chunk_badusb_repo(repo_path: Path, repo_name: str) -> list[dict]:
     return chunks
 
 
-def collect_all_chunks() -> list[dict]:
+def _ingest_flat_dirs(root, repo_name):
+    chunks = []
+    SKIP = {".git",".github","node_modules","__pycache__","Assets","Images","images","README"}
+    for item in sorted(root.iterdir()):
+        if not item.is_dir() or item.name.startswith(".") or item.name in SKIP:
+            continue
+        payload_text = readme_text = ""
+        header_meta  = {}
+        for f in sorted(item.rglob("*")):
+            if not f.is_file() or ".git" in str(f): continue
+            ext = f.suffix.lower()
+            if ext in (".txt",".ps1",".sh",".py",".rb",".bat"):
+                try:
+                    c = f.read_text(encoding="utf-8",errors="replace")
+                    if not header_meta and ext==".txt": header_meta=parse_payload_header(c)
+                    payload_text += f"\n\n=== {f.name} ===\n{c[:800]}"
+                except: pass
+            elif ext==".md":
+                try: readme_text=f.read_text(encoding="utf-8",errors="replace")[:600]
+                except: pass
+        if not payload_text and not readme_text: continue
+        title  = header_meta.get("title") or item.name
+        author = header_meta.get("author","unknown")
+        desc   = header_meta.get("description","")
+        target = header_meta.get("target", detect_os(payload_text))
+        lower  = (payload_text+readme_text+desc).lower()
+        mitre  = "T1200"
+        if any(w in lower for w in ["winrm","psremoting"]): mitre="T1021.006"
+        elif any(w in lower for w in ["reverse shell","netcat","ncat"]): mitre="T1059"
+        elif any(w in lower for w in ["password","credential","hash"]): mitre="T1552"
+        elif any(w in lower for w in ["wifi","ssid","wpa"]): mitre="T1040"
+        elif any(w in lower for w in ["exfil","webhook","discord"]): mitre="T1041"
+        elif any(w in lower for w in ["defender","amsi","antivirus"]): mitre="T1562"
+        uid = hashlib.sha256(f"{repo_name}::{item.name}".encode()).hexdigest()[:16]
+        chunks.append({"id":uid,
+            "document":"\n".join(filter(None,[
+                f"[BadUSB: {repo_name}/{item.name}]",
+                f"Title: {title}", f"Author: {author}", f"Target: {target}",
+                f"Description: {desc}" if desc else "",
+                f"\nREADME:\n{readme_text}" if readme_text else "",
+                f"\nPAYLOAD:\n{payload_text}" if payload_text else "",
+            ])),
+            "metadata":{"source":f"badusb/{repo_name}","repo":repo_name,
+                "category":"badusb","payload":item.name,"title":title,
+                "author":author,"target_os":target,"mitre":mitre,"attack_type":"badusb"}
+        })
+    return chunks
+
+
+def collect_all_chunks():
     all_chunks = []
+    CATEGORY_REPOS = {"nocomp-hack5-payloads"}
+    PAYLOADS_DIR_REPOS = {"I-Am-Jakoby-FlipperBadUSB","Flipper-Zero-BadUSB"}
 
-    BADUSB_REPOS = [
-        "nocomp-hack5-payloads",
-        "Flipper-Zero-BadUSB",
-        "I-Am-Jakoby/Flipper-Zero-BadUSB",  # alternate path
-    ]
-
-    for repo_name in sorted(BADUSB_ROOT.iterdir()):
-        if not repo_name.is_dir() or repo_name.name.startswith("."):
-            continue
-        # Skip non-payload dirs (submodules we can't walk)
-        readme = repo_name / "README.md"
-        payloads_dir = repo_name / "Payloads"
-        has_payloads = any(
-            repo_name.name == n or (repo_name / d).exists()
-            for n in ["nocomp-hack5-payloads", "Flipper-Zero-BadUSB"]
-            for d in ["Payloads", "credentials", "execution", "remote_access"]
-        )
-
-        if not has_payloads:
-            log.debug(f"  Skipping {repo_name.name} — no recognized payload structure")
-            continue
-
-        log.info(f"\n  📂 Scanning {repo_name.name}...")
-
-        # nocomp structure: category dirs at root
-        if (repo_name / "remote_access").exists() or (repo_name / "credentials").exists():
-            chunks = chunk_badusb_repo(repo_name, repo_name.name)
+    for repo_dir in sorted(BADUSB_ROOT.iterdir()):
+        if not repo_dir.is_dir() or repo_dir.name.startswith("."): continue
+        name = repo_dir.name
+        log.info(f"\n  📂 {name}...")
+        if name in CATEGORY_REPOS:
+            chunks = chunk_badusb_repo(repo_dir, name)
+        elif name in PAYLOADS_DIR_REPOS:
+            pd = repo_dir/"Payloads"
+            chunks = _ingest_flat_dirs(pd if pd.exists() else repo_dir, name)
+        else:
+            chunks = _ingest_flat_dirs(repo_dir, name)
+        if chunks:
             all_chunks.extend(chunks)
-
-        # I-Am-Jakoby / flat structure: Payloads/ subdir with Flip-* dirs
-        elif payloads_dir.exists():
-            # treat Payloads/ as a pseudo-category "payloads"
-            pseudo = type('obj', (object,), {
-                'iterdir': lambda self: [payloads_dir],
-                'is_dir': lambda self: True,
-            })
-            for payload_subdir in sorted(payloads_dir.iterdir()):
-                if not payload_subdir.is_dir() or payload_subdir.name.startswith("."):
-                    continue
-                payload_text = ""
-                readme_text  = ""
-                header_meta  = {}
-                for f in sorted(payload_subdir.iterdir()):
-                    if not f.is_file():
-                        continue
-                    ext = f.suffix.lower()
-                    if ext == ".txt":
-                        try:
-                            content = f.read_text(encoding="utf-8", errors="replace")
-                            if not header_meta:
-                                header_meta = parse_payload_header(content)
-                            payload_text += f"\n\n=== {f.name} ===\n{content}"
-                        except Exception:
-                            pass
-                    elif ext == ".md":
-                        try:
-                            readme_text = f.read_text(encoding="utf-8", errors="replace")
-                        except Exception:
-                            pass
-                    elif ext in (".ps1", ".sh"):
-                        try:
-                            payload_text += f"\n\n=== {f.name} ===\n{f.read_text(encoding='utf-8', errors='replace')}"
-                        except Exception:
-                            pass
-                if not payload_text and not readme_text:
-                    continue
-                title  = header_meta.get("title") or payload_subdir.name
-                author = header_meta.get("author", "I-Am-Jakoby")
-                desc   = header_meta.get("description", "")
-                target = header_meta.get("target", detect_os(payload_text))
-                doc = "\n".join([
-                    f"[BadUSB Payload: {repo_name.name}/{payload_subdir.name}]",
-                    f"Title: {title}", f"Author: {author}",
-                    f"Category: badusb_flipper", f"Target: {target}",
-                    f"Description: {desc}" if desc else "",
-                    f"\nREADME:\n{readme_text[:600]}" if readme_text else "",
-                    f"\nPAYLOAD:\n{payload_text[:1000]}" if payload_text else "",
-                ])
-                uid = hashlib.sha256(f"{repo_name.name}::{payload_subdir.name}".encode()).hexdigest()[:16]
-                all_chunks.append({
-                    "id": uid,
-                    "document": doc,
-                    "metadata": {
-                        "source": f"badusb/{repo_name.name}",
-                        "repo": repo_name.name,
-                        "category": "badusb_flipper",
-                        "payload": payload_subdir.name,
-                        "title": title, "author": author,
-                        "target_os": target, "mitre": "T1200",
-                        "attack_type": "badusb",
-                    }
-                })
-            log.info(f"  ✓ {repo_name.name}/Payloads → {len([c for c in all_chunks if c['metadata']['repo']==repo_name.name])} payloads")
-
+            log.info(f"  ✓ {name:<40} {len(chunks):>4} chunks")
     return all_chunks
 
 

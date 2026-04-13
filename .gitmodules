@@ -190,3 +190,18 @@
 [submodule "knowledge/badusb/nocomp-hack5-payloads"]
 	path = knowledge/badusb/nocomp-hack5-payloads
 	url = https://github.com/nocomp/Flipper_Zero_Badusb_hack5_payloads.git
+[submodule "knowledge/badusb/I-Am-Jakoby-FlipperBadUSB"]
+	path = knowledge/badusb/I-Am-Jakoby-FlipperBadUSB
+	url = https://github.com/I-Am-Jakoby/Flipper-Zero-BadUSB.git
+[submodule "knowledge/badusb/aleff-flipper-shits"]
+	path = knowledge/badusb/aleff-flipper-shits
+	url = https://github.com/aleff-github/my-flipper-shits.git
+[submodule "knowledge/badusb/bad_ducky"]
+	path = knowledge/badusb/bad_ducky
+	url = https://github.com/mharjac/bad_ducky.git
+[submodule "knowledge/badusb/WHID-injector"]
+	path = knowledge/badusb/WHID-injector
+	url = https://github.com/whid-injector/WHID.git
+[submodule "knowledge/badusb/WHID-31337"]
+	path = knowledge/badusb/WHID-31337
+	url = https://github.com/whid-injector/whid-31337.git

@@ -189,4 +189,5 @@ def run_dashboard(
     print(f"\n  \033[92m🌐 ERR0RS Dashboard\033[0m → http://{host}:{port}")
     print(f"  API:  http://{host}:{port}/api/")
     print(f"  Docs: http://{host}:{port}/api/docs\n")
-    socketio.run(app, host=host, port=port, debug=debug, use_reloader=False)
+    socketio.run(app, host=host, port=port, debug=debug,
+                 use_reloader=False, allow_unsafe_werkzeug=True)

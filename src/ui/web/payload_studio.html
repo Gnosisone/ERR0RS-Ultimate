@@ -83,6 +83,27 @@
     #lib-search:focus { outline:none; border-color:var(--neon); }
     #lib-search::placeholder { color:var(--text-dim); }
 
+
+    /* ── KB LIBRARY MODE ── */
+    #lib-mode-tabs { display:flex; gap:0; margin-bottom:8px; border-radius:4px; overflow:hidden; border:1px solid var(--border); }
+    .lm-tab { flex:1; text-align:center; padding:5px 0; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.52rem; letter-spacing:1.5px; cursor:pointer; transition:all .2s; color:var(--text-dim); background:transparent; border:none; }
+    .lm-tab:hover { color:var(--text); }
+    .lm-tab.active { background:rgba(255,102,0,.15); color:var(--orange); }
+    .lm-tab.active.kb { background:rgba(0,245,255,.1); color:var(--cyan); }
+    #kb-controls { display:none; flex-direction:column; gap:4px; margin-bottom:4px; }
+    #kb-controls.visible { display:flex; }
+    #kb-platform-select, #kb-category-select { background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--text); font-family:'Share Tech Mono',monospace; font-size:.58rem; padding:3px 6px; border-radius:4px; width:100%; }
+    #kb-platform-select:focus, #kb-category-select:focus { outline:none; border-color:var(--cyan); }
+    #kb-count-badge { font-size:.5rem; font-family:'Rajdhani',sans-serif; color:var(--cyan); text-align:right; letter-spacing:1px; }
+    .kb-card { padding:7px 12px; cursor:pointer; border-left:3px solid transparent; transition:all .15s; }
+    .kb-card:hover { background:rgba(0,245,255,.06); border-left-color:var(--cyan); }
+    .kb-card.active { background:rgba(0,245,255,.12); border-left-color:var(--neon); }
+    .kb-name { font-size:.62rem; color:var(--text); margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .kb-meta { font-size:.48rem; font-family:'Rajdhani',sans-serif; color:var(--text-dim); display:flex; gap:6px; }
+    .kb-cat  { color:var(--cyan); }
+    .kb-plat { color:var(--text-dim); }
+    #kb-loading { padding:16px; color:var(--text-dim); font-size:.6rem; text-align:center; display:none; }
+    #kb-loading.visible { display:block; }
     /* ── CENTER PANEL: EDITOR ── */
     #editor-panel { display:flex; flex-direction:column; overflow:hidden; }
     #editor-header { padding:8px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; background:#060015; }
@@ -214,7 +235,11 @@
   <div id="lib-panel">
     <div id="lib-header">
       <div class="lib-title">⚡ PAYLOAD LIBRARY</div>
-      <input id="lib-search" type="text" placeholder="🔍 search payloads..." oninput="filterSnippets()"/>
+      <div id="lib-mode-tabs">
+        <div class="lm-tab active"    onclick="setLibMode('snippets')" id="lmt-snippets">SNIPPETS</div>
+        <div class="lm-tab kb"        onclick="setLibMode('kb')"       id="lmt-kb">KB (13k+)</div>
+      </div>
+      <input id="lib-search" type="text" placeholder="🔍 search payloads..." oninput="onLibSearch()"/>
       <div id="platform-tabs">
         <div class="ptab win active" onclick="setPlatform('windows')">WIN</div>
         <div class="ptab mac"       onclick="setPlatform('macos')">MAC</div>
@@ -222,6 +247,33 @@
         <div class="ptab ios"       onclick="setPlatform('ios')">iOS</div>
       </div>
       <div id="cat-filter"></div>
+      <div id="kb-controls">
+        <select id="kb-platform-select" onchange="loadKBPayloads()">
+          <option value="all">All Platforms</option>
+          <option value="windows">Windows</option>
+          <option value="macos">macOS</option>
+          <option value="android">Android</option>
+          <option value="ios">iOS</option>
+          <option value="cross">Cross-Platform</option>
+        </select>
+        <select id="kb-category-select" onchange="loadKBPayloads()">
+          <option value="">All Categories</option>
+          <option value="shell">Shell / Reverse Shell</option>
+          <option value="credentials">Credentials</option>
+          <option value="recon">Recon / OSINT</option>
+          <option value="exfil">Exfiltration</option>
+          <option value="persistence">Persistence</option>
+          <option value="privesc">Privilege Escalation</option>
+          <option value="evasion">Evasion / AV Bypass</option>
+          <option value="surveillance">Surveillance</option>
+          <option value="network">Network</option>
+          <option value="disruption">Disruption</option>
+          <option value="prank">Prank / Social</option>
+          <option value="utility">Utility / Goodusb</option>
+        </select>
+        <div id="kb-count-badge">0 payloads loaded</div>
+      </div>
+      <div id="kb-loading">⏳ Loading knowledge base...</div>
     </div>
     <div id="snippet-list"></div>
   </div>
@@ -1544,6 +1596,142 @@ DELAY 2000
 onEditorInput();
 syncHighlightLayer();
 editor.focus();
+
+// ══════════════════════════════════════════════════════════
+// KB PAYLOAD BROWSER — live from knowledge/badusb via API
+// ══════════════════════════════════════════════════════════
+let libMode    = 'snippets';   // 'snippets' | 'kb'
+let kbPayloads = [];           // cached KB results
+
+function setLibMode(mode) {
+  libMode = mode;
+  document.getElementById('lmt-snippets').classList.toggle('active', mode==='snippets');
+  document.getElementById('lmt-kb').classList.toggle('active', mode==='kb');
+
+  const ptabs    = document.getElementById('platform-tabs');
+  const catFilter = document.getElementById('cat-filter');
+  const kbCtrls  = document.getElementById('kb-controls');
+
+  if (mode === 'snippets') {
+    ptabs.style.display    = 'flex';
+    catFilter.style.display = 'flex';
+    kbCtrls.classList.remove('visible');
+    document.getElementById('lib-search').placeholder = '🔍 search snippets...';
+    renderSnippetList(document.getElementById('lib-search').value);
+  } else {
+    ptabs.style.display    = 'none';
+    catFilter.style.display = 'none';
+    kbCtrls.classList.add('visible');
+    document.getElementById('lib-search').placeholder = '🔍 search 13k+ payloads...';
+    if (kbPayloads.length === 0) loadKBPayloads();
+    else renderKBList();
+  }
+}
+
+function onLibSearch() {
+  if (libMode === 'snippets') {
+    filterSnippets();
+  } else {
+    const q = document.getElementById('lib-search').value.toLowerCase();
+    renderKBList(q);
+  }
+}
+
+async function loadKBPayloads() {
+  const platform = document.getElementById('kb-platform-select').value;
+  const category = document.getElementById('kb-category-select').value;
+  const search   = document.getElementById('lib-search').value;
+
+  const loading = document.getElementById('kb-loading');
+  loading.classList.add('visible');
+  document.getElementById('snippet-list').innerHTML = '';
+
+  try {
+    let url = `/api/payload_studio/payloads?limit=300`;
+    if (platform !== 'all') url += `&platform=${platform}`;
+    if (category)           url += `&category=${category}`;
+    if (search)             url += `&search=${encodeURIComponent(search)}`;
+
+    const r    = await fetch(url);
+    const data = await r.json();
+    kbPayloads = data.results || [];
+    document.getElementById('kb-count-badge').textContent =
+      `${data.total} payloads found`;
+    renderKBList(search.toLowerCase());
+  } catch(e) {
+    document.getElementById('snippet-list').innerHTML =
+      `<div style="padding:16px;color:var(--red);font-size:.6rem;text-align:center;">
+        ⚠️ Could not reach API<br><small>Start ERR0RS dashboard: python3 main.py --dashboard</small>
+      </div>`;
+  } finally {
+    loading.classList.remove('visible');
+  }
+}
+
+function renderKBList(filterQ = '') {
+  const list = document.getElementById('snippet-list');
+  const shown = filterQ
+    ? kbPayloads.filter(p =>
+        p.name.toLowerCase().includes(filterQ) ||
+        (p.preview||'').toLowerCase().includes(filterQ) ||
+        (p.category||'').toLowerCase().includes(filterQ))
+    : kbPayloads;
+
+  document.getElementById('sb-count').textContent = shown.length;
+  document.getElementById('kb-count-badge').textContent = `${shown.length} shown`;
+
+  if (!shown.length) {
+    list.innerHTML = `<div style="padding:16px;color:var(--text-dim);font-size:.6rem;text-align:center;">No payloads found</div>`;
+    return;
+  }
+
+  list.innerHTML = shown.map(p => {
+    const name     = (p.name||'').replace('.txt','').replace(/_/g,' ');
+    const category = p.category || 'utility';
+    const platform = p.platform || 'cross';
+    const safe_path = (p.path||'').replace(/'/g, "\\'");
+    return `<div class="kb-card" onclick="loadKBPayload('${safe_path}', '${name}')">
+      <div class="kb-name" title="${p.name}">${name}</div>
+      <div class="kb-meta">
+        <span class="kb-cat">${category}</span>
+        <span class="kb-plat">${platform}</span>
+        <span>${p.lines||0} lines</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadKBPayload(path, name) {
+  try {
+    const r    = await fetch(`/api/payload_studio/payload?path=${encodeURIComponent(path)}`);
+    const data = await r.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+
+    // Load into editor
+    const start  = editor.selectionStart;
+    const before = editor.value.substring(0, start);
+    const after  = editor.value.substring(start);
+    const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+    editor.value = before + prefix + data.content + '\n' + after;
+
+    // Update name
+    document.getElementById('payload-name-input').value =
+      path.split('/').pop() || (name.replace(/\s+/g,'_') + '.txt');
+
+    onEditorInput();
+    const serverInfo = detectRequiredServer(data.content);
+    renderServerPanel(serverInfo);
+
+    // Highlight selected card
+    document.querySelectorAll('.kb-card').forEach(c => c.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    document.getElementById('ai-status').textContent = `⚡ LOADED: ${name}`;
+  } catch(e) {
+    alert('Failed to load payload: ' + e.message);
+  }
+}
+
 </script>
 
 </body>

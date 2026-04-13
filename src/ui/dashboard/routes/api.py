@@ -233,3 +233,85 @@ def generate_report():
         saved["json"] = rg.save_json(report, f"{base}.json")
 
     return jsonify({"saved": saved, "stats": report["stats"]})
+
+
+# ── Payload Studio ────────────────────────────────────────────────────────────
+
+@api_bp.route("/payload_studio/payloads")
+def list_payloads():
+    """
+    All indexed payloads from knowledge/badusb — 13k+ payloads.
+    Params: platform, category, search, limit
+    """
+    try:
+        from src.tools.payload_studio.payload_engine import index_existing_payloads
+        index = index_existing_payloads()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    platform = request.args.get("platform", "all").lower()
+    category = request.args.get("category", "").lower()
+    search   = request.args.get("search",   "").lower()
+    limit    = int(request.args.get("limit", 200))
+
+    results  = []
+    plats    = list(index.keys()) if platform == "all" else [platform]
+    for plat in plats:
+        for p in index.get(plat, []):
+            if category and p.get("category") != category:
+                continue
+            if search and search not in p.get("name","").lower() \
+               and search not in p.get("preview","").lower():
+                continue
+            results.append(p)
+
+    results.sort(key=lambda x: x.get("name",""))
+    return jsonify({"total": len(results), "results": results[:limit]})
+
+
+@api_bp.route("/payload_studio/payload")
+def get_payload_content():
+    """Full content of a payload by relative path. Param: path"""
+    from pathlib import Path
+    ROOT = Path(__file__).resolve().parents[4]
+    rel  = request.args.get("path", "")
+    if not rel:
+        return jsonify({"error": "Missing path"}), 400
+    full = (ROOT / rel).resolve()
+    # Safety: must stay inside knowledge/badusb
+    if not str(full).startswith(str((ROOT / "knowledge" / "badusb").resolve())):
+        return jsonify({"error": "Forbidden path"}), 403
+    try:
+        return jsonify({"path": rel, "content": full.read_text(encoding="utf-8", errors="replace")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@api_bp.route("/payload_studio/snippets")
+def list_snippets():
+    """Hardcoded snippet library from snippets.py."""
+    try:
+        from src.tools.payload_studio.snippets import SNIPPETS
+        return jsonify(SNIPPETS)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/payload_studio/search")
+def search_payloads():
+    """Semantic search against ChromaDB badusb_payloads collection. Param: q"""
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"error": "Missing q"}), 400
+    try:
+        import chromadb
+        from pathlib import Path
+        ROOT   = Path(__file__).resolve().parents[4]
+        client = chromadb.PersistentClient(path=str(ROOT / "errors_knowledge_db"))
+        col    = client.get_collection("badusb_payloads")
+        res    = col.query(query_texts=[q], n_results=10)
+        docs   = res.get("documents", [[]])[0]
+        metas  = res.get("metadatas", [[]])[0]
+        return jsonify([{"document": d, "metadata": m} for d, m in zip(docs, metas)])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

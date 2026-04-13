@@ -12,36 +12,96 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[3]
 KB_DIR   = ROOT_DIR / "knowledge" / "badusb"
 
-def detect_platform(content: str, filename: str = "") -> str:
-    lower = content.lower() + filename.lower()
-    if any(x in lower for x in ["powershell","winkey","gui r","reg add","cmd /c","taskkill"]):
-        return "windows"
-    if any(x in lower for x in ["osascript","command space","spotlight","terminal","brew","macos","osx"]):
+def detect_platform(content: str, filename: str = "", path: str = "") -> str:
+    lower = content.lower() + filename.lower() + path.lower()
+    # macOS indicators — check FIRST because "terminal" is more specific
+    if any(x in lower for x in ["gui space","osascript","command space","brew install",
+                                  "launchagent","macos","osx","spotlight","open -a",
+                                  "caffeinate","plutil","defaults write"]):
         return "macos"
-    if any(x in lower for x in ["android","adb","am start","settings put","pkg","dalvik"]):
+    # Windows indicators
+    if any(x in lower for x in ["powershell","gui r\n","reg add","cmd /c","taskkill",
+                                  "net user","net localgroup","winrm","wscript","cscript"]):
+        return "windows"
+    # Android
+    if any(x in lower for x in ["android","adb ","am start","settings put","dalvik",
+                                  "apk","activity manager"]):
         return "android"
-    if any(x in lower for x in ["ios","iphone","ipad","mdm","mobileconfig","safari","siri"]):
+    # iOS
+    if any(x in lower for x in ["ios","iphone","ipad","mobileconfig","safari\n","siri"]):
         return "ios"
+    # DuckyScript macOS keyboard shortcut pattern
+    if "gui space" in lower or "command space" in lower:
+        return "macos"
     return "cross"
 
-def detect_category(content: str, filename: str = "") -> str:
+# Map parent directory names (from nocomp-style repos) to categories
+_DIR_CATEGORY_MAP = {
+    "remote_access":     "shell",
+    "credentials":       "credentials",
+    "execution":         "shell",
+    "exfiltration":      "recon",
+    "recon":             "recon",
+    "prank":             "prank",
+    "general":           "utility",
+    "incident_response": "utility",
+    "surveillance":      "surveillance",
+    "mobile":            "utility",
+    # narstybits MacOS-DuckyScripts categories
+    "executions":        "shell",
+    "goodusb":           "utility",
+    "obscurity":         "evasion",
+    "pranks":            "prank",
+    "keylogger":         "surveillance",
+    "reverse_shell":     "shell",
+    "sudo_password_grabber": "credentials",
+    "full_passwords_grabber": "credentials",
+}
+
+def detect_category(content: str, filename: str = "", path: str = "") -> str:
+    # Priority 1: parent directory name maps cleanly
+    if path:
+        from pathlib import Path
+        parts = Path(path).parts
+        for part in reversed(parts[:-1]):  # walk up from file, skip filename
+            mapped = _DIR_CATEGORY_MAP.get(part.lower())
+            if mapped:
+                return mapped
+
     lower = content.lower() + filename.lower()
-    if any(x in lower for x in ["recon","reconnaissance","exfil","loot","grab","steal","harvest","dump"]):
-        return "recon"
-    if any(x in lower for x in ["shell","reverse","backdoor","persist","startup","schedule"]):
-        return "shell"
-    if any(x in lower for x in ["cred","password","wifi","hash","login","auth"]):
-        return "credentials"
-    if any(x in lower for x in ["prank","troll","rickroll","chaos","annoy","fun","joke"]):
-        return "prank"
-    if any(x in lower for x in ["lock","nuke","destroy","wipe","ransom","encrypt","delete"]):
-        return "disruption"
-    if any(x in lower for x in ["keylog","screenshot","screen","record","mic","audio","spy"]):
+
+    # Priority 2: strong content signals (ordered most→least specific)
+    if any(x in lower for x in ["keylog","keystroke injection","keylogger"]):
         return "surveillance"
-    if any(x in lower for x in ["escalat","uac","admin","privilege","bypass"]):
+    if any(x in lower for x in ["reverse shell","reverseshell","bash -i >","tcp/","netcat","ncat -e",
+                                  "winrm","psremoting","evil-winrm"]):
+        return "shell"
+    if any(x in lower for x in ["exfil","webhook","dropbox api","discord.com/api","http post",
+                                  "curl -x post","invoke-restmethod","send.*loot"]):
+        return "recon"
+    if any(x in lower for x in ["sam.bak","system.bak","lsass","mimikatz","secretsdump",
+                                  "hashdump","credential dump","password grab","sudo.*snatch",
+                                  "wifi.*password","netsh wlan show"]):
+        return "credentials"
+    if any(x in lower for x in ["launchagent","run key","startup","schedule","persist",
+                                  "hkcu.*run","crontab","autorun"]):
+        return "persistence"
+    if any(x in lower for x in ["uac bypass","fodhelper","disable.*defender","amsi","set-mppref",
+                                  "spctl --master","gatekeeper","av bypass"]):
+        return "evasion"
+    if any(x in lower for x in ["escalat","privilege","admin","net localgroup","sudo su"]):
         return "privesc"
-    if any(x in lower for x in ["network","wifi","ssid","ip","port","scan"]):
+    if any(x in lower for x in ["prank","rickroll","troll","jumpscare","annoy","fun\n",
+                                  "wallpaper","screensaver","rage","ascii"]):
+        return "prank"
+    if any(x in lower for x in ["port scan","nmap","ifconfig","ipconfig","network info",
+                                  "arp -a","netstat","traceroute"]):
         return "network"
+    if any(x in lower for x in ["recon","reconnaissance","hostname","whoami","sysinfo",
+                                  "systeminfo","uname","lscpu","ip addr"]):
+        return "recon"
+    if any(x in lower for x in ["screenshot","screen capture","record","microphone","audio"]):
+        return "surveillance"
     return "utility"
 
 DUCKY_COMMANDS = {
@@ -131,17 +191,18 @@ def index_existing_payloads() -> dict:
         if ".git" in str(path):
             continue
         try:
-            content = path.read_text(encoding="utf-8", errors="ignore")
-            platform = detect_platform(content, path.name)
-            category = detect_category(content, path.name)
+            content  = path.read_text(encoding="utf-8", errors="ignore")
+            rel_path = str(path.relative_to(ROOT_DIR))
+            platform = detect_platform(content, path.name, rel_path)
+            category = detect_category(content, path.name, rel_path)
             lines = [l.strip() for l in content.split("\n") if l.strip() and not l.strip().startswith("REM")]
             index[platform].append({
-                "name": path.name,
-                "path": str(path.relative_to(ROOT_DIR)),
+                "name":     path.name,
+                "path":     rel_path,
                 "platform": platform,
                 "category": category,
-                "lines": len(lines),
-                "preview": content[:200],
+                "lines":    len(lines),
+                "preview":  content[:200],
             })
         except Exception:
             pass

@@ -38,7 +38,7 @@ NUM_THREAD     = int(os.getenv("OLLAMA_NUM_THREAD",   "4"))
 MIN_FREE_RAM_MB  = 512    # warn if less than this available
 MIN_SWAP_MB      = 2048   # warn if less than this swap
 TIMEOUT_HEALTH   = 3      # seconds for health ping
-TIMEOUT_GENERATE = 120    # seconds for inference smoke test — Pi 5 is slow on cold load
+TIMEOUT_GENERATE = 30     # smoke test — fast check only, not a real inference
 
 
 def _api_get(path: str) -> dict | None:

@@ -459,16 +459,18 @@ if __name__ == "__main__":
     # ── AI ────────────────────────────────────────────────────────────────
     from src.ai import ERR0RSAI
 
-    # Run Ollama health check before loading AI (non-blocking)
+    # Run Ollama health check in background — never blocks boot
     try:
+        import threading
         from src.ai.ollama_health import run_health_check, auto_fix_model
-        health = run_health_check(verbose=True)
-        if not health["overall"]:
-            good_model = auto_fix_model(health)
-            if good_model:
-                os.environ["OLLAMA_MODEL"] = good_model
-            # Don't block startup — inference timeout is normal on cold load
-            _log.warning("Ollama health check flagged issues — continuing anyway (cold load)")
+        def _bg_health():
+            try:
+                health = run_health_check(verbose=True)
+                if not health["overall"]:
+                    _log.warning("Ollama health: issues detected (cold load is normal)")
+            except Exception as e:
+                _log.debug(f"Health check error: {e}")
+        threading.Thread(target=_bg_health, daemon=True).start()
     except Exception as _he:
         _log.debug(f"Health check skipped: {_he}")
 

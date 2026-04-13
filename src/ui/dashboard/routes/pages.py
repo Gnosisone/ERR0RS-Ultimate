@@ -41,6 +41,11 @@ def view_report(filename: str):
     return render_template("report_view.html", content=content, filename=filename)
 
 
+@pages_bp.route("/payload_studio")
+def payload_studio():
+    return render_template("payload_studio.html")
+
+
 @pages_bp.route("/reports")
 def reports_page():
     rg         = current_app.config.get("REPORT_GENERATOR")

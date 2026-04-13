@@ -34,6 +34,7 @@ REPO_CONFIGS = {
     "I-Am-Jakoby-FlipperBadUSB": "payloads_dir",    # Payloads/Flip-*/
     "Flipper-Zero-BadUSB":        "payloads_dir",    # same author, same structure
     "aleff-flipper-shits":        "flat_payloads",   # payload dirs at root
+    "MacOS-DuckyScripts":         "per_file_categories", # category dirs each with many .txt files
     "bad_ducky":                  "flat_payloads",   # demo_scripts/ at root
     "WHID-injector":              "flat_payloads",   # Payloads/ + misc dirs
     "WHID-31337":                 "flat_payloads",   # RF/HID attack dirs at root
@@ -226,6 +227,71 @@ def _ingest_flat_dirs(root, repo_name):
     return chunks
 
 
+def _ingest_per_file(root, repo_name):
+    """
+    Ingest repos where each .txt file IS the payload (MacOS-DuckyScripts style).
+    Category dirs contain individual payload files directly.
+    """
+    chunks = []
+    SKIP = {".git", ".github", "Assets", "Images"}
+    
+    for cat_dir in sorted(root.iterdir()):
+        if not cat_dir.is_dir() or cat_dir.name.startswith(".") or cat_dir.name in SKIP:
+            continue
+        category = cat_dir.name
+        
+        for payload_file in sorted(cat_dir.rglob("*.txt")):
+            if ".git" in str(payload_file):
+                continue
+            try:
+                content = payload_file.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            if len(content.strip()) < 20:
+                continue
+            
+            header = parse_payload_header(content)
+            title  = header.get("title") or payload_file.stem
+            author = header.get("author", "narstybits")
+            desc   = header.get("description", "")
+            target = header.get("target", "macOS")
+            
+            lower  = content.lower()
+            mitre  = "T1200"
+            if any(w in lower for w in ["password","sudo","credential"]): mitre="T1552"
+            elif any(w in lower for w in ["reverse shell","bash -i"]): mitre="T1059"
+            elif any(w in lower for w in ["keylog","keystroke"]): mitre="T1056"
+            elif any(w in lower for w in ["recon","port scan","ifconfig","ipconfig"]): mitre="T1082"
+            elif any(w in lower for w in ["exfil","dropbox","webhook"]): mitre="T1041"
+            
+            uid = hashlib.sha256(
+                f"{repo_name}::{category}::{payload_file.name}".encode()
+            ).hexdigest()[:16]
+            
+            chunks.append({
+                "id": uid,
+                "document": "\n".join(filter(None, [
+                    f"[BadUSB: {repo_name}/{category}/{payload_file.stem}]",
+                    f"Title: {title}", f"Author: {author}",
+                    f"Category: {category}", f"Target: {target}",
+                    f"Description: {desc}" if desc else "",
+                    f"\nPAYLOAD:\n{content[:1200]}",
+                ])),
+                "metadata": {
+                    "source": f"badusb/{repo_name}",
+                    "repo": repo_name,
+                    "category": category,
+                    "payload": payload_file.stem,
+                    "title": title,
+                    "author": author,
+                    "target_os": "macos",
+                    "mitre": mitre,
+                    "attack_type": "badusb",
+                }
+            })
+    return chunks
+
+
 def collect_all_chunks():
     all_chunks = []
     CATEGORY_REPOS = {"nocomp-hack5-payloads"}
@@ -237,6 +303,8 @@ def collect_all_chunks():
         log.info(f"\n  📂 {name}...")
         if name in CATEGORY_REPOS:
             chunks = chunk_badusb_repo(repo_dir, name)
+        elif REPO_CONFIGS.get(name) == "per_file_categories":
+            chunks = _ingest_per_file(repo_dir, name)
         elif name in PAYLOADS_DIR_REPOS:
             pd = repo_dir/"Payloads"
             chunks = _ingest_flat_dirs(pd if pd.exists() else repo_dir, name)

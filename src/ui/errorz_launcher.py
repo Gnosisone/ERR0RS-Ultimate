@@ -1755,6 +1755,7 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
 
             COLLECTIONS = ["payloads_all_things", "badusb_payloads"]
             all_results = []
+            grand_total = 0
 
             for col_name in COLLECTIONS:
                 try:
@@ -1777,6 +1778,7 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                         )
                         metas = resp["metadatas"][0] if resp["metadatas"] else []
                         docs  = resp["documents"][0]  if resp["documents"]  else []
+                        grand_total += len(metas)   # search results are the full match set
                     else:
                         resp = col.get(
                             limit=min(limit, total),
@@ -1785,6 +1787,7 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                         )
                         metas = resp["metadatas"] or []
                         docs  = resp["documents"]  or []
+                        grand_total += total        # use real collection count
 
                     ids   = resp["ids"]   if not search else resp["ids"][0]
                     for uid, meta, doc in zip(ids, metas, docs):
@@ -1828,7 +1831,7 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     seen.add(key)
                     deduped.append(r)
 
-            total_count = len(deduped)
+            total_count = grand_total
             page        = deduped[:limit]
 
             self._json({"status":"ok", "results": page, "total": total_count})

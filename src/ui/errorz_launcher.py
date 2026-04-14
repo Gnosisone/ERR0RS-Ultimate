@@ -1182,6 +1182,9 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
         print(f"[ERR0RS] {msg}")
 
     def end_headers(self):
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Origin",  "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
@@ -1201,6 +1204,10 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                             "live_terminal": LIVE_TERMINAL})
             elif self.path == "/api/payload_studio/snippets":
                 self._payload_snippets()
+            elif self.path.startswith("/api/payload_studio/payloads"):
+                self._kb_payloads()
+            elif self.path.startswith("/api/payload_studio/payload"):
+                self._kb_payload_detail()
             # ── Terminal Bridge GET routes ─────────────────────────────────
             elif self.path == "/api/tool/registry":
                 if TERMINAL_BRIDGE:
@@ -1249,9 +1256,9 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                            else run_shell(f"{tool} {target}", timeout=120))
 
             elif self.path == "/api/shell":
-                cmd     = payload.get("cmd","").strip()
-                timeout = payload.get("timeout",60)
-                self._json(run_shell(cmd,timeout) if cmd else {"error":"no cmd"})
+                cmd     = (payload.get("cmd") or payload.get("command","")).strip()
+                timeout = payload.get("timeout", 60)
+                self._json(run_shell(cmd, timeout) if cmd else {"error": "no cmd — send {cmd} or {command}"})
 
             # ── Terminal Bridge POST routes ────────────────────────────────
             elif self.path == "/api/terminal/launch":
@@ -1472,7 +1479,10 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
 
             elif self.path == "/api/killchain":
                 if KILLCHAIN_ENGINE:
-                    self._json(handle_killchain_command(payload))
+                    try:
+                        self._json(handle_killchain_command(payload))
+                    except Exception as e:
+                        self._json({"status":"error","error":str(e)})
                 else:
                     self._json({"status":"error","error":"Kill Chain engine not loaded"})
 
@@ -1529,6 +1539,125 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 else:
                     self._json({"status":"error","error":"AI Threat Engine not loaded"})
 
+            elif self.path == "/api/ctf":
+                if CTF_ENGINE:
+                    category = payload.get("category","")
+                    self._json({"status":"ok","output": run_ctf(category)})
+                else:
+                    self._json({"status":"error","error":"CTF Solver not loaded"})
+
+            elif self.path == "/api/opsec":
+                if OPSEC_ENGINE:
+                    topic = payload.get("topic","")
+                    self._json({"status":"ok","output": run_opsec(topic)})
+                else:
+                    self._json({"status":"error","error":"OPSEC module not loaded"})
+
+            elif self.path == "/api/postex":
+                if POSTEX_ENGINE:
+                    try:
+                        from src.tools.postex.postex_module import PostExController
+                        ctrl   = PostExController()
+                        action = payload.get("action","full_report")
+                        result = ctrl.run(action)
+                        import dataclasses
+                        self._json({"status":"ok","result": dataclasses.asdict(result)})
+                    except Exception as e:
+                        self._json({"status":"error","error":str(e)})
+                else:
+                    self._json({"status":"error","error":"Post-exploitation module not loaded"})
+
+            elif self.path == "/api/privesc":
+                if POSTEX_ENGINE:
+                    try:
+                        from src.tools.postex.privesc_module import PrivescController
+                        ctrl   = PrivescController()
+                        action = payload.get("action","all")
+                        result = ctrl.run(action)
+                        import dataclasses
+                        self._json({"status":"ok","result": dataclasses.asdict(result)})
+                    except Exception as e:
+                        self._json({"status":"error","error":str(e)})
+                else:
+                    self._json({"status":"error","error":"Privesc module not loaded"})
+
+            elif self.path == "/api/lateral":
+                if POSTEX_ENGINE:
+                    try:
+                        import dataclasses, concurrent.futures, io, contextlib
+                        from src.tools.postex.lateral_movement import LateralMovementController
+                        action  = payload.get("action","smb_spray")
+                        params  = payload.get("params",{})
+                        dry_run = payload.get("dry_run", False)
+
+                        # For scan/spray actions that run live tools, return wizard info
+                        # instead of blocking — set dry_run=false to actually execute
+                        LIVE_ACTIONS = {"smb_spray","pth","psexec","wmiexec",
+                                        "kerberoast","dcsync","bloodhound"}
+                        if action in LIVE_ACTIONS and dry_run:
+                            from src.tools.postex.lateral_movement import LATERAL_WIZARD_MENU
+                            self._json({"status":"ok","dry_run":True,
+                                       "wizard": LATERAL_WIZARD_MENU,
+                                       "message": f"Action '{action}' ready. Send dry_run=false to execute."})
+                        else:
+                            def _run_lat():
+                                buf = io.StringIO()
+                                with contextlib.redirect_stdout(buf):
+                                    r = LateralMovementController().run(action, params)
+                                return r, buf.getvalue()
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                                future = ex.submit(_run_lat)
+                                result, log = future.result(timeout=7)
+                            d = dataclasses.asdict(result)
+                            d["_log"] = log[:500]
+                            self._json({"status":"ok","result": d})
+                    except concurrent.futures.TimeoutError:
+                        self._json({"status":"ok","running":True,
+                                   "message":"Lateral command running — use WebSocket terminal for live output"})
+                    except Exception as e:
+                        self._json({"status":"error","error":str(e)})
+                else:
+                    self._json({"status":"error","error":"Lateral movement module not loaded"})
+
+            elif self.path == "/api/wireless":
+                if WIRELESS_ENGINE:
+                    try:
+                        import dataclasses, concurrent.futures, io, contextlib
+                        from src.tools.wireless.wireless_module import WirelessModule
+                        action  = payload.get("action","scan")
+                        params  = payload.get("params",{})
+                        dry_run = payload.get("dry_run", False)
+
+                        # Blocking actions: scan (30s), capture, deauth, crack, pmkid
+                        LIVE_ACTIONS = {"scan","capture","deauth","crack","pmkid"}
+                        if action in LIVE_ACTIONS and dry_run:
+                            from src.tools.wireless.wireless_module import WIRELESS_WIZARD_MENU
+                            self._json({"status":"ok","dry_run":True,
+                                       "wizard": WIRELESS_WIZARD_MENU,
+                                       "message": f"Action '{action}' ready. Send dry_run=false to execute."})
+                        else:
+                            # Shorten scan duration for API calls unless explicitly set
+                            if action == "scan" and "duration" not in params:
+                                params["duration"] = 5
+                            def _run_wir():
+                                buf = io.StringIO()
+                                with contextlib.redirect_stdout(buf):
+                                    r = WirelessModule().run(action, params)
+                                return r, buf.getvalue()
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                                future = ex.submit(_run_wir)
+                                result, log = future.result(timeout=7)
+                            d = dataclasses.asdict(result)
+                            d["_log"] = log[:500]
+                            self._json({"status":"ok","result": d})
+                    except concurrent.futures.TimeoutError:
+                        self._json({"status":"ok","running":True,
+                                   "message":"Wireless command running — use WebSocket terminal for live output"})
+                    except Exception as e:
+                        self._json({"status":"error","error":str(e)})
+                else:
+                    self._json({"status":"error","error":"Wireless module not loaded"})
+
             elif self.path == "/api/soc":
                 action = payload.get("action","").strip()
                 soc_cmds = {
@@ -1568,7 +1697,22 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
             except Exception: pass
 
     def _json(self, data: dict, code: int = 200):
-        body = json.dumps(data).encode()
+        def _safe(obj):
+            """Fallback serializer — handles dataclasses, enums, sets, objects."""
+            import dataclasses, enum
+            if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+                return dataclasses.asdict(obj)
+            if isinstance(obj, enum.Enum):
+                return obj.value
+            if isinstance(obj, set):
+                return list(obj)
+            if hasattr(obj, "__dict__"):
+                return obj.__dict__
+            return str(obj)
+        try:
+            body = json.dumps(data, default=_safe).encode()
+        except Exception as e:
+            body = json.dumps({"status": "error", "error": f"Serialization failed: {e}"}).encode()
         self.send_response(code)
         self.send_header("Content-Type","application/json")
         self.send_header("Content-Length",str(len(body)))
@@ -1580,6 +1724,157 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
         try:
             from src.tools.payload_studio.snippets import SNIPPETS
             self._json({"status":"ok","snippets":SNIPPETS})
+        except Exception as e:
+            self._json({"status":"error","error":str(e)})
+
+    def _kb_payloads(self):
+        """
+        GET /api/payload_studio/payloads?limit=300&platform=all&category=&search=
+        Queries both ChromaDB payload collections and returns merged results.
+        Falls back to SNIPPETS dict if ChromaDB unavailable.
+        """
+        try:
+            from urllib.parse import urlparse, parse_qs
+            qs     = parse_qs(urlparse(self.path).query)
+            limit  = int(qs.get("limit",  ["300"])[0])
+            plat   = qs.get("platform", ["all"])[0].strip().lower()
+            cat    = qs.get("category", [""])[0].strip().lower()
+            search = qs.get("search",   [""])[0].strip().lower()
+
+            import chromadb
+            KB_PATH = str(ROOT_DIR / "errors_knowledge_db")
+            client  = chromadb.PersistentClient(path=KB_PATH)
+
+            COLLECTIONS = ["payloads_all_things", "badusb_payloads"]
+            all_results = []
+
+            for col_name in COLLECTIONS:
+                try:
+                    col   = client.get_collection(col_name)
+                    total = col.count()
+                    if total == 0:
+                        continue
+
+                    # Build ChromaDB where filter
+                    where = None
+                    if cat and cat not in ("", "all"):
+                        where = {"category": {"$eq": cat}}
+
+                    if search:
+                        resp = col.query(
+                            query_texts=[search],
+                            n_results=min(limit, total),
+                            where=where,
+                            include=["metadatas", "documents"],
+                        )
+                        metas = resp["metadatas"][0] if resp["metadatas"] else []
+                        docs  = resp["documents"][0]  if resp["documents"]  else []
+                    else:
+                        resp = col.get(
+                            limit=min(limit, total),
+                            where=where,
+                            include=["metadatas", "documents"],
+                        )
+                        metas = resp["metadatas"] or []
+                        docs  = resp["documents"]  or []
+
+                    ids   = resp["ids"]   if not search else resp["ids"][0]
+                    for uid, meta, doc in zip(ids, metas, docs):
+                        # Platform filter (client-side — metadata has no platform key)
+                        if plat not in ("all", ""):
+                            combined = (meta.get("path","") + meta.get("source","") + doc).lower()
+                            plat_hints = {
+                                "windows": ["windows","powershell","win32","winapi","ntlm"],
+                                "linux":   ["linux","bash","unix","elf","proc/"],
+                                "macos":   ["macos","darwin","osx","launchd"],
+                                "android": ["android","apk","adb","dalvik"],
+                                "ios":     ["ios","iphone","objc","swift","mobileconfig"],
+                            }
+                            hints = plat_hints.get(plat, [plat])
+                            if not any(h in combined for h in hints):
+                                continue
+
+                        path  = meta.get("path", "")
+                        title = meta.get("section") or (path.split("/")[-1].replace(".md","").replace("_"," ").title()) or "Payload"
+
+                        all_results.append({
+                            "id":          uid,
+                            "title":       title,
+                            "category":    meta.get("category","unknown"),
+                            "attack_type": meta.get("attack_type",""),
+                            "source":      meta.get("source",""),
+                            "mitre":       meta.get("mitre",""),
+                            "path":        path,
+                            "preview":     doc[:180] if doc else "",
+                            "collection":  col_name,
+                        })
+                except Exception as col_err:
+                    continue  # skip broken collection, keep going
+
+            # Deduplicate by ChromaDB uid (guaranteed unique)
+            seen    = set()
+            deduped = []
+            for r in all_results:
+                key = r["id"]
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(r)
+
+            total_count = len(deduped)
+            page        = deduped[:limit]
+
+            self._json({"status":"ok", "results": page, "total": total_count})
+
+        except Exception as e:
+            # Graceful fallback to static SNIPPETS so the tab isn't empty
+            try:
+                from src.tools.payload_studio.snippets import SNIPPETS
+                flat = []
+                for plat_key, items in SNIPPETS.items():
+                    for s in items:
+                        flat.append({
+                            "id":       s.get("id",""),
+                            "title":    s.get("title",""),
+                            "category": s.get("category",""),
+                            "source":   "snippets_fallback",
+                            "preview":  s.get("code","")[:180],
+                            "path":     "",
+                            "mitre":    "",
+                        })
+                self._json({"status":"ok","results":flat,"total":len(flat),
+                            "warning": f"ChromaDB unavailable ({e}), showing static snippets"})
+            except Exception as e2:
+                self._json({"status":"error","error":str(e),"results":[],"total":0})
+
+    def _kb_payload_detail(self):
+        """
+        GET /api/payload_studio/payload?path=<encoded_path>
+        Returns full document text for a single payload by its path key.
+        """
+        try:
+            from urllib.parse import urlparse, parse_qs, unquote
+            qs   = parse_qs(urlparse(self.path).query)
+            path = unquote(qs.get("path", [""])[0])
+            col_name = qs.get("collection", ["payloads_all_things"])[0]
+
+            if not path:
+                self._json({"status":"error","error":"path param required"}); return
+
+            import chromadb
+            KB_PATH = str(ROOT_DIR / "errors_knowledge_db")
+            client  = chromadb.PersistentClient(path=KB_PATH)
+            col     = client.get_collection(col_name)
+
+            resp = col.get(where={"path": {"$eq": path}}, include=["metadatas","documents"])
+            if not resp["documents"]:
+                self._json({"status":"error","error":"not found"}); return
+
+            self._json({
+                "status":   "ok",
+                "path":     path,
+                "content":  resp["documents"][0],
+                "metadata": resp["metadatas"][0],
+            })
         except Exception as e:
             self._json({"status":"error","error":str(e)})
 

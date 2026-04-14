@@ -202,15 +202,23 @@ def patch_registry():
     # Fix killchain — takes only (params) not (cmd, params)
     try:
         import src.orchestration.auto_killchain as akc
-        def _killchain_wrapper(cmd, p=None):
-            from src.orchestration.auto_killchain import handle_killchain_command as _hkc
-            p = dict(p) if p else {}
-            p.setdefault("command", cmd)
-            p.setdefault("target", _extract_target(cmd) or "127.0.0.1")
-            try:
-                return _hkc(p)
-            except Exception as e:
-                return {"status": "ok", "stdout": f"Auto Kill Chain ready. Target: {p['target']}\nError: {e}"}
+        # Capture original BEFORE patching to avoid infinite recursion
+        _orig_kc = akc.handle_killchain_command
+        def _killchain_wrapper(cmd_or_params, p=None):
+            # Handle both calling conventions:
+            #   HTTP API:  handle_killchain_command({"target":..., "mode":...})
+            #   CLI route: handle_killchain_command("cmd string", {params})
+            if isinstance(cmd_or_params, dict):
+                return _orig_kc(cmd_or_params)
+            else:
+                cmd = str(cmd_or_params)
+                p   = dict(p) if p else {}
+                p.setdefault("command", cmd)
+                p.setdefault("target", _extract_target(cmd) or "127.0.0.1")
+                try:
+                    return _orig_kc(p)
+                except Exception as e:
+                    return {"status": "ok", "stdout": f"Auto Kill Chain ready. Target: {p.get('target','?')}\nError: {e}"}
         akc.handle_killchain_command = _killchain_wrapper
     except Exception:
         pass

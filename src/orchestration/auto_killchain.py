@@ -209,6 +209,24 @@ class PhaseResult:
     ended_at:    str  = ""
 
 
+# ── Thread-safe log buffer — avoids sys.stdout race with HTTP server ────────
+import threading as _threading
+_kc_log = _threading.local()
+
+def _kc_print(*args, **kwargs):
+    """Drop-in print() replacement that writes to a thread-local buffer."""
+    text = " ".join(str(a) for a in args)
+    if not hasattr(_kc_log, "lines"):
+        _kc_log.lines = []
+    _kc_log.lines.append(text)
+
+def _kc_get_log() -> str:
+    """Retrieve and clear the current thread's log buffer."""
+    lines = getattr(_kc_log, "lines", [])
+    _kc_log.lines = []
+    return "\n".join(lines)
+
+
 class AutoKillChain:
     """
     Fully automated penetration testing kill chain.
@@ -241,12 +259,12 @@ class AutoKillChain:
         self.params = params or {}
         selected = phases or [p["id"] for p in KILL_CHAIN_PHASES]
 
-        print(f"\n{'='*60}")
-        print(f"  ERR0RS AUTO KILL CHAIN — {self.mode} MODE")
-        print(f"  Target: {target}")
-        print(f"  Phases: {len(selected)}")
-        print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'='*60}\n")
+        _kc_print(f"\n{'='*60}")
+        _kc_print(f"  ERR0RS AUTO KILL CHAIN — {self.mode} MODE")
+        _kc_print(f"  Target: {target}")
+        _kc_print(f"  Phases: {len(selected)}")
+        _kc_print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        _kc_print(f"{'='*60}\n")
 
         if self.mode == "DRY_RUN":
             return self._dry_run(selected)
@@ -272,10 +290,10 @@ class AutoKillChain:
 
             # Pause for review unless FULL_AUTO or phase allows auto_next
             if self.mode == "SUPERVISED" and not phase_def.get("auto_next"):
-                print(f"\n⏸  Phase complete. Found {len(result.findings)} findings.")
+                _kc_print(f"\n⏸  Phase complete. Found {len(result.findings)} findings.")
                 cont = input("  Continue to next phase? [Y/n]: ").strip().lower()
                 if cont in ("n", "no", "stop"):
-                    print("\n⏹  Kill chain paused by operator.")
+                    _kc_print("\n⏹  Kill chain paused by operator.")
                     break
 
         return self._summarize()
@@ -286,11 +304,11 @@ class AutoKillChain:
             phase_name=phase_def["name"],
             started_at=datetime.now().isoformat(),
         )
-        print(f"\n{'─'*60}")
-        print(f"  {phase_def['name']}")
-        print(f"  {phase_def['desc']}")
-        print(f"  MITRE: {phase_def['mitre']}")
-        print(f"{'─'*60}")
+        _kc_print(f"\n{'─'*60}")
+        _kc_print(f"  {phase_def['name']}")
+        _kc_print(f"  {phase_def['desc']}")
+        _kc_print(f"  MITRE: {phase_def['mitre']}")
+        _kc_print(f"{'─'*60}")
 
         t0 = datetime.now()
 
@@ -304,7 +322,7 @@ class AutoKillChain:
             if not cmd:
                 continue
 
-            print(f"  ▶ Running: {tool_id}...", end="", flush=True)
+            _kc_print(f"  ▶ Running: {tool_id}...", end="", flush=True)
 
             try:
                 proc = subprocess.run(
@@ -317,33 +335,33 @@ class AutoKillChain:
                 for f in found:
                     f["tool"] = tool_id
                 result.findings.extend(found)
-                print(f" ✅ ({len(found)} findings)")
+                _kc_print(f" ✅ ({len(found)} findings)")
                 result.tools_run += 1
             except subprocess.TimeoutExpired:
-                print(f" ⏱  TIMEOUT")
+                _kc_print(f" ⏱  TIMEOUT")
                 result.raw_outputs[tool_id] = "TIMEOUT"
             except Exception as e:
-                print(f" ❌ ERROR: {e}")
+                _kc_print(f" ❌ ERROR: {e}")
                 result.raw_outputs[tool_id] = f"ERROR: {e}"
 
         result.duration_s = (datetime.now() - t0).total_seconds()
         result.ended_at   = datetime.now().isoformat()
         result.status     = "complete"
 
-        print(f"\n  Phase complete: {result.tools_run} tools ran, "
+        _kc_print(f"\n  Phase complete: {result.tools_run} tools ran, "
               f"{len(result.findings)} findings, {result.duration_s:.0f}s")
         return result
 
     def _dry_run(self, selected: list) -> dict:
-        print("  DRY RUN — Commands that would execute:\n")
+        _kc_print("  DRY RUN — Commands that would execute:\n")
         for phase_def in KILL_CHAIN_PHASES:
             if phase_def["id"] not in selected:
                 continue
-            print(f"  [{phase_def['name']}]")
+            _kc_print(f"  [{phase_def['name']}]")
             for tool_id in phase_def["tools"]:
                 cmd = _build_cmd(tool_id, self.target, self.params)
-                print(f"    → {tool_id}: {cmd[:80] if cmd else 'N/A'}...")
-            print()
+                _kc_print(f"    → {tool_id}: {cmd[:80] if cmd else 'N/A'}...")
+            _kc_print()
         return {"status": "dry_run", "target": self.target,
                 "phases": selected, "mode": self.mode}
 
@@ -353,15 +371,15 @@ class AutoKillChain:
             sev = f.get("severity", "info")
             by_severity[sev] = by_severity.get(sev, 0) + 1
 
-        print(f"\n{'='*60}")
-        print("  KILL CHAIN COMPLETE")
-        print(f"  Target:   {self.target}")
-        print(f"  Phases:   {len(self.results)} completed")
-        print(f"  Findings: {len(self.all_findings)} total")
+        _kc_print(f"\n{'='*60}")
+        _kc_print("  KILL CHAIN COMPLETE")
+        _kc_print(f"  Target:   {self.target}")
+        _kc_print(f"  Phases:   {len(self.results)} completed")
+        _kc_print(f"  Findings: {len(self.all_findings)} total")
         for sev, count in sorted(by_severity.items()):
             icon = {"critical":"🔴","high":"🟠","medium":"🟡","low":"🟢","info":"ℹ️"}.get(sev,"•")
-            print(f"    {icon} {sev.upper()}: {count}")
-        print(f"{'='*60}\n")
+            _kc_print(f"    {icon} {sev.upper()}: {count}")
+        _kc_print(f"{'='*60}\n")
 
         return {
             "status":      "complete",
@@ -389,13 +407,25 @@ async def auto_pentest(target: str, mode: str = "SUPERVISED",
 
 
 def handle_killchain_command(params: dict) -> dict:
-    """Entry point from ERR0RS route_command()"""
+    """Entry point from ERR0RS route_command() and HTTP API."""
     target = params.get("target", "")
     if not target:
         return {"status": "error", "stdout": "Target required. Usage: auto pentest 192.168.1.1"}
     mode = params.get("mode", "SUPERVISED").upper()
-    result = asyncio.run(auto_pentest(
-        target=target, mode=mode,
-        params=params, phases=params.get("phases"),
-    ))
-    return {"status": "success", "stdout": json.dumps(result, indent=2)}
+
+    _kc_log.lines = []
+
+    # Run in a fresh isolated event loop to avoid conflicts with any
+    # existing loop (WebSocket server, asyncio HTTP context, etc.)
+    import asyncio
+    loop = asyncio.new_event_loop()
+    try:
+        result = loop.run_until_complete(auto_pentest(
+            target=target, mode=mode,
+            params=params, phases=params.get("phases"),
+        ))
+    finally:
+        loop.close()
+
+    log = _kc_get_log()
+    return {"status": "success", "stdout": json.dumps(result, indent=2), "log": log}

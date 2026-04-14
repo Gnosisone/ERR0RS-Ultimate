@@ -1737,23 +1737,30 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
 
     def _kb_payloads(self):
         """
-        GET /api/payload_studio/payloads?limit=300&platform=all&category=&search=
-        Queries both ChromaDB payload collections and returns merged results.
-        Falls back to SNIPPETS dict if ChromaDB unavailable.
+        GET /api/payload_studio/payloads
+          ?limit=300
+          &platform=all|windows|macos|linux|android|ios|cross
+          &category=exfil|shell|persistence|...
+          &search=<query>
+          &collection=all|badusb_payloads|payloads_all_things
         """
         try:
             from urllib.parse import urlparse, parse_qs
-            qs     = parse_qs(urlparse(self.path).query)
-            limit  = int(qs.get("limit",  ["300"])[0])
-            plat   = qs.get("platform", ["all"])[0].strip().lower()
-            cat    = qs.get("category", [""])[0].strip().lower()
-            search = qs.get("search",   [""])[0].strip().lower()
+            qs         = parse_qs(urlparse(self.path).query)
+            limit      = int(qs.get("limit",      ["300"])[0])
+            plat       = qs.get("platform",  ["all"])[0].strip().lower()
+            cat        = qs.get("category",  [""])[0].strip().lower()
+            search     = qs.get("search",    [""])[0].strip().lower()
+            col_filter = qs.get("collection",["all"])[0].strip().lower()
 
             import chromadb
             KB_PATH = str(ROOT_DIR / "errors_knowledge_db")
             client  = chromadb.PersistentClient(path=KB_PATH)
 
-            COLLECTIONS = ["payloads_all_things", "badusb_payloads"]
+            # Decide which collections to query
+            ALL_COLS = ["payloads_all_things", "badusb_payloads"]
+            COLLECTIONS = [c for c in ALL_COLS if col_filter in ("all", c)]
+
             all_results = []
             grand_total = 0
 
@@ -1764,10 +1771,26 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     if total == 0:
                         continue
 
-                    # Build ChromaDB where filter
-                    where = None
+                    # Build ChromaDB where filter — combine category + platform
+                    # BadUSB collection has real metadata fields; PATT uses category only
+                    conditions = []
                     if cat and cat not in ("", "all"):
-                        where = {"category": {"$eq": cat}}
+                        conditions.append({"category": {"$eq": cat}})
+                    if plat and plat not in ("all", "") and col_name == "badusb_payloads":
+                        conditions.append({"platform": {"$eq": plat}})
+
+                    if len(conditions) == 0:
+                        where = None
+                    elif len(conditions) == 1:
+                        where = conditions[0]
+                    else:
+                        where = {"$and": conditions}
+
+                    # For platform filter on payloads_all_things, count without filter
+                    # (no platform metadata there — we'll post-filter below)
+                    count_where = where if col_name == "badusb_payloads" else (
+                        {"category": {"$eq": cat}} if cat and cat not in ("","all") else None
+                    )
 
                     if search:
                         resp = col.query(
@@ -1778,22 +1801,36 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                         )
                         metas = resp["metadatas"][0] if resp["metadatas"] else []
                         docs  = resp["documents"][0]  if resp["documents"]  else []
-                        grand_total += len(metas)   # search results are the full match set
+                        grand_total += len(metas)
                     else:
+                        # For count: use a separate small query to get real filtered total
+                        try:
+                            if count_where:
+                                count_resp = col.get(limit=1, where=count_where, include=[])
+                                # ChromaDB doesn't have a count-with-filter API so
+                                # estimate: get all IDs matching filter
+                                all_ids_resp = col.get(limit=total, where=count_where, include=[])
+                                filtered_total = len(all_ids_resp["ids"])
+                            else:
+                                filtered_total = total
+                        except Exception:
+                            filtered_total = total
+                        grand_total += filtered_total
+
                         resp = col.get(
-                            limit=min(limit, total),
+                            limit=min(limit, filtered_total if count_where else total),
                             where=where,
                             include=["metadatas", "documents"],
                         )
                         metas = resp["metadatas"] or []
                         docs  = resp["documents"]  or []
-                        grand_total += total        # use real collection count
 
-                    ids   = resp["ids"]   if not search else resp["ids"][0]
+                    ids = resp["ids"] if not search else resp["ids"][0]
+
                     for uid, meta, doc in zip(ids, metas, docs):
-                        # Platform filter (client-side — metadata has no platform key)
-                        if plat not in ("all", ""):
-                            combined = (meta.get("path","") + meta.get("source","") + doc).lower()
+                        # For payloads_all_things: post-filter by platform via text
+                        if plat not in ("all","") and col_name == "payloads_all_things":
+                            combined = (meta.get("path","") + meta.get("source","") + doc[:500]).lower()
                             plat_hints = {
                                 "windows": ["windows","powershell","win32","winapi","ntlm"],
                                 "linux":   ["linux","bash","unix","elf","proc/"],
@@ -1805,36 +1842,41 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                             if not any(h in combined for h in hints):
                                 continue
 
-                        path  = meta.get("path", "")
-                        title = meta.get("section") or (path.split("/")[-1].replace(".md","").replace("_"," ").title()) or "Payload"
+                        path = meta.get("path", "")
+
+                        # BadUSB payloads have a 'title' field; PATT uses 'section'
+                        title = (
+                            meta.get("title")
+                            or meta.get("section")
+                            or (path.split("/")[-1].replace(".md","").replace(".txt","")
+                                         .replace("_"," ").replace("-"," ").title())
+                            or "Payload"
+                        )
 
                         all_results.append({
                             "id":          uid,
                             "title":       title,
                             "category":    meta.get("category","unknown"),
+                            "platform":    meta.get("platform",""),
                             "attack_type": meta.get("attack_type",""),
                             "source":      meta.get("source",""),
+                            "author":      meta.get("author",""),
                             "mitre":       meta.get("mitre",""),
                             "path":        path,
                             "preview":     doc[:180] if doc else "",
                             "collection":  col_name,
                         })
                 except Exception as col_err:
-                    continue  # skip broken collection, keep going
+                    continue
 
-            # Deduplicate by ChromaDB uid (guaranteed unique)
-            seen    = set()
-            deduped = []
+            # Deduplicate by uid
+            seen, deduped = set(), []
             for r in all_results:
-                key = r["id"]
-                if key not in seen:
-                    seen.add(key)
+                if r["id"] not in seen:
+                    seen.add(r["id"])
                     deduped.append(r)
 
-            total_count = grand_total
-            page        = deduped[:limit]
-
-            self._json({"status":"ok", "results": page, "total": total_count})
+            self._json({"status":"ok", "results": deduped[:limit], "total": grand_total})
 
         except Exception as e:
             # Graceful fallback to static SNIPPETS so the tab isn't empty

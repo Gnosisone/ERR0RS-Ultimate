@@ -236,7 +236,7 @@
       <div class="lib-title">⚡ PAYLOAD LIBRARY</div>
       <div id="lib-mode-tabs">
         <div class="lm-tab active"    onclick="setLibMode('snippets')" id="lmt-snippets">SNIPPETS</div>
-        <div class="lm-tab kb"        onclick="setLibMode('kb')"       id="lmt-kb">KB (993+)</div>
+        <div class="lm-tab kb"        onclick="setLibMode('kb')"       id="lmt-kb">KB (2165)</div>
       </div>
       <input id="lib-search" type="text" placeholder="🔍 search payloads..." oninput="onLibSearch()"/>
       <div id="platform-tabs">
@@ -1638,16 +1638,17 @@ function onLibSearch() {
 }
 
 async function loadKBPayloads() {
-  const platform = document.getElementById('kb-platform-select').value;
-  const category = document.getElementById('kb-category-select').value;
-  const search   = document.getElementById('lib-search').value;
+  const platform   = document.getElementById('kb-platform-select').value;
+  const category   = document.getElementById('kb-category-select').value;
+  const search     = document.getElementById('lib-search').value;
+  const collection = 'badusb_payloads';  // KB tab always targets BadUSB payloads
 
   const loading = document.getElementById('kb-loading');
   loading.classList.add('visible');
   document.getElementById('snippet-list').innerHTML = '';
 
   try {
-    let url = `/api/payload_studio/payloads?limit=300`;
+    let url = `/api/payload_studio/payloads?limit=300&collection=${collection}`;
     if (platform !== 'all') url += `&platform=${platform}`;
     if (category)           url += `&category=${category}`;
     if (search)             url += `&search=${encodeURIComponent(search)}`;
@@ -1656,12 +1657,12 @@ async function loadKBPayloads() {
     const data = await r.json();
     kbPayloads = data.results || [];
     document.getElementById('kb-count-badge').textContent =
-      `${data.total} payloads found`;
+      `${data.total} payloads`;
     renderKBList(search.toLowerCase());
   } catch(e) {
     document.getElementById('snippet-list').innerHTML =
       `<div style="padding:16px;color:var(--red);font-size:.88rem;text-align:center;">
-        ⚠️ Could not reach API<br><small>Start ERR0RS dashboard: python3 main.py --dashboard</small>
+        ⚠️ Could not reach API<br><small>Start: python3 src/ui/errorz_launcher.py</small>
       </div>`;
   } finally {
     loading.classList.remove('visible');
@@ -1672,9 +1673,11 @@ function renderKBList(filterQ = '') {
   const list = document.getElementById('snippet-list');
   const shown = filterQ
     ? kbPayloads.filter(p =>
-        p.name.toLowerCase().includes(filterQ) ||
+        (p.title||'').toLowerCase().includes(filterQ) ||
         (p.preview||'').toLowerCase().includes(filterQ) ||
-        (p.category||'').toLowerCase().includes(filterQ))
+        (p.category||'').toLowerCase().includes(filterQ) ||
+        (p.author||'').toLowerCase().includes(filterQ) ||
+        (p.platform||'').toLowerCase().includes(filterQ))
     : kbPayloads;
 
   document.getElementById('sb-count').textContent = shown.length;
@@ -1686,16 +1689,18 @@ function renderKBList(filterQ = '') {
   }
 
   list.innerHTML = shown.map(p => {
-    const name     = (p.name||'').replace('.txt','').replace(/_/g,' ');
+    const title    = (p.title || p.path?.split('/').pop()?.replace(/\.(txt|md)$/,'') || 'Payload').replace(/_/g,' ');
     const category = p.category || 'utility';
     const platform = p.platform || 'cross';
+    const author   = p.author   ? `<span style="color:var(--text-dim);font-size:.75rem">${p.author}</span>` : '';
     const safe_path = (p.path||'').replace(/'/g, "\\'");
-    return `<div class="kb-card" data-collection="${p.collection||'payloads_all_things'}" onclick="loadKBPayload(this, '${safe_path}', '${name}')">
-      <div class="kb-name" title="${p.name}">${name}</div>
+    const col       = p.collection || 'badusb_payloads';
+    return `<div class="kb-card" data-collection="${col}" onclick="loadKBPayload(this, '${safe_path}', '${title.replace(/'/g,"\\'")}')">
+      <div class="kb-name" title="${title}">${title}</div>
       <div class="kb-meta">
         <span class="kb-cat">${category}</span>
         <span class="kb-plat">${platform}</span>
-        <span>${p.lines||0} lines</span>
+        ${author}
       </div>
     </div>`;
   }).join('');
@@ -1766,9 +1771,9 @@ async function loadKBPayload(el, path, name) {
 // Pre-warm KB in background on page load so it's instant on first click
 window.addEventListener('load', () => {
   renderSnippetList();
-  // Silent background prefetch — populates kbPayloads cache
+  // Silent background prefetch — populates kbPayloads cache (BadUSB collection only)
   setTimeout(() => {
-    fetch('/api/payload_studio/payloads?limit=300')
+    fetch('/api/payload_studio/payloads?limit=300&collection=badusb_payloads')
       .then(r => r.json())
       .then(d => {
         kbPayloads = d.results || [];

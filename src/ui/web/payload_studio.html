@@ -1771,6 +1771,46 @@ async function loadKBPayload(el, path, name) {
 // Pre-warm KB in background on page load so it's instant on first click
 window.addEventListener('load', () => {
   renderSnippetList();
+
+  // ── Pick up payload sent from badusb_catalog.html via sessionStorage ──
+  const pending = sessionStorage.getItem('loadPayload');
+  if (pending) {
+    sessionStorage.removeItem('loadPayload');
+    try {
+      const {path, collection, title} = JSON.parse(pending);
+      if (path && !path.startsWith('embedded:')) {
+        // Switch to KB tab and load
+        setLibMode('kb');
+        setTimeout(async () => {
+          const r = await fetch(
+            `/api/payload_studio/payload?path=${encodeURIComponent(path)}&collection=${collection||'badusb_payloads'}`
+          );
+          const d = await r.json();
+          if (d.content) {
+            const raw   = d.content;
+            const lines = raw.split('\n');
+            const body  = lines[0].match(/^\[.*?\]/) ? lines.slice(1) : lines;
+            const fmt   = body.map(l => {
+              l = l.trimEnd();
+              if (!l) return 'REM';
+              if (l.startsWith('REM') || l.match(/^(DELAY|STRING|GUI|ENTER|CTRL|ALT|SHIFT|WINDOWS|ATTACKMODE|DEFAULT_DELAY)\b/i)) return l;
+              if (l.startsWith('> ')) return 'REM ' + l.slice(2);
+              if (l.startsWith('# ')) return 'REM ' + l.replace(/^#+\s*/,'').toUpperCase();
+              return 'REM ' + l;
+            }).join('\n').replace(/(\nREM\s*){3,}/g,'\nREM\n').trim();
+
+            const hdr = `REM ======================================\nREM  ${title || path.split('/').pop()}\nREM  Source: ${path.split('/').slice(-2).join('/')}\nREM ======================================\n`;
+            editor.value = hdr + fmt + '\n\nDELAY 500\n';
+            document.getElementById('payload-name-input').value =
+              path.split('/').pop().replace('.txt','') + '.txt';
+            onEditorInput();
+            document.getElementById('ai-status').textContent = `📂 LOADED FROM CATALOG: ${title}`;
+          }
+        }, 300);
+      }
+    } catch(e) { /* silent */ }
+  }
+
   // Silent background prefetch — populates kbPayloads cache (BadUSB collection only)
   setTimeout(() => {
     fetch('/api/payload_studio/payloads?limit=300&collection=badusb_payloads')
@@ -1782,8 +1822,8 @@ window.addEventListener('load', () => {
         const tab = document.getElementById('lmt-kb');
         if (tab) tab.textContent = `KB (${d.total})`;
       })
-      .catch(() => {}); // silent fail, loads on click instead
-  }, 2000); // 2s delay — let page fully render first
+      .catch(() => {});
+  }, 2000);
 });
 
 </script>

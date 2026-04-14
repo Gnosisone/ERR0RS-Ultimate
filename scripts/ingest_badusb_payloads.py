@@ -1,395 +1,276 @@
 #!/usr/bin/env python3
 """
-ERR0RS — BadUSB Payload Library RAG Ingester
-=============================================
-Ingests Flipper Zero / Rubber Ducky / BadUSB payload collections
-into ChromaDB for semantic search and teach engine augmentation.
-
-Handles the nocomp/Flipper_Zero_Badusb_hack5_payloads structure
-and any similarly organized BadUSB repo.
+ERR0RS — BadUSB Payload Ingestor
+Scans knowledge/badusb/* for DuckyScript .txt files, parses REM metadata,
+and upserts everything into the 'badusb_payloads' ChromaDB collection.
 
 Usage:
     python3 scripts/ingest_badusb_payloads.py
-    python3 scripts/ingest_badusb_payloads.py --dry-run
-    python3 scripts/ingest_badusb_payloads.py --reset
-
-Author: Gary Holden Schneider (Eros) | ERR0RS-Ultimate
+    python3 scripts/ingest_badusb_payloads.py --reset   # wipe & re-ingest
+    python3 scripts/ingest_badusb_payloads.py --dry-run # count only
 """
 
-import os, sys, re, hashlib, argparse, logging
+import re, sys, hashlib, argparse
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-log = logging.getLogger(__name__)
+# ── Paths ─────────────────────────────────────────────────────────────────────
+ROOT       = Path(__file__).resolve().parents[1]
+BADUSB_DIR = ROOT / "knowledge" / "badusb"
+CHROMA_DIR = ROOT / "errors_knowledge_db"
+COLLECTION = "badusb_payloads"
 
-REPO_ROOT   = Path(__file__).resolve().parent.parent
-BADUSB_ROOT = REPO_ROOT / "knowledge" / "badusb"
-CHROMA_PATH = REPO_ROOT / "errors_knowledge_db"
-COLLECTION  = "badusb_payloads"
+sys.path.insert(0, str(ROOT))
 
-# Repo-specific ingestion configs
-# Maps repo dir name → (category_detection_mode, description)
-REPO_CONFIGS = {
-    "nocomp-hack5-payloads":      "category_dirs",   # credentials/execution/etc at root
-    "I-Am-Jakoby-FlipperBadUSB": "payloads_dir",    # Payloads/Flip-*/
-    "Flipper-Zero-BadUSB":        "payloads_dir",    # same author, same structure
-    "aleff-flipper-shits":        "flat_payloads",   # payload dirs at root
-    "MacOS-DuckyScripts":         "per_file_categories", # category dirs each with many .txt files
-    "bad_ducky":                  "flat_payloads",   # demo_scripts/ at root
-    "WHID-injector":              "flat_payloads",   # Payloads/ + misc dirs
-    "WHID-31337":                 "flat_payloads",   # RF/HID attack dirs at root
-}
+# ── DuckyScript detection ─────────────────────────────────────────────────────
+DUCKY_RE = re.compile(
+    r'^\s*(REM|DELAY|STRING|STRINGLN|GUI|ENTER|TAB|ALT|CTRL|SHIFT|WINDOWS|'
+    r'DEFAULT_DELAY|ATTACKMODE|ID|REPEAT|WAIT_FOR_BUTTON_PRESS|'
+    r'UPARROW|DOWNARROW|LEFTARROW|RIGHTARROW|ESCAPE|BACKSPACE|'
+    r'F\d{1,2}|CAPS|NUMLOCK|SCROLLOCK|PRINTSCREEN|SPACE|HOME|END|'
+    r'PAGEUP|PAGEDOWN|INSERT|DELETE|LED)\b',
+    re.MULTILINE
+)
 
-# Category → MITRE mapping
-CATEGORY_MITRE = {
-    "credentials":       "T1056",    # Input Capture / Credential Harvesting
-    "execution":         "T1059",    # Command & Scripting Interpreter
-    "exfiltration":      "T1041",    # Exfiltration Over C2 Channel
-    "remote_access":     "T1021.006",# Remote Services — WinRM
-    "recon":             "T1082",    # System Information Discovery
-    "general":           "T1200",    # Hardware Additions
-    "incident_response": "T1200",    # Hardware Additions
-    "mobile":            "T1200",    # Hardware Additions
-    "prank":             "T1200",    # Hardware Additions
-}
+# ── Metadata parser ──────────────────────────────────────────────────────────
+REM_FIELD_RE = re.compile(
+    r'^\s*REM\s+(Title|Author|Description|Target|Category|Version|Requirements?|'
+    r'Tags?|Platform|OS|Date)\s*[:\-]?\s*(.+)',
+    re.IGNORECASE
+)
 
-# Target OS detection
-def detect_os(content: str) -> str:
-    c = content.lower()
-    if any(w in c for w in ["powershell", "cmd", "winrm", "net user", "reg add", "windows"]):
-        return "windows"
-    if any(w in c for w in ["sudo", "bash", "linux", "apt", "chmod"]):
-        return "linux"
-    if any(w in c for w in ["android", "adb", "mobile"]):
-        return "android"
-    if any(w in c for w in ["ios", "iphone", "imessage"]):
-        return "ios"
-    return "multi"
+def infer_platform(path: Path, content: str) -> str:
+    """Infer target OS from path and content."""
+    parts = str(path).lower()
+    text  = content.lower()
+    if any(x in parts for x in ["windows", "win"]):       return "windows"
+    if any(x in parts for x in ["macos", "mac", "osx"]):  return "macos"
+    if any(x in parts for x in ["linux", "unix"]):        return "linux"
+    if any(x in parts for x in ["android"]):              return "android"
+    if any(x in parts for x in ["ios", "iphone"]):        return "ios"
+    if any(x in text   for x in ["gui r\n", "win+r", "powershell", "cmd.exe", "regedit"]): return "windows"
+    if any(x in text   for x in ["gui space\n", "terminal\n", "launchd", "brew"]):          return "macos"
+    if any(x in text   for x in ["bash -i", "/dev/tcp", "sudo", "apt-get"]):                return "linux"
+    return "cross"
 
+def infer_category(path: Path, content: str, meta: dict) -> str:
+    """Infer category from path, content, and parsed metadata."""
+    parts = str(path).lower()
+    text  = content.lower()
+    cat   = (meta.get("category") or meta.get("tags") or "").lower()
 
-def parse_payload_header(content: str) -> dict:
-    """Extract REM header metadata from DuckyScript payload."""
-    meta = {"title": "", "author": "", "description": "", "category": "", "target": "", "version": ""}
-    for line in content.split("\n")[:25]:
-        line = line.strip()
-        stripped = re.sub(r"^REM\s*#?\s*", "", line, flags=re.IGNORECASE).strip()
-        for field in ["title", "author", "description", "category", "target", "version"]:
-            m = re.match(rf"^{field}\s*[:\-]\s*(.+)", stripped, re.IGNORECASE)
-            if m:
-                meta[field] = m.group(1).strip()
-    return meta
+    # From REM metadata first
+    if any(x in cat for x in ["exfil", "exfiltrate", "loot"]):     return "exfil"
+    if any(x in cat for x in ["persist", "backdoor", "startup"]):   return "persistence"
+    if any(x in cat for x in ["recon", "enum", "info"]):            return "recon"
+    if any(x in cat for x in ["shell", "reverse", "bind"]):         return "shell"
+    if any(x in cat for x in ["prank", "fun", "troll"]):            return "prank"
+    if any(x in cat for x in ["cred", "password", "hash"]):        return "credentials"
+    if any(x in cat for x in ["privesc", "escalat", "admin"]):      return "privesc"
+    if any(x in cat for x in ["evasion", "bypass", "av", "amsi"]): return "evasion"
 
+    # From path
+    for chunk in parts.split("/"):
+        if "exfil"    in chunk: return "exfil"
+        if "persist"  in chunk: return "persistence"
+        if "recon"    in chunk: return "recon"
+        if "shell"    in chunk: return "shell"
+        if "prank"    in chunk: return "prank"
+        if "cred"     in chunk: return "credentials"
+        if "privesc"  in chunk: return "privesc"
+        if "evasion"  in chunk: return "evasion"
+        if "keylog"   in chunk: return "surveillance"
+        if "screencap" in chunk: return "surveillance"
 
-def chunk_badusb_repo(repo_path: Path, repo_name: str) -> list[dict]:
-    """Walk a BadUSB payload repo and create RAG chunks."""
-    chunks = []
+    # From content
+    if re.search(r'discord.*webhook|dropbox|curl.*http|exfil', text): return "exfil"
+    if re.search(r'reg add.*run|schtasks|startup|cron|persist',  text): return "persistence"
+    if re.search(r'reverse.*shell|bash.*tcp|nc.*lvnp',           text): return "shell"
+    if re.search(r'whoami|ipconfig|systeminfo|netstat|ifconfig',  text): return "recon"
+    if re.search(r'keylog|screenshot|webcam|screen.cap',          text): return "surveillance"
+    if re.search(r'password|hash|sam|lsass|mimikatz|cred',        text): return "credentials"
+    if re.search(r'rickroll|prank|troll|fun|joke',                text): return "prank"
+    return "utility"
 
-    # Walk category directories
-    for category_dir in sorted(repo_path.iterdir()):
-        if not category_dir.is_dir() or category_dir.name.startswith("."):
-            continue
-
-        category = category_dir.name.lower()
-        mitre    = CATEGORY_MITRE.get(category, "T1200")
-
-        # Walk payload subdirectories
-        for payload_dir in sorted(category_dir.iterdir()):
-            if not payload_dir.is_dir():
-                continue
-
-            payload_name = payload_dir.name
-            payload_text = ""
-            readme_text  = ""
-            header_meta  = {}
-
-            # Collect all text files in this payload dir
-            for f in sorted(payload_dir.iterdir()):
-                if not f.is_file():
-                    continue
-
-                ext = f.suffix.lower()
-                if ext in (".txt",):
-                    try:
-                        content = f.read_text(encoding="utf-8", errors="replace")
-                        if not header_meta:
-                            header_meta = parse_payload_header(content)
-                        payload_text += f"\n\n=== {f.name} ===\n{content}"
-                    except Exception:
-                        pass
-
-                elif ext in (".md",):
-                    try:
-                        readme_text = f.read_text(encoding="utf-8", errors="replace")
-                    except Exception:
-                        pass
-
-                elif ext in (".ps1", ".sh", ".py"):
-                    try:
-                        code = f.read_text(encoding="utf-8", errors="replace")
-                        payload_text += f"\n\n=== {f.name} (script) ===\n{code}"
-                    except Exception:
-                        pass
-
-            if not payload_text and not readme_text:
-                continue
-
-            # Build combined document
-            title = header_meta.get("title") or payload_name
-            author = header_meta.get("author", "unknown")
-            desc   = header_meta.get("description", "")
-            target = header_meta.get("target", detect_os(payload_text))
-
-            doc_parts = [f"[BadUSB Payload: {repo_name}/{category}/{payload_name}]"]
-            doc_parts.append(f"Title: {title}")
-            doc_parts.append(f"Author: {author}")
-            doc_parts.append(f"Category: {category}")
-            doc_parts.append(f"Target: {target}")
-            if desc:
-                doc_parts.append(f"Description: {desc}")
-            if readme_text:
-                # First 800 chars of README
-                doc_parts.append(f"\nREADME:\n{readme_text[:800]}")
-            if payload_text:
-                doc_parts.append(f"\nPAYLOAD:\n{payload_text[:1200]}")
-
-            document = "\n".join(doc_parts)
-            uid = hashlib.sha256(
-                f"{repo_name}::{category}::{payload_name}".encode()
-            ).hexdigest()[:16]
-
-            chunks.append({
-                "id": uid,
-                "document": document,
-                "metadata": {
-                    "source":       f"badusb/{repo_name}",
-                    "repo":         repo_name,
-                    "category":     category,
-                    "payload":      payload_name,
-                    "title":        title,
-                    "author":       author,
-                    "target_os":    target,
-                    "mitre":        mitre,
-                    "attack_type":  "badusb",
-                }
-            })
-
-        log.info(f"  ✓ {repo_name}/{category:<30} → {len([c for c in chunks if c['metadata']['category']==category])} payloads")
-
-    return chunks
-
-
-def _ingest_flat_dirs(root, repo_name):
-    chunks = []
-    SKIP = {".git",".github","node_modules","__pycache__","Assets","Images","images","README"}
-    for item in sorted(root.iterdir()):
-        if not item.is_dir() or item.name.startswith(".") or item.name in SKIP:
-            continue
-        payload_text = readme_text = ""
-        header_meta  = {}
-        for f in sorted(item.rglob("*")):
-            if not f.is_file() or ".git" in str(f): continue
-            ext = f.suffix.lower()
-            if ext in (".txt",".ps1",".sh",".py",".rb",".bat"):
-                try:
-                    c = f.read_text(encoding="utf-8",errors="replace")
-                    if not header_meta and ext==".txt": header_meta=parse_payload_header(c)
-                    payload_text += f"\n\n=== {f.name} ===\n{c[:800]}"
-                except: pass
-            elif ext==".md":
-                try: readme_text=f.read_text(encoding="utf-8",errors="replace")[:600]
-                except: pass
-        if not payload_text and not readme_text: continue
-        title  = header_meta.get("title") or item.name
-        author = header_meta.get("author","unknown")
-        desc   = header_meta.get("description","")
-        target = header_meta.get("target", detect_os(payload_text))
-        lower  = (payload_text+readme_text+desc).lower()
-        mitre  = "T1200"
-        if any(w in lower for w in ["winrm","psremoting"]): mitre="T1021.006"
-        elif any(w in lower for w in ["reverse shell","netcat","ncat"]): mitre="T1059"
-        elif any(w in lower for w in ["password","credential","hash"]): mitre="T1552"
-        elif any(w in lower for w in ["wifi","ssid","wpa"]): mitre="T1040"
-        elif any(w in lower for w in ["exfil","webhook","discord"]): mitre="T1041"
-        elif any(w in lower for w in ["defender","amsi","antivirus"]): mitre="T1562"
-        uid = hashlib.sha256(f"{repo_name}::{item.name}".encode()).hexdigest()[:16]
-        chunks.append({"id":uid,
-            "document":"\n".join(filter(None,[
-                f"[BadUSB: {repo_name}/{item.name}]",
-                f"Title: {title}", f"Author: {author}", f"Target: {target}",
-                f"Description: {desc}" if desc else "",
-                f"\nREADME:\n{readme_text}" if readme_text else "",
-                f"\nPAYLOAD:\n{payload_text}" if payload_text else "",
-            ])),
-            "metadata":{"source":f"badusb/{repo_name}","repo":repo_name,
-                "category":"badusb","payload":item.name,"title":title,
-                "author":author,"target_os":target,"mitre":mitre,"attack_type":"badusb"}
-        })
-    return chunks
-
-
-def _ingest_per_file(root, repo_name):
-    """
-    Ingest repos where each .txt file IS the payload (MacOS-DuckyScripts style).
-    Category dirs contain individual payload files directly.
-    """
-    chunks = []
-    SKIP = {".git", ".github", "Assets", "Images"}
-    
-    for cat_dir in sorted(root.iterdir()):
-        if not cat_dir.is_dir() or cat_dir.name.startswith(".") or cat_dir.name in SKIP:
-            continue
-        category = cat_dir.name
-        
-        for payload_file in sorted(cat_dir.rglob("*.txt")):
-            if ".git" in str(payload_file):
-                continue
-            try:
-                content = payload_file.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                continue
-            if len(content.strip()) < 20:
-                continue
-            
-            header = parse_payload_header(content)
-            title  = header.get("title") or payload_file.stem
-            author = header.get("author", "narstybits")
-            desc   = header.get("description", "")
-            target = header.get("target", "macOS")
-            
-            lower  = content.lower()
-            mitre  = "T1200"
-            if any(w in lower for w in ["password","sudo","credential"]): mitre="T1552"
-            elif any(w in lower for w in ["reverse shell","bash -i"]): mitre="T1059"
-            elif any(w in lower for w in ["keylog","keystroke"]): mitre="T1056"
-            elif any(w in lower for w in ["recon","port scan","ifconfig","ipconfig"]): mitre="T1082"
-            elif any(w in lower for w in ["exfil","dropbox","webhook"]): mitre="T1041"
-            
-            uid = hashlib.sha256(
-                f"{repo_name}::{category}::{payload_file.name}".encode()
-            ).hexdigest()[:16]
-            
-            chunks.append({
-                "id": uid,
-                "document": "\n".join(filter(None, [
-                    f"[BadUSB: {repo_name}/{category}/{payload_file.stem}]",
-                    f"Title: {title}", f"Author: {author}",
-                    f"Category: {category}", f"Target: {target}",
-                    f"Description: {desc}" if desc else "",
-                    f"\nPAYLOAD:\n{content[:1200]}",
-                ])),
-                "metadata": {
-                    "source": f"badusb/{repo_name}",
-                    "repo": repo_name,
-                    "category": category,
-                    "payload": payload_file.stem,
-                    "title": title,
-                    "author": author,
-                    "target_os": "macos",
-                    "mitre": mitre,
-                    "attack_type": "badusb",
-                }
-            })
-    return chunks
-
-
-def collect_all_chunks():
-    all_chunks = []
-    CATEGORY_REPOS = {"nocomp-hack5-payloads"}
-    PAYLOADS_DIR_REPOS = {"I-Am-Jakoby-FlipperBadUSB","Flipper-Zero-BadUSB"}
-
-    for repo_dir in sorted(BADUSB_ROOT.iterdir()):
-        if not repo_dir.is_dir() or repo_dir.name.startswith("."): continue
-        name = repo_dir.name
-        log.info(f"\n  📂 {name}...")
-        if name in CATEGORY_REPOS:
-            chunks = chunk_badusb_repo(repo_dir, name)
-        elif REPO_CONFIGS.get(name) == "per_file_categories":
-            chunks = _ingest_per_file(repo_dir, name)
-        elif name in PAYLOADS_DIR_REPOS:
-            pd = repo_dir/"Payloads"
-            chunks = _ingest_flat_dirs(pd if pd.exists() else repo_dir, name)
-        else:
-            chunks = _ingest_flat_dirs(repo_dir, name)
-        if chunks:
-            all_chunks.extend(chunks)
-            log.info(f"  ✓ {name:<40} {len(chunks):>4} chunks")
-    return all_chunks
-
-
-def load_to_chroma(chunks: list[dict], reset: bool = False) -> int:
+def parse_payload(filepath: Path, repo: str) -> dict | None:
+    """Parse a single DuckyScript file into a chunk dict."""
     try:
-        import chromadb
-    except ImportError:
-        log.error("chromadb not installed.")
-        return 0
-
-    client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-
-    if reset:
-        try:
-            client.delete_collection(COLLECTION)
-            log.info(f"[RESET] Deleted '{COLLECTION}'")
-        except Exception:
-            pass
-
-    col = client.get_or_create_collection(
-        name=COLLECTION,
-        metadata={"description": "BadUSB/DuckyScript payload library — Flipper Zero + Rubber Ducky"}
-    )
-
-    ids   = [c["id"] for c in chunks]
-    docs  = [c["document"] for c in chunks]
-    metas = [c["metadata"] for c in chunks]
-
-    try:
-        existing = set(col.get(ids=ids)["ids"])
+        content = filepath.read_text(encoding="utf-8", errors="replace").strip()
     except Exception:
-        existing = set()
+        return None
 
-    new_ids, new_docs, new_metas = [], [], []
-    for i, did in enumerate(ids):
-        if did not in existing:
-            new_ids.append(did)
-            new_docs.append(docs[i])
-            new_metas.append(metas[i])
+    if not DUCKY_RE.search(content):
+        return None   # not a DuckyScript file
 
-    if not new_ids:
-        log.info("All chunks already in ChromaDB.")
-        return 0
+    # Parse REM metadata header fields
+    meta_parsed: dict[str, str] = {}
+    for line in content.split("\n")[:30]:   # headers are always near the top
+        m = REM_FIELD_RE.match(line)
+        if m:
+            key = m.group(1).lower().rstrip("s")  # normalise plural
+            val = m.group(2).strip()
+            meta_parsed[key] = val
 
-    BATCH = 50
-    for start in range(0, len(new_ids), BATCH):
-        col.add(
-            ids=new_ids[start:start+BATCH],
-            documents=new_docs[start:start+BATCH],
-            metadatas=new_metas[start:start+BATCH],
-        )
-        log.info(f"  Upserted {min(start+BATCH, len(new_ids))}/{len(new_ids)}")
+    title       = meta_parsed.get("title", "")
+    author      = meta_parsed.get("author", "")
+    description = meta_parsed.get("description", "")
+    target_raw  = meta_parsed.get("target", "")
+    platform    = infer_platform(filepath, content)
+    category    = infer_category(filepath, content, meta_parsed)
 
-    return len(new_ids)
+    # Build human-readable title from filename if REM Title missing
+    if not title:
+        title = filepath.stem.replace("_", " ").replace("-", " ").title()
+
+    # Relative path for display & dedup
+    rel = str(filepath.relative_to(ROOT))
+
+    # Document text — structured for embedding + display
+    doc_lines = [
+        f"[BadUSB Payload: {repo}/{filepath.stem}]",
+        f"Title: {title}",
+    ]
+    if author:      doc_lines.append(f"Author: {author}")
+    if description: doc_lines.append(f"Description: {description}")
+    if target_raw:  doc_lines.append(f"Target: {target_raw}")
+    doc_lines.append(f"Platform: {platform}  Category: {category}")
+    doc_lines.append("")
+    doc_lines.append(content[:3000])   # cap at 3k chars for embedding quality
+
+    doc = "\n".join(doc_lines)
+
+    # Stable unique ID from relative path
+    uid = "badusb_" + hashlib.md5(rel.encode()).hexdigest()[:16]
+
+    return {
+        "id":       uid,
+        "document": doc,
+        "metadata": {
+            "source":      f"badusb/{repo}",
+            "repo":        repo,
+            "path":        rel,
+            "title":       title,
+            "author":      author,
+            "description": description[:200],
+            "platform":    platform,
+            "category":    category,
+            "target":      target_raw[:100],
+            "filename":    filepath.name,
+        }
+    }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest BadUSB payloads into ERR0RS ChromaDB")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--reset",   action="store_true")
+    parser = argparse.ArgumentParser(description="ERR0RS BadUSB Payload Ingestor")
+    parser.add_argument("--reset",   action="store_true", help="Wipe collection and re-ingest")
+    parser.add_argument("--dry-run", action="store_true", help="Count files only, no DB write")
+    parser.add_argument("--repo",    default=None,        help="Only ingest a specific repo")
     args = parser.parse_args()
 
-    log.info(f"🔍 Scanning BadUSB knowledge base at {BADUSB_ROOT}...")
-    chunks = collect_all_chunks()
-    log.info(f"\n📦 Total payload chunks: {len(chunks)}")
+    print(f"\n{'='*60}")
+    print(f"  ERR0RS BadUSB Payload Ingestor")
+    print(f"  Source : {BADUSB_DIR}")
+    print(f"  Target : {COLLECTION}")
+    print(f"{'='*60}\n")
+
+    if not BADUSB_DIR.exists():
+        print(f"❌ {BADUSB_DIR} not found")
+        sys.exit(1)
+
+    # Collect all DuckyScript files
+    chunks = []
+    skipped = 0
+    repos = sorted(BADUSB_DIR.iterdir()) if not args.repo else [BADUSB_DIR / args.repo]
+
+    for repo_dir in repos:
+        if not repo_dir.is_dir():
+            continue
+        repo_name = repo_dir.name
+        repo_chunks = []
+
+        for txt_file in sorted(repo_dir.rglob("*.txt")):
+            chunk = parse_payload(txt_file, repo_name)
+            if chunk:
+                repo_chunks.append(chunk)
+            else:
+                skipped += 1
+
+        print(f"  {repo_name:35} {len(repo_chunks):4d} payloads")
+        chunks.extend(repo_chunks)
+
+    print(f"\n  Total DuckyScript payloads : {len(chunks)}")
+    print(f"  Non-DuckyScript skipped   : {skipped}")
 
     if args.dry_run:
-        log.info("[DRY RUN] — not writing to ChromaDB")
-        if chunks:
-            c = chunks[0]
-            log.info(f"\nSample — {c['metadata']['title']}:")
-            print(c["document"][:500])
+        print("\n  [DRY RUN] No database changes made.")
+
+        # Show category breakdown
+        from collections import Counter
+        cats = Counter(c["metadata"]["category"] for c in chunks)
+        plats = Counter(c["metadata"]["platform"] for c in chunks)
+        print("\n  Categories:")
+        for cat, n in cats.most_common():
+            print(f"    {n:4d}  {cat}")
+        print("\n  Platforms:")
+        for plat, n in plats.most_common():
+            print(f"    {n:4d}  {plat}")
         return
 
-    log.info(f"\n💾 Loading into ChromaDB collection '{COLLECTION}'...")
-    new = load_to_chroma(chunks, reset=args.reset)
-    log.info(f"\n✅ {new} new chunks added to '{COLLECTION}'")
+    # Load into ChromaDB
+    print(f"\n  Loading into ChromaDB '{COLLECTION}'...")
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+
+        if args.reset:
+            try:
+                client.delete_collection(COLLECTION)
+                print(f"  [RESET] Deleted existing '{COLLECTION}'")
+            except Exception:
+                pass
+
+        col = client.get_or_create_collection(
+            name=COLLECTION,
+            metadata={"description": "ERR0RS BadUSB DuckyScript payload library"}
+        )
+
+        before = col.count()
+
+        # Deduplicate against existing
+        all_ids = [c["id"] for c in chunks]
+        try:
+            existing = set(col.get(ids=all_ids)["ids"])
+        except Exception:
+            existing = set()
+
+        new_chunks = [c for c in chunks if c["id"] not in existing]
+        print(f"  Already in DB : {len(existing)}")
+        print(f"  New to add    : {len(new_chunks)}")
+
+        if not new_chunks:
+            print("  ✅ All payloads already in DB — nothing to do.")
+        else:
+            BATCH = 200
+            for i in range(0, len(new_chunks), BATCH):
+                batch = new_chunks[i:i+BATCH]
+                col.add(
+                    ids       =[c["id"]       for c in batch],
+                    documents =[c["document"] for c in batch],
+                    metadatas =[c["metadata"] for c in batch],
+                )
+                done = min(i+BATCH, len(new_chunks))
+                print(f"  ✓ {done:4d}/{len(new_chunks)} chunks ingested...")
+
+        after = col.count()
+        print(f"\n  ✅ Done — collection now has {after} documents (+{after-before} new)")
+
+    except ImportError:
+        print("❌ chromadb not installed: pip3 install chromadb --break-system-packages")
+        sys.exit(1)
+    except Exception as e:
+        import traceback
+        print(f"❌ Error: {e}")
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

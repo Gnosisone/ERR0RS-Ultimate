@@ -1577,12 +1577,12 @@ document.getElementById('pico-modal').addEventListener('click', function(e) {
 });
 
 // Default starter content
-editor.value = `REM ═══════════════════════════════════════
+editor.value = `REM ======================================
 REM  ERR0RS PAYLOAD STUDIO
 REM  Select a snippet from the left panel
-REM  or start typing — autosuggestion activates
+REM  or start typing -- autosuggestion on
 REM  TAB or CTRL+SPACE to force suggestions
-REM ═══════════════════════════════════════
+REM ======================================
 
 DELAY 2000
 `;
@@ -1683,7 +1683,7 @@ function renderKBList(filterQ = '') {
     const category = p.category || 'utility';
     const platform = p.platform || 'cross';
     const safe_path = (p.path||'').replace(/'/g, "\\'");
-    return `<div class="kb-card" onclick="loadKBPayload(this, '${safe_path}', '${name}')">
+    return `<div class="kb-card" data-collection="${p.collection||'payloads_all_things'}" onclick="loadKBPayload(this, '${safe_path}', '${name}')">
       <div class="kb-name" title="${p.name}">${name}</div>
       <div class="kb-meta">
         <span class="kb-cat">${category}</span>
@@ -1696,30 +1696,61 @@ function renderKBList(filterQ = '') {
 
 async function loadKBPayload(el, path, name) {
   try {
-    const r    = await fetch(`/api/payload_studio/payload?path=${encodeURIComponent(path)}`);
+    const r    = await fetch(`/api/payload_studio/payload?path=${encodeURIComponent(path)}&collection=${el.dataset.collection||'payloads_all_things'}`);
     const data = await r.json();
     if (data.error) { alert('Error: ' + data.error); return; }
 
-    // Load into editor
+    // Format raw KB document into editor-friendly DuckyScript comment block
+    const raw = data.content || '';
+
+    // Strip leading [Category] Title line if present
+    const lines = raw.split('\n');
+    const bodyLines = lines[0].match(/^\[.*?\]/) ? lines.slice(1) : lines;
+
+    // Convert markdown-style content to REM comments
+    const formatted = bodyLines
+      .map(line => {
+        line = line.trimEnd();
+        if (line === '') return 'REM';
+        // Already a REM line — keep it
+        if (line.startsWith('REM')) return line;
+        // Code block markers — skip
+        if (line.startsWith('```')) return 'REM ---';
+        // Heading
+        if (line.startsWith('#')) return 'REM ' + line.replace(/^#+\s*/, '').toUpperCase();
+        // Blockquote
+        if (line.startsWith('> ')) return 'REM ' + line.slice(2);
+        // List item
+        if (line.match(/^[-*]\s/)) return 'REM  • ' + line.slice(2);
+        // Numbered list
+        if (line.match(/^\d+\.\s/)) return 'REM  ' + line;
+        return 'REM ' + line;
+      })
+      .join('\n')
+      .replace(/(\nREM\s*){3,}/g, '\nREM\n')  // collapse 3+ blank REM lines to 1
+      .trim();
+
+    const header = `REM ══════════════════════════════════════\nREM  KB: ${name}\nREM  Source: ${path.split('/').slice(-2).join('/')}\nREM ══════════════════════════════════════\n`;
+    const payload = header + formatted + '\n\nDELAY 500\n';
+
+    // Insert at cursor
     const start  = editor.selectionStart;
     const before = editor.value.substring(0, start);
     const after  = editor.value.substring(start);
     const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
-    editor.value = before + prefix + data.content + '\n' + after;
+    editor.value = before + prefix + payload + after;
 
-    // Update name
     document.getElementById('payload-name-input').value =
-      path.split('/').pop() || (name.replace(/\s+/g,'_') + '.txt');
+      path.split('/').pop()?.replace('.md','.txt') || (name.replace(/\s+/g,'_') + '.txt');
 
     onEditorInput();
-    const serverInfo = detectRequiredServer(data.content);
+    const serverInfo = detectRequiredServer(payload);
     renderServerPanel(serverInfo);
 
-    // Highlight selected card
     document.querySelectorAll('.kb-card').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    document.getElementById('ai-status').textContent = `⚡ LOADED: ${name}`;
+    document.getElementById('ai-status').textContent = `📚 KB LOADED: ${name}`;
   } catch(e) {
     alert('Failed to load payload: ' + e.message);
   }

@@ -1190,6 +1190,14 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         super().end_headers()
 
+    def guess_type(self, path):
+        """Override to always declare UTF-8 for text types — prevents mojibake."""
+        ctype = super().guess_type(path)
+        if isinstance(ctype, str):
+            if ctype.startswith("text/") and "charset" not in ctype:
+                ctype = ctype + "; charset=utf-8"
+        return ctype
+
     def do_OPTIONS(self):
         self.send_response(200); self.end_headers()
 

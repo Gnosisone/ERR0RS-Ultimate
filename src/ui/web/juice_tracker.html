@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ERR0RS — Juice Shop Challenge Tracker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+:root {
+  --bg0:#04080f; --bg1:#080d14; --bg2:#0e1520; --bg3:#141d2b;
+  --border:#1a2535; --border2:#243044;
+  --orange:#ff6b00; --orange2:#ff8c00; --oglow:rgba(255,107,0,.12);
+  --cyan:#00d4ff; --cglow:rgba(0,212,255,.1);
+  --green:#00ff88; --gglow:rgba(0,255,136,.08);
+  --yellow:#ffd700; --red:#ff3355; --purple:#9966ff;
+  --text:#d0e0f0; --dim:#5a7090; --muted:#2a3a50;
+  --mono:'JetBrains Mono',monospace;
+  --d1:#00ff88; --d2:#7fff00; --d3:#ffd700; --d4:#ff8c00; --d5:#ff3355; --d6:#9966ff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:var(--bg0); color:var(--text); font-family:var(--mono);
+  min-height:100vh; display:flex; flex-direction:column;
+}
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% -10%,rgba(255,107,0,.06) 0%,transparent 70%),
+    radial-gradient(ellipse 40% 30% at 80% 110%,rgba(0,212,255,.04) 0%,transparent 70%);
+}
+body::after {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 3px);
+}
+/* ── TOP BAR ── */
+.topbar {
+  position:sticky; top:0; z-index:100;
+  display:flex; align-items:center; gap:16px;
+  padding:0 24px; height:50px;
+  background:rgba(8,13,20,.95); border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+}
+.logo { font-size:11px; font-weight:700; letter-spacing:4px; color:var(--orange); text-shadow:0 0 16px rgba(255,107,0,.5); }
+.sep { width:1px; height:20px; background:var(--border2); }
+.page-title { font-size:11px; color:var(--dim); letter-spacing:2px; }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.juice-pill {
+  display:flex; align-items:center; gap:6px; padding:4px 12px;
+  border:1px solid rgba(255,107,0,.3); background:rgba(255,107,0,.06);
+  font-size:10px; color:var(--orange2);
+}
+.juice-dot { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.back-btn {
+  padding:5px 14px; font-size:10px; letter-spacing:2px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--dim); cursor:pointer; font-family:var(--mono); transition:all .15s;
+}
+.back-btn:hover { border-color:var(--orange); color:var(--orange); }
+/* ── HERO ── */
+.hero {
+  position:relative; z-index:1; padding:28px 24px 20px;
+  border-bottom:1px solid var(--border); background:var(--bg1);
+}
+.hero-top { display:flex; align-items:flex-end; gap:24px; margin-bottom:20px; flex-wrap:wrap; }
+.hero-score { font-size:56px; font-weight:700; line-height:1; color:var(--orange); text-shadow:0 0 30px rgba(255,107,0,.4); }
+.hero-score span { font-size:22px; color:var(--dim); }
+.hero-label { font-size:10px; letter-spacing:3px; color:var(--dim); margin-top:4px; }
+.hero-stats { display:flex; gap:24px; flex-wrap:wrap; }
+.stat-box { text-align:center; }
+.stat-num { font-size:22px; font-weight:700; }
+.stat-lbl { font-size:9px; letter-spacing:2px; color:var(--dim); margin-top:2px; }
+.master-bar-wrap { margin-top:16px; }
+.master-bar-label { display:flex; justify-content:space-between; font-size:10px; color:var(--dim); margin-bottom:6px; }
+.master-bar-bg { height:8px; background:var(--bg3); border:1px solid var(--border); overflow:hidden; }
+.master-bar-fill { height:100%; background:linear-gradient(90deg,var(--orange),var(--orange2)); transition:width 1s cubic-bezier(.4,0,.2,1); box-shadow:0 0 12px rgba(255,107,0,.4); }
+.diff-bars { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+.diff-bar { flex:1; min-width:60px; }
+.diff-bar-top { display:flex; justify-content:space-between; font-size:9px; color:var(--dim); margin-bottom:3px; }
+.diff-bar-bg { height:4px; background:var(--bg3); overflow:hidden; }
+.diff-bar-fill { height:100%; transition:width .8s ease; }
+/* ── FILTERS ── */
+.filters {
+  position:sticky; top:50px; z-index:99; padding:12px 24px;
+  border-bottom:1px solid var(--border); background:rgba(8,13,20,.95);
+  backdrop-filter:blur(12px); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+}
+.search-wrap { flex:1; min-width:200px; }
+.search-input {
+  width:100%; background:var(--bg2); border:1px solid var(--border2);
+  color:var(--text); font-family:var(--mono); font-size:11px;
+  padding:7px 12px; outline:none; transition:border .15s;
+}
+.search-input:focus { border-color:var(--orange); }
+.search-input::placeholder { color:var(--muted); }
+.filter-group { display:flex; gap:6px; flex-wrap:wrap; }
+.fchip {
+  padding:4px 10px; font-size:9px; letter-spacing:1px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--dim); cursor:pointer; font-family:var(--mono);
+  transition:all .12s; text-transform:uppercase; white-space:nowrap;
+}
+.fchip:hover { border-color:var(--orange2); color:var(--orange2); }
+.fchip.active { background:var(--oglow); border-color:var(--orange); color:var(--orange); }
+.fchip.s-chip.active { background:var(--gglow); border-color:var(--green); color:var(--green); }
+.fchip.u-chip.active { background:rgba(255,51,85,.08); border-color:var(--red); color:var(--red); }
+.showing { font-size:10px; color:var(--dim); white-space:nowrap; margin-left:auto; }
+/* ── MAIN ── */
+.main { position:relative; z-index:1; padding:20px 24px; }
+.cat-section { margin-bottom:28px; }
+.cat-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.cat-name { font-size:12px; font-weight:700; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }
+.cat-progress { display:flex; align-items:center; gap:8px; margin-left:auto; font-size:10px; color:var(--dim); }
+.cat-bar-bg { width:80px; height:3px; background:var(--bg3); overflow:hidden; }
+.cat-bar-fill { height:100%; background:var(--orange); transition:width .6s ease; }
+.challenge-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:8px; }
+/* ── CARD ── */
+.card {
+  background:var(--bg2); border:1px solid var(--border);
+  padding:14px 15px; cursor:pointer; transition:all .15s;
+  position:relative; overflow:hidden;
+}
+.card:hover { border-color:var(--border2); background:var(--bg3); transform:translateY(-1px); }
+.card.solved { border-color:rgba(0,255,136,.2); background:rgba(0,255,136,.03); }
+.card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.card.solved::before { background:linear-gradient(90deg,var(--green),transparent); }
+.card:not(.solved):hover::before { background:linear-gradient(90deg,var(--orange),transparent); }
+.card-top { display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; }
+.card-name { font-size:12px; font-weight:700; color:var(--text); flex:1; line-height:1.3; }
+.solved-badge {
+  flex-shrink:0; font-size:9px; padding:2px 7px;
+  background:rgba(0,255,136,.15); border:1px solid rgba(0,255,136,.3); color:var(--green); letter-spacing:1px;
+}
+.card-desc { font-size:10px; color:var(--dim); line-height:1.5; margin-bottom:8px; }
+.card-bottom { display:flex; align-items:center; gap:8px; }
+.stars { display:flex; gap:2px; }
+.star { font-size:10px; }
+.card-cat { font-size:9px; color:var(--muted); margin-left:auto; letter-spacing:1px; }
+/* ── MODAL ── */
+.modal-overlay {
+  position:fixed; inset:0; z-index:999;
+  background:rgba(4,8,15,.85); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  opacity:0; pointer-events:none; transition:opacity .2s;
+}
+.modal-overlay.open { opacity:1; pointer-events:all; }
+.modal {
+  background:var(--bg1); border:1px solid var(--border2);
+  width:100%; max-width:560px; max-height:85vh; overflow-y:auto;
+  transform:translateY(20px); transition:transform .2s;
+  box-shadow:0 0 60px rgba(0,0,0,.8);
+}
+.modal-overlay.open .modal { transform:translateY(0); }
+.modal-header { padding:20px 22px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:12px; }
+.modal-title { font-size:16px; font-weight:700; color:var(--text); flex:1; }
+.modal-close { background:none; border:none; color:var(--dim); cursor:pointer; font-size:18px; font-family:var(--mono); padding:0 4px; transition:color .15s; }
+.modal-close:hover { color:var(--red); }
+.modal-body { padding:18px 22px; }
+.m-field { margin-bottom:14px; }
+.m-label { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; margin-bottom:5px; }
+.m-value { font-size:11px; color:var(--text); line-height:1.6; }
+.m-hint { font-size:11px; color:var(--cyan); line-height:1.6; background:var(--cglow); border:1px solid rgba(0,212,255,.15); padding:10px 12px; }
+.m-hint-lock { font-size:11px; color:var(--muted); font-style:italic; }
+.m-stars { display:flex; gap:3px; margin-top:2px; }
+.m-star { font-size:14px; }
+.modal-footer { padding:14px 22px; border-top:1px solid var(--border); display:flex; gap:10px; }
+.modal-btn {
+  flex:1; padding:9px; font-size:10px; letter-spacing:2px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--dim); cursor:pointer; font-family:var(--mono); transition:all .15s; text-transform:uppercase;
+}
+.modal-btn.primary { border-color:var(--orange); color:var(--orange); background:var(--oglow); }
+.modal-btn.primary:hover { background:var(--orange); color:#000; font-weight:700; }
+.modal-solved-stamp { font-size:11px; color:var(--green); display:flex; align-items:center; gap:6px; padding:8px 0; }
+/* ── MISC ── */
+.empty { padding:60px 20px; text-align:center; color:var(--muted); }
+.empty-icon { font-size:36px; margin-bottom:12px; }
+.empty-text { font-size:12px; line-height:1.6; }
+.refresh-btn {
+  position:fixed; bottom:24px; right:24px; z-index:200;
+  width:48px; height:48px; border-radius:50%;
+  background:var(--orange); border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; box-shadow:0 0 20px rgba(255,107,0,.4); transition:all .2s;
+}
+.refresh-btn:hover { transform:scale(1.1) rotate(30deg); box-shadow:0 0 30px rgba(255,107,0,.6); }
+.refresh-btn.spinning { animation:spin .6s linear; }
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">ERR0RS</span>
+  <div class="sep"></div>
+  <span class="page-title">JUICE SHOP CHALLENGE TRACKER</span>
+  <div class="topbar-right">
+    <div class="juice-pill"><div class="juice-dot"></div><span id="live-status">localhost:3000</span></div>
+    <button class="back-btn" onclick="location.href='/'">← DASHBOARD</button>
+  </div>
+</div>
+<div class="hero">
+  <div class="hero-top">
+    <div>
+      <div class="hero-score" id="hero-score">0 <span>/ 111</span></div>
+      <div class="hero-label">CHALLENGES SOLVED</div>
+    </div>
+    <div class="hero-stats" id="hero-stats"></div>
+  </div>
+  <div class="master-bar-wrap">
+    <div class="master-bar-label"><span>OVERALL PROGRESS</span><span id="pct-label">0%</span></div>
+    <div class="master-bar-bg"><div class="master-bar-fill" id="master-bar" style="width:0%"></div></div>
+  </div>
+  <div class="diff-bars" id="diff-bars"></div>
+</div>
+<div class="filters">
+  <div class="search-wrap">
+    <input class="search-input" id="search" placeholder="search challenges..." oninput="applyFilters()"/>
+  </div>
+  <div class="filter-group">
+    <button class="fchip active" data-filter="all" onclick="setFilter(this,'all')">ALL</button>
+    <button class="fchip s-chip" data-filter="solved" onclick="setFilter(this,'solved')">✅ SOLVED</button>
+    <button class="fchip u-chip" data-filter="unsolved" onclick="setFilter(this,'unsolved')">🔴 UNSOLVED</button>
+  </div>
+  <div class="filter-group">
+    <button class="fchip" data-filter="d1" onclick="setDiff(this,1)">★</button>
+    <button class="fchip" data-filter="d2" onclick="setDiff(this,2)">★★</button>
+    <button class="fchip" data-filter="d3" onclick="setDiff(this,3)">★★★</button>
+    <button class="fchip" data-filter="d4" onclick="setDiff(this,4)">★★★★</button>
+    <button class="fchip" data-filter="d5" onclick="setDiff(this,5)">★★★★★</button>
+    <button class="fchip" data-filter="d6" onclick="setDiff(this,6)">★★★★★★</button>
+  </div>
+  <span class="showing" id="showing">loading...</span>
+</div>
+<div class="main" id="main">
+  <div class="empty"><div class="empty-icon">🔄</div><div class="empty-text">Loading challenges from localhost:3000...</div></div>
+</div>
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="m-title"></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="m-body"></div>
+    <div class="modal-footer" id="m-footer"></div>
+  </div>
+</div>
+<button class="refresh-btn" id="refresh-btn" onclick="loadChallenges()" title="Refresh">🔄</button>
+<script>
+const API_JS = 'http://localhost:3000';
+const ERR0RS = 'http://127.0.0.1:8765';
+const DIFF_COLORS = ['','#00ff88','#7fff00','#ffd700','#ff8c00','#ff3355','#9966ff'];
+const DIFF_LABELS = ['','1★ Easy','2★ Easy+','3★ Medium','4★ Hard','5★ Expert','6★ Master'];
+
+let allChallenges = [];
+let activeFilter  = 'all';
+let activeDiff    = null;
+
+async function loadChallenges() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  try {
+    const r = await fetch(`${API_JS}/api/Challenges?limit=999`);
+    const d = await r.json();
+    allChallenges = d.data || [];
+    document.getElementById('live-status').textContent =
+      `localhost:3000 · ${allChallenges.length} challenges`;
+    renderAll();
+  } catch(e) {
+    document.getElementById('main').innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-text">Cannot reach localhost:3000<br>
+          <span style="color:var(--orange);margin-top:8px;display:block">
+            cd /home/kali/targets/juice-shop && node build/app.js
+          </span>
+        </div>
+      </div>`;
+  }
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+}
+
+function renderAll() { renderHero(); applyFilters(); }
+
+function renderHero() {
+  const total  = allChallenges.length;
+  const solved = allChallenges.filter(c => c.solved).length;
+  const pct    = total ? Math.round(solved/total*100) : 0;
+
+  document.getElementById('hero-score').innerHTML = `${solved} <span>/ ${total}</span>`;
+  document.getElementById('pct-label').textContent = `${pct}%`;
+  document.getElementById('master-bar').style.width = `${pct}%`;
+
+  const cats = {};
+  allChallenges.forEach(c => {
+    cats[c.category] = cats[c.category] || {t:0,s:0};
+    cats[c.category].t++;
+    if(c.solved) cats[c.category].s++;
+  });
+  const top = Object.entries(cats).sort((a,b)=>b[1].s-a[1].s).slice(0,4);
+  document.getElementById('hero-stats').innerHTML = top.map(([cat,{t,s}])=>`
+    <div class="stat-box">
+      <div class="stat-num" style="color:${s===t?'var(--green)':'var(--orange)'}">${s}/${t}</div>
+      <div class="stat-lbl">${cat.split(' ').map(w=>w[0]).join('')}</div>
+    </div>`).join('');
+
+  const diffs = {};
+  allChallenges.forEach(c => {
+    diffs[c.difficulty] = diffs[c.difficulty]||{t:0,s:0};
+    diffs[c.difficulty].t++;
+    if(c.solved) diffs[c.difficulty].s++;
+  });
+  document.getElementById('diff-bars').innerHTML = [1,2,3,4,5,6].map(d => {
+    const {t=0,s=0} = diffs[d]||{};
+    const p = t ? Math.round(s/t*100) : 0;
+    return `<div class="diff-bar">
+      <div class="diff-bar-top">
+        <span style="color:${DIFF_COLORS[d]}">${'★'.repeat(d)}</span>
+        <span>${s}/${t}</span>
+      </div>
+      <div class="diff-bar-bg">
+        <div class="diff-bar-fill" style="width:${p}%;background:${DIFF_COLORS[d]};box-shadow:0 0 6px ${DIFF_COLORS[d]}55"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setFilter(el, f) {
+  document.querySelectorAll('.fchip:not([data-filter^="d"])').forEach(b=>b.classList.remove('active'));
+  activeFilter = f; el.classList.add('active'); applyFilters();
+}
+
+function setDiff(el, n) {
+  if (activeDiff === n) {
+    activeDiff = null; el.classList.remove('active');
+  } else {
+    document.querySelectorAll('[data-filter^="d"]').forEach(b=>b.classList.remove('active'));
+    activeDiff = n; el.classList.add('active');
+  }
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let results = allChallenges;
+  if (activeFilter==='solved')   results = results.filter(c=>c.solved);
+  if (activeFilter==='unsolved') results = results.filter(c=>!c.solved);
+  if (activeDiff)                results = results.filter(c=>c.difficulty===activeDiff);
+  if (q) results = results.filter(c=>
+    c.name.toLowerCase().includes(q) ||
+    (c.description||'').toLowerCase().includes(q) ||
+    c.category.toLowerCase().includes(q)
+  );
+  document.getElementById('showing').textContent = `${results.length} of ${allChallenges.length}`;
+  renderGrid(results);
+}
+</script>
+<script>
+function renderGrid(challenges) {
+  const main = document.getElementById('main');
+  if (!challenges.length) {
+    main.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">No challenges match</div></div>`;
+    return;
+  }
+  const grouped = {};
+  challenges.forEach(c => { grouped[c.category]=grouped[c.category]||[]; grouped[c.category].push(c); });
+
+  const allCats = {};
+  allChallenges.forEach(c => {
+    allCats[c.category]=allCats[c.category]||{t:0,s:0};
+    allCats[c.category].t++;
+    if(c.solved) allCats[c.category].s++;
+  });
+
+  let html = '';
+  Object.entries(grouped).sort().forEach(([cat, chals]) => {
+    const {t,s} = allCats[cat]||{t:chals.length,s:0};
+    const pct = t ? Math.round(s/t*100) : 0;
+    html += `<div class="cat-section">
+      <div class="cat-header">
+        <span class="cat-name">${cat}</span>
+        <div class="cat-progress">
+          <span>${s}/${t}</span>
+          <div class="cat-bar-bg">
+            <div class="cat-bar-fill" style="width:${pct}%;background:${s===t?'var(--green)':'var(--orange)'}"></div>
+          </div>
+        </div>
+      </div>
+      <div class="challenge-grid">
+        ${chals.sort((a,b)=>a.difficulty-b.difficulty).map(c=>cardHTML(c)).join('')}
+      </div>
+    </div>`;
+  });
+  main.innerHTML = html;
+}
+
+function cardHTML(c) {
+  const stars = Array(6).fill(0).map((_,i)=>
+    `<span class="star" style="${i<c.difficulty?`color:${DIFF_COLORS[c.difficulty]}`:'opacity:.2'}">★</span>`
+  ).join('');
+  const desc = (c.description||'').replace(/<[^>]*>/g,'').slice(0,80);
+  return `<div class="card ${c.solved?'solved':''}"
+    style="border-top:2px solid ${c.solved?'rgba(0,255,136,.3)':DIFF_COLORS[c.difficulty]+'33'}"
+    onclick='openModal(${JSON.stringify(JSON.stringify(c))})'>
+    <div class="card-top">
+      <div class="card-name">${c.name}</div>
+      ${c.solved?'<span class="solved-badge">✓ SOLVED</span>':''}
+    </div>
+    <div class="card-desc">${desc}${desc.length>=80?'…':''}</div>
+    <div class="card-bottom">
+      <div class="stars">${stars}</div>
+      <span class="card-cat">${c.category.toUpperCase()}</span>
+    </div>
+  </div>`;
+}
+
+function openModal(cJson) {
+  const c = JSON.parse(cJson);
+  const stars = Array(6).fill(0).map((_,i)=>
+    `<span class="m-star" style="${i<c.difficulty?`color:${DIFF_COLORS[c.difficulty]}`:'opacity:.2'}">★</span>`
+  ).join('');
+  document.getElementById('m-title').textContent = c.name;
+  document.getElementById('m-body').innerHTML = `
+    <div class="m-field">
+      <div class="m-label">Difficulty</div>
+      <div class="m-stars">${stars}</div>
+      <div class="m-value" style="margin-top:4px;font-size:10px;color:${DIFF_COLORS[c.difficulty]}">${DIFF_LABELS[c.difficulty]}</div>
+    </div>
+    <div class="m-field"><div class="m-label">Category</div><div class="m-value">${c.category}</div></div>
+    <div class="m-field">
+      <div class="m-label">Description</div>
+      <div class="m-value">${(c.description||'').replace(/<[^>]*>/g,'')}</div>
+    </div>
+    <div class="m-field">
+      <div class="m-label">Hint</div>
+      ${c.hint
+        ? `<div class="m-hint">💡 ${c.hint}</div>`
+        : `<div class="m-hint-lock">🔒 No hint — figure it out, operator!</div>`}
+    </div>
+    ${c.solved?`<div style="margin-top:10px;padding:10px 12px;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);color:var(--green);font-size:11px">✅ SOLVED — Nice work operator!</div>`:''}
+  `;
+  document.getElementById('m-footer').innerHTML = c.solved
+    ? `<div class="modal-solved-stamp">✅ Challenge complete — keep going!</div>`
+    : `<button class="modal-btn primary" onclick="closeModal()">← BACK TO HUNT</button>
+       <button class="modal-btn" onclick="askERR0RS('${c.category.replace(/'/g,"\\'")}','${c.name.replace(/'/g,"\\'")}')">⚡ ASK ERR0RS</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (!e || e.target===document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+async function askERR0RS(cat, name) {
+  closeModal();
+  try {
+    await fetch(`${ERR0RS}/api/command`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ command: `teach ${cat} - ${name} challenge technique` })
+    });
+    window.open('/','_blank');
+  } catch(e) { alert('ERR0RS not reachable on port 8765'); }
+}
+
+loadChallenges();
+setInterval(loadChallenges, 30000);
+</script>
+</body>
+</html>

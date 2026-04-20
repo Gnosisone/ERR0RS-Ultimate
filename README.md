@@ -17,6 +17,7 @@
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
 [![Release](https://img.shields.io/badge/Release-v1.0.0-7c3aed?style=flat-square)](https://github.com/Gnosisone/ERR0RS-Ultimate/releases)
 [![Modules](https://img.shields.io/badge/Tool%20Modules-25%2B-0ea5e9?style=flat-square)]()
+[![Arsenal](https://img.shields.io/badge/Phoenix%20Arsenal-2172%20Tools-ff6b00?style=flat-square)]()
 [![Local](https://img.shields.io/badge/LLM-100%25%20Local-f97316?style=flat-square)](https://ollama.com)
 [![Pi5](https://img.shields.io/badge/Hardware-Pi%205%20%2B%20Hailo--10H-c51a4a?style=flat-square&logo=raspberry-pi&logoColor=white)]()
 
@@ -52,6 +53,8 @@ Think of it as a senior red teamer sitting next to you: running the tools, expla
 | 🔐 | **Auth + Audit** | bcrypt auth · SQLite session store · full audit log |
 | 🧬 | **Knowledge Base** | 50+ curated security repos as RAG-indexed submodules |
 | 🛡️ | **Purple Team** | Every offensive technique paired with defensive countermeasures |
+| ⚔️ | **Phoenix Arsenal** | 2,172 BlackArch + curated tools · NLP search · one-click execution · live terminal |
+| 🎯 | **Kill Chain Engine** | 6-phase automated attack sequences · per-step progress · full output capture |
 
 ---
 
@@ -429,6 +432,96 @@ ERR0RS-Ultimate/
 ├── configs/                  # config.template.env · tools.conf
 └── tests/                    # Test suite
 ```
+
+---
+
+## 🔬 Live Lab Results — OWASP Juice Shop v19.2.1
+
+> Authorized purple team assessment against the OWASP Juice Shop intentionally vulnerable training application.  
+> Demonstrates ERR0RS + Phoenix Bridge's full automated kill chain capability.  
+> **Target:** `localhost:3000` (local ARM64 deployment · Raspberry Pi 5)  
+> **Engine:** ERR0RS Ultimate v3.0 + Phoenix Bridge (2,172 tools)
+
+### Kill Chain Execution — 6 Phases
+
+| Phase | Tool | Time | Result |
+|-------|------|------|--------|
+| 1 · Recon | `whatweb` | 3.2s | ✅ Stack fingerprinted — HTML5, Angular, Heroku, `x-recruiting` header |
+| 2 · Recon | `nikto` | 61s | ✅ 17 findings — CORS wildcard, 4 missing security headers, robots.txt |
+| 3 · Scanning | `gobuster` | 79s | ✅ 16 real paths — `/ftp/` exposed, `/rest/`, `/api/`, `/redirect/` |
+| 4 · Exploitation | `sqlmap` + manual | 157s | ✅ Boolean-blind + UNION SQLi · full DB dump · 21 users extracted |
+| 5 · Exploitation | manual XSS | <1s | ✅ Stored XSS via `POST /api/Users` username field |
+| 6 · Post-Exploit | manual | <1s | ✅ Unauthenticated FTP · 403 bypass · KeePass DB downloaded |
+
+### Findings Summary
+
+| Severity | # | Finding |
+|----------|---|---------|
+| 🔴 CRITICAL | 2 | SQL Injection on `/rest/products/search?q=` · Admin credential compromise (MD5, unsalted) |
+| 🟠 HIGH | 3 | Stored XSS via username field · Unauthenticated `/ftp/` exposure · 403 bypass via null byte (`%2500`) |
+| 🟡 MEDIUM | 2 | Missing CSP/HSTS/Referrer headers · CORS wildcard (`access-control-allow-origin: *`) |
+| 🟢 LOW | 1 | Information disclosure via `x-recruiting` header |
+
+### Key Exploitation Results
+
+```
+[SQLi]   UNION payload: 1')) UNION SELECT id,email,password,role,5,6,7,8,9 FROM Users--
+[DUMP]   21 users extracted · 6 admin accounts · all MD5 hashes
+[CRACK]  admin@juice-sh.op : admin123  (cracked in <1s · unsalted MD5)
+[JWT]    Full admin token obtained · role:admin · all endpoints unlocked
+
+[XSS]    POST /api/Users username=<iframe src="javascript:alert(`xss`)">
+         Stored in DB · executes in any admin session
+
+[FTP]    GET /ftp/acquisitions.md          → 200 (M&A plans, plaintext)
+         GET /ftp/incident-support.kdbx    → 200 (KeePass DB, unauthenticated)
+         GET /ftp/coupons_2013.md.bak%2500.md → 200 (403 bypass · discount codes)
+```
+
+### Purple Team Remediations
+
+| Finding | Fix |
+|---------|-----|
+| SQL Injection | Sequelize parameterized queries — bind params, never concatenate |
+| Weak hashing | Migrate to `bcrypt` / `Argon2` with per-user salt · cost factor ≥ 12 |
+| Stored XSS | Server-side `DOMPurify` · strict `Content-Security-Policy: default-src 'self'` |
+| FTP exposure | Remove `/ftp/` from web root · serve files via authenticated endpoints |
+| 403 bypass | Validate extensions after URL decode · use allowlist not blocklist |
+| Missing headers | `app.use(helmet())` · HSTS `max-age=31536000` · Referrer-Policy |
+| CORS wildcard | Restrict to known origins · never use `*` in production |
+
+> Full HTML report: `output/reports/OWASP_Juice_Shop_Full_Pentest_20260420.html`  
+> Generated automatically by ERR0RS Professional Reporter
+
+---
+
+## Phoenix Arsenal
+
+ERR0RS v3.0 integrates the full Phoenix-OS tool catalog via the Phoenix Bridge:
+
+```
+Phoenix Registry   92 curated tools  (full metadata · phases · NLP triggers · docs)
+BlackArch Tools  2080 discovered     (/opt/blackarch auto-enumeration)
+─────────────────────────────────────
+Total Arsenal    2172 tools          (searchable · executable · kill-chain aware)
+```
+
+**Arsenal UI** → `http://127.0.0.1:8765/arsenal.html`
+- NLP tool search across all 2,172 tools
+- 13 category filters (recon, exploitation, wireless, AD, cloud, forensics...)
+- One-click execution with live terminal output
+- Prebuilt kill chain runner with per-step progress tracking
+
+**New API routes:**
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/api/phoenix/status` | Bridge health · tool counts · target |
+| `GET` | `/api/phoenix/tools?q=xss` | NLP tool search |
+| `GET` | `/api/phoenix/tools?cat=recon` | Category filter |
+| `GET` | `/api/phoenix/killchain` | Prebuilt 6-step attack sequence |
+| `POST` | `/api/phoenix/run` | Execute any tool with args + timeout |
+
 
 ---
 

@@ -227,6 +227,20 @@ except Exception as e:
     PHOENIX_BRIDGE = False
     print(f"[ERR0RS] Phoenix Bridge unavailable: {e}")
 
+# ── Live Narrator Engine ──────────────────────────────────────────────────────
+try:
+    from src.core.narrator import narrator, narrate_tool, narrate_finding, narrate_phase, tell as narrate
+    NARRATOR = True
+    print("[ERR0RS] Live Narrator ready — operator feed active")
+except Exception as _ne:
+    NARRATOR = False
+    narrator = None
+    def narrate_tool(t, tgt=""): pass
+    def narrate_finding(w, where="", why=""): pass
+    def narrate_phase(p, tgt=""): pass
+    def narrate(m, **kw): pass
+    print(f"[ERR0RS] Narrator unavailable: {_ne}")
+
 # ── Blue Team Toolkit ──────────────────────────────────────────────────────────
 try:
     from src.security.blue_team import (
@@ -498,6 +512,8 @@ def route_command(cmd: str) -> dict:
     resolved_tool = (resolve_tool_alias(lower) if _LANG_LOADED else None) or _tool_map.get(verb)
     if resolved_tool and target:
         tool = resolved_tool
+        # ── NARRATOR: announce before firing ──────────────────────────────
+        narrate_tool(tool, target)
         if FRAMEWORK_LOADED:
             return run_tool_async(tool, target, {})
         cmds = {
@@ -1018,12 +1034,17 @@ async def ws_terminal_handler(websocket):
     _ws_clients[session_id] = websocket
     proc = None
 
+    # ── Register this WS client with the narrator ─────────────────────────
+    if NARRATOR and narrator:
+        narrator.register_ws(websocket.send)
+
     try:
         await websocket.send(json.dumps({
             "type": "system",
             "data": f"[ERR0RS] WebSocket connected. Session {session_id}\n"
                     "[ERR0RS] Type commands below. Add '--teach' for inline education.\n"
-                    "[ERR0RS] Use $ prefix for raw shell. Ctrl+C to stop running tools."
+                    "[ERR0RS] Use $ prefix for raw shell. Ctrl+C to stop running tools.\n"
+                    "[ERR0RS] 📡 Live Narrator active — all actions explained in real time."
         }))
 
         async for message in websocket:
@@ -1162,6 +1183,8 @@ async def ws_terminal_handler(websocket):
         if proc and proc.is_running:
             proc.terminate()
         _ws_clients.pop(session_id, None)
+        if NARRATOR and narrator:
+            narrator.unregister_ws(websocket.send)
 
 
 def start_ws_server():
@@ -1227,6 +1250,13 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
             if self.path == "/api/status":   self._json(self._status())
             elif self.path == "/api/phases": self._json(self._phases())
             elif self.path == "/api/tools":  self._json(self._tools_list())
+            elif self.path == "/api/narrator/feed":
+                try:
+                    with open("/tmp/err0rs_live.log") as _lf:
+                        lines = _lf.readlines()
+                    self._json({"lines": lines[-100:], "total": len(lines)})
+                except FileNotFoundError:
+                    self._json({"lines": [], "total": 0, "note": "No narrator activity yet"})
             elif self.path.split("?")[0] == "/api/phoenix/status":
                 if PHOENIX_BRIDGE:
                     self._json(phoenix_bridge_status())
@@ -1408,19 +1438,38 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 tool_name = payload.get("tool", "")
                 args      = payload.get("args", [])
                 timeout   = int(payload.get("timeout", 180))
+                target_str = " ".join(str(a) for a in args[:2]) if args else ""
                 if not tool_name:
                     self._json({"error": "tool name required"})
                 elif PHOENIX_BRIDGE:
-                    # Run in thread — avoids blocking single-threaded HTTP server
+                    # ── NARRATOR: announce before firing ──────────────────
+                    narrate_tool(tool_name, target_str)
                     import concurrent.futures as _cf
                     with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
                         _fut = _ex.submit(phoenix_run_tool, tool_name, args, timeout)
                         try:
                             result = _fut.result(timeout=timeout + 10)
+                            # ── NARRATOR: report outcome ───────────────────
+                            if result.success:
+                                lines = [l for l in result.stdout.splitlines() if l.strip()]
+                                preview = lines[0][:80] if lines else "completed"
+                                narrate(
+                                    f"{tool_name.upper()} completed successfully in {result.duration:.1f}s",
+                                    phase="success", tool=tool_name,
+                                    finding=preview,
+                                )
+                            else:
+                                narrate(
+                                    f"{tool_name.upper()} finished with RC:{result.returncode}",
+                                    phase="warning", tool=tool_name,
+                                    detail=result.stderr[:100] if result.stderr else "",
+                                )
                             self._json(result.to_dict())
                         except _cf.TimeoutError:
+                            narrate(f"{tool_name.upper()} timed out after {timeout}s", phase="error", tool=tool_name)
                             self._json({"error": f"Tool timed out after {timeout}s", "tool": tool_name, "success": False})
                         except Exception as _te:
+                            narrate(f"{tool_name.upper()} error: {_te}", phase="error", tool=tool_name)
                             self._json({"error": str(_te), "tool": tool_name, "success": False})
                 else:
                     self._json({"error": "Phoenix Bridge not loaded"})

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ERR0RS Live Feed
+Comment=Real-time narrated operator feed for ERR0RS
+Exec=bash -c "cd /home/kali/ERR0RS-Ultimate && bash scripts/err0rs_watch.sh; read -p 'Press Enter to close...'"
+Icon=/home/kali/ERR0RS-Ultimate/assets/icon.png
+Terminal=true
+Categories=Security;Utility;
+Keywords=security;pentest;err0rs;live;
+StartupNotify=false

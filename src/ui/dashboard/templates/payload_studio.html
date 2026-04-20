@@ -370,10 +370,35 @@
       <button class="deploy-btn flipper" onclick="deployToFlipper()">🐬 DEPLOY → FLIPPER SD</button>
       <button class="deploy-btn pico"    onclick="openPicoModal()">🟣 FLASH → PICO BADUSB</button>
       <button class="deploy-btn convert" onclick="convertToPico()">⚡ CONVERT → CIRCUITPY</button>
-      <button class="deploy-btn gen"     onclick="aiGeneratePayload()">🤖 AI GENERATE</button>
+      <button class="deploy-btn gen"     onclick="toggleAiPanel()">🤖 AI GENERATE</button>
       <button class="deploy-btn copy"    onclick="copyPayload()">📋 COPY PAYLOAD</button>
       <button class="deploy-btn save"    onclick="savePayload()">💾 DOWNLOAD .txt</button>
       <div id="deploy-status"></div>
+      <!-- AI Generate inline panel -->
+      <div id="ai-gen-panel" style="display:none;margin-top:8px;background:rgba(255,170,0,.06);border:1px solid var(--amber);border-radius:6px;padding:10px;display:none;flex-direction:column;gap:6px;">
+        <div style="font-size:.75rem;color:var(--amber);letter-spacing:1px;margin-bottom:2px;">🤖 AI PAYLOAD GENERATOR</div>
+        <input id="ai-desc-input" type="text"
+          placeholder="Describe payload (e.g. steal WiFi passwords, add admin user, exfil docs...)"
+          style="background:rgba(0,0,0,.4);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.83rem;padding:6px 10px;border-radius:4px;width:100%;"
+          onkeydown="if(event.key==='Enter')runAiGenerate()">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select id="ai-os-select" style="background:rgba(0,0,0,.4);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.82rem;padding:5px 8px;border-radius:4px;flex:0 0 auto;">
+            <option value="windows">Windows</option>
+            <option value="macos">macOS</option>
+            <option value="linux">Linux</option>
+            <option value="android">Android</option>
+          </select>
+          <button onclick="runAiGenerate()" id="ai-gen-btn"
+            style="flex:1;padding:6px 10px;background:rgba(255,170,0,.15);border:1px solid var(--amber);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:.80rem;letter-spacing:1px;border-radius:4px;cursor:pointer;">
+            ⚡ GENERATE
+          </button>
+          <button onclick="toggleAiPanel()"
+            style="padding:6px 10px;background:transparent;border:1px solid var(--border);color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:.80rem;border-radius:4px;cursor:pointer;">
+            ✕
+          </button>
+        </div>
+        <div id="ai-gen-status" style="font-size:.76rem;color:var(--text-dim);min-height:16px;"></div>
+      </div>
     </div>
 
   </div>
@@ -1499,30 +1524,71 @@ async function convertToPico() {
   }
 }
 
-async function aiGeneratePayload() {
-  const desc = prompt('Describe the payload (e.g. "steal WiFi passwords on Windows"):');
-  if (!desc) return;
-  setStatus('🤖 AI generating payload...');
+async function aiGeneratePayload() { toggleAiPanel(); }  // legacy compat
+
+function toggleAiPanel() {
+  const panel = document.getElementById('ai-gen-panel');
+  const showing = panel.style.display === 'flex';
+  panel.style.display = showing ? 'none' : 'flex';
+  if (!showing) {
+    // Sync OS select with the target OS selector if present
+    const targetSel = document.getElementById('target-os-select');
+    if (targetSel) document.getElementById('ai-os-select').value = targetSel.value || 'windows';
+    setTimeout(() => document.getElementById('ai-desc-input').focus(), 50);
+  }
+}
+
+async function runAiGenerate() {
+  const desc   = document.getElementById('ai-desc-input').value.trim();
+  const os     = document.getElementById('ai-os-select').value;
+  const btn    = document.getElementById('ai-gen-btn');
+  const status = document.getElementById('ai-gen-status');
+
+  if (!desc) {
+    status.textContent = '⚠️ Enter a description first';
+    status.style.color = 'var(--red)';
+    return;
+  }
+
+  btn.disabled      = true;
+  btn.textContent   = '⏳ Generating...';
+  status.textContent = '🤖 Running AI generator (up to 25s for Ollama, instant for templates)...';
+  status.style.color = 'var(--amber)';
+
   try {
     const r = await fetch('/api/payload_studio/generate', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        description: desc,
-        target_os: document.getElementById('target-os-select').value || 'windows',
-        output_format: 'duckyscript'
-      })
+      body: JSON.stringify({ description: desc, target_os: os, output_format: 'duckyscript' })
     });
     const d = await r.json();
+
     if (d.status === 'ok') {
-      editor.value = d.script;
+      // Insert at top of editor with a header
+      const hdr    = `REM ======================================\nREM  AI GENERATED: ${desc}\nREM  Target: ${os.toUpperCase()}  |  ${d.ai_used ? 'Ollama LLM' : 'Template'}\nREM ======================================\n`;
+      editor.value = hdr + d.script.trim() + '\n';
       onEditorInput();
-      setStatus(`✅ AI generated ${d.lines} lines (${d.ai_used ? 'Ollama LLM' : 'template fallback'})`);
+      syncHighlightLayer();
+      document.getElementById('payload-name-input').value = 'ai_' + desc.slice(0,25).replace(/\s+/g,'_').toLowerCase() + '.txt';
+
+      status.textContent = `✅ ${d.lines} lines generated via ${d.ai_used ? '🧠 Ollama LLM' : '📋 template library'}`;
+      status.style.color = 'var(--green)';
+
+      // Auto-close panel after success
+      setTimeout(() => {
+        document.getElementById('ai-gen-panel').style.display = 'none';
+        status.textContent = '';
+      }, 3000);
     } else {
-      setStatus('AI generate error: ' + d.error);
+      status.textContent = '❌ ' + (d.error || 'Unknown error');
+      status.style.color = 'var(--red)';
     }
-  } catch (err) {
-    setStatus('Error: ' + err);
+  } catch(err) {
+    status.textContent = '❌ Network error: ' + err.message;
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '⚡ GENERATE';
   }
 }
 
@@ -1727,7 +1793,7 @@ async function loadKBPayload(el, path, name) {
         // Already a REM line — keep it
         if (line.startsWith('REM')) return line;
         // Code block markers — skip
-        if (line.startsWith('```')) return 'REM ---';
+        if (line.startsWith('\x60\x60\x60')) return 'REM ---';
         // Heading
         if (line.startsWith('#')) return 'REM ' + line.replace(/^#+\s*/, '').toUpperCase();
         // Blockquote
@@ -1770,7 +1836,8 @@ async function loadKBPayload(el, path, name) {
 
 // Pre-warm KB in background on page load so it's instant on first click
 window.addEventListener('load', () => {
-  renderSnippetList();
+  buildCategoryFilter();   // populate category pills first
+  renderSnippetList();     // then render snippets
 
   // ── Pick up payload sent from badusb_catalog.html via sessionStorage ──
   const pending = sessionStorage.getItem('loadPayload');
@@ -1779,36 +1846,59 @@ window.addEventListener('load', () => {
     try {
       const {path, collection, title} = JSON.parse(pending);
       if (path && !path.startsWith('embedded:')) {
-        // Switch to KB tab and load
         setLibMode('kb');
         setTimeout(async () => {
-          const r = await fetch(
-            `/api/payload_studio/payload?path=${encodeURIComponent(path)}&collection=${collection||'badusb_payloads'}`
-          );
-          const d = await r.json();
-          if (d.content) {
-            const raw   = d.content;
-            const lines = raw.split('\n');
-            const body  = lines[0].match(/^\[.*?\]/) ? lines.slice(1) : lines;
-            const fmt   = body.map(l => {
-              l = l.trimEnd();
-              if (!l) return 'REM';
-              if (l.startsWith('REM') || l.match(/^(DELAY|STRING|GUI|ENTER|CTRL|ALT|SHIFT|WINDOWS|ATTACKMODE|DEFAULT_DELAY)\b/i)) return l;
-              if (l.startsWith('> ')) return 'REM ' + l.slice(2);
-              if (l.startsWith('# ')) return 'REM ' + l.replace(/^#+\s*/,'').toUpperCase();
-              return 'REM ' + l;
-            }).join('\n').replace(/(\nREM\s*){3,}/g,'\nREM\n').trim();
+          try {
+            const r = await fetch(
+              `/api/payload_studio/payload?path=${encodeURIComponent(path)}&collection=${collection||'badusb_payloads'}`
+            );
+            const d = await r.json();
+            const raw = d.content || '';
+            if (!raw) {
+              setStatus('⚠️ Payload content empty — check API');
+              return;
+            }
+            // If it's raw DuckyScript (has DELAY/STRING/GUI etc), load directly
+            const isDucky = /^(REM|DELAY|STRING|STRINGLN|GUI|ENTER|CTRL|ALT|SHIFT|WINDOWS|ATTACKMODE|DEFAULT_DELAY)\b/m.test(raw);
+            let final = raw;
+            if (!isDucky) {
+              // It's a metadata-wrapped ChromaDB doc — extract DuckyScript part
+              const payloadMarker = raw.indexOf('\nPAYLOAD:\n');
+              if (payloadMarker !== -1) {
+                final = raw.slice(payloadMarker + 10).trim();
+              } else {
+                // Strip header lines until first DuckyScript line
+                const lines = raw.split('\n');
+                let startIdx = 0;
+                for (let i = 0; i < lines.length; i++) {
+                  if (/^(REM|DELAY|STRING|STRINGLN|GUI|ENTER|CTRL|ALT|SHIFT|WINDOWS|ATTACKMODE|DEFAULT_DELAY)\b/.test(lines[i].trim())) {
+                    startIdx = i; break;
+                  }
+                }
+                final = lines.slice(startIdx).join('\n').trim();
+              }
+            }
+            if (!final) final = raw; // fallback — show whatever came back
 
-            const hdr = `REM ======================================\nREM  ${title || path.split('/').pop()}\nREM  Source: ${path.split('/').slice(-2).join('/')}\nREM ======================================\n`;
-            editor.value = hdr + fmt + '\n\nDELAY 500\n';
-            document.getElementById('payload-name-input').value =
-              path.split('/').pop().replace('.txt','') + '.txt';
+            const fname   = path.split('/').pop() || 'payload.txt';
+            const display = (title || fname.replace('.txt','')).replace(/_/g,' ');
+            const hdr     = `REM ======================================\nREM  ${display}\nREM  Source: ${path.split('/').slice(-2).join('/')}\nREM ======================================\n`;
+            editor.value  = hdr + final + (final.endsWith('\n') ? '' : '\n');
+            document.getElementById('payload-name-input').value = fname;
             onEditorInput();
-            document.getElementById('ai-status').textContent = `📂 LOADED FROM CATALOG: ${title}`;
+            syncHighlightLayer();
+            document.getElementById('ai-status').textContent = `📂 LOADED: ${display}`;
+          } catch(fetchErr) {
+            setStatus('⚠️ Failed to load payload: ' + fetchErr.message);
           }
-        }, 300);
+        }, 400);
+      } else if (path && path.startsWith('embedded:')) {
+        // Embedded-only entry — nothing to fetch, show notice
+        setStatus('ℹ️ Embedded-only payload — view in catalog for content');
       }
-    } catch(e) { /* silent */ }
+    } catch(parseErr) {
+      console.error('sessionStorage parse error:', parseErr);
+    }
   }
 
   // Silent background prefetch — populates kbPayloads cache (BadUSB collection only)

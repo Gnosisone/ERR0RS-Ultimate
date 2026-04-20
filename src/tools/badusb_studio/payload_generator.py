@@ -195,7 +195,7 @@ Only output the DuckyScript code — no explanations, no markdown fences."""
                 headers={"Content-Type": "application/json"},
                 method="POST"
             )
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=20) as r:
                 result = json.loads(r.read().decode())
                 response = result.get("response", "").strip()
                 # Strip any markdown fences the model might add
@@ -229,7 +229,7 @@ Only output the DuckyScript code — no explanations, no markdown fences."""
                 self.OLLAMA_URL, data=data,
                 headers={"Content-Type": "application/json"}, method="POST"
             )
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=20) as r:
                 result = json.loads(r.read().decode())
                 refined = result.get("response", "").strip()
                 refined = re.sub(r"```[a-z]*\n?", "", refined).strip()

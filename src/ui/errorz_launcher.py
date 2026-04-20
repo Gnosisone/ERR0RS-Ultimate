@@ -13,7 +13,7 @@ What's new in v3.0:
 Author: Gary Holden Schneider (Eros) | GitHub: Gnosisone
 """
 
-import os, sys, json, time, asyncio, threading, subprocess, webbrowser
+import os, sys, json, time, asyncio, threading, subprocess, webbrowser, re
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
@@ -205,6 +205,27 @@ try:
 except Exception as e:
     OPSEC_ENGINE = False
     print(f"[ERR0RS] OPSEC mode unavailable: {e}")
+
+# ── Phoenix-OS Bridge — 2079 BlackArch tools ─────────────────────────────────
+_PHOENIX_ROOT = "/home/kali/Phoenix-OS"
+if _PHOENIX_ROOT not in sys.path:
+    sys.path.insert(0, _PHOENIX_ROOT)
+try:
+    from src.core.phoenix_bridge import (
+        bridge_status as phoenix_bridge_status,
+        get_all_tools as phoenix_get_all_tools,
+        search_tools as phoenix_search_tools,
+        run_tool as phoenix_run_tool,
+        get_juice_shop_killchain,
+        discover_blackarch_tools,
+        JUICE_SHOP_TARGET,
+    )
+    PHOENIX_BRIDGE = True
+    _pb_status = phoenix_bridge_status()
+    print(f"[ERR0RS] Phoenix Bridge: {_pb_status['status']} | {_pb_status['total_tools']} tools")
+except Exception as e:
+    PHOENIX_BRIDGE = False
+    print(f"[ERR0RS] Phoenix Bridge unavailable: {e}")
 
 # ── Blue Team Toolkit ──────────────────────────────────────────────────────────
 try:
@@ -1206,6 +1227,36 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
             if self.path == "/api/status":   self._json(self._status())
             elif self.path == "/api/phases": self._json(self._phases())
             elif self.path == "/api/tools":  self._json(self._tools_list())
+            elif self.path.split("?")[0] == "/api/phoenix/status":
+                if PHOENIX_BRIDGE:
+                    self._json(phoenix_bridge_status())
+                else:
+                    self._json({"error": "Phoenix Bridge not loaded"})
+            elif self.path.split("?")[0] == "/api/phoenix/tools":
+                if PHOENIX_BRIDGE:
+                    from urllib.parse import urlparse, parse_qs
+                    _qs  = parse_qs(urlparse(self.path).query)
+                    q    = _qs.get("q",   [""])[0]
+                    cat  = _qs.get("cat", [""])[0]
+                    if q:
+                        self._json({"tools": phoenix_search_tools(q)})
+                    elif cat:
+                        from src.core.phoenix_bridge import get_tools_by_category
+                        self._json({"tools": get_tools_by_category(cat)})
+                    else:
+                        all_t = phoenix_get_all_tools()
+                        self._json({
+                            "count": len(all_t),
+                            "tools": list(all_t.values())[:100],
+                            "note": "Use ?q=keyword to search or ?cat=category to filter"
+                        })
+                else:
+                    self._json({"error": "Phoenix Bridge not loaded"})
+            elif self.path.split("?")[0] == "/api/phoenix/killchain":
+                if PHOENIX_BRIDGE:
+                    self._json({"steps": get_juice_shop_killchain(), "target": JUICE_SHOP_TARGET})
+                else:
+                    self._json({"error": "Phoenix Bridge not loaded"})
             elif self.path == "/api/ws_info":
                 self._json({"ws_url": f"ws://{HOST}:{WS_PORT}",
                             "ws_available": WEBSOCKETS_OK,
@@ -1353,6 +1404,26 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     self._json({"status":"error","error":str(e)})
 
+            elif self.path == "/api/phoenix/run":
+                tool_name = payload.get("tool", "")
+                args      = payload.get("args", [])
+                timeout   = int(payload.get("timeout", 180))
+                if not tool_name:
+                    self._json({"error": "tool name required"})
+                elif PHOENIX_BRIDGE:
+                    # Run in thread — avoids blocking single-threaded HTTP server
+                    import concurrent.futures as _cf
+                    with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                        _fut = _ex.submit(phoenix_run_tool, tool_name, args, timeout)
+                        try:
+                            result = _fut.result(timeout=timeout + 10)
+                            self._json(result.to_dict())
+                        except _cf.TimeoutError:
+                            self._json({"error": f"Tool timed out after {timeout}s", "tool": tool_name, "success": False})
+                        except Exception as _te:
+                            self._json({"error": str(_te), "tool": tool_name, "success": False})
+                else:
+                    self._json({"error": "Phoenix Bridge not loaded"})
             elif self.path == "/api/ollama":
                 self._json(query_ollama(payload.get("prompt","").strip()))
 
@@ -1901,35 +1972,116 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
 
     def _kb_payload_detail(self):
         """
-        GET /api/payload_studio/payload?path=<encoded_path>
-        Returns full document text for a single payload by its path key.
+        GET /api/payload_studio/payload?path=<encoded_path>&collection=<col>
+        Returns full raw payload content.
+        Priority:
+          1. Exact file path on disk
+          2. Fuzzy filename search under knowledge/badusb/
+          3. ChromaDB document (extract DuckyScript portion)
         """
         try:
             from urllib.parse import urlparse, parse_qs, unquote
-            qs   = parse_qs(urlparse(self.path).query)
-            path = unquote(qs.get("path", [""])[0])
+            qs       = parse_qs(urlparse(self.path).query)
+            path     = unquote(qs.get("path",       [""])[0])
             col_name = qs.get("collection", ["payloads_all_things"])[0]
 
             if not path:
                 self._json({"status":"error","error":"path param required"}); return
 
+            # ── 1. Exact path on disk ─────────────────────────────────────
+            candidate = ROOT_DIR / path
+            if candidate.exists() and candidate.is_file():
+                raw = candidate.read_text(encoding="utf-8", errors="replace")
+                self._json({"status":"ok","path":path,"content":raw,"source":"file"})
+                return
+
+            # ── 2. Fuzzy search by filename under knowledge/badusb/ ───────
+            fname = Path(path).name          # e.g. "Debug.txt" or "payload.txt"
+            stem  = Path(path).stem          # e.g. "Debug"
+            # Extract repo hint from path  "knowledge/badusb/REPO/..."
+            parts = Path(path).parts
+            repo_hint = parts[2] if len(parts) > 2 else ""
+            badusb_root = ROOT_DIR / "knowledge" / "badusb"
+
+            found_file = None
+            # Search within repo dir first, then all of knowledge/badusb
+            search_roots = []
+            if repo_hint and (badusb_root / repo_hint).exists():
+                search_roots.append(badusb_root / repo_hint)
+            search_roots.append(badusb_root)
+
+            for search_root in search_roots:
+                # Exact filename match
+                for f in search_root.rglob(fname):
+                    found_file = f; break
+                if found_file: break
+                # Stem match (any extension)
+                for f in search_root.rglob(f"{stem}.*"):
+                    if f.suffix in (".txt", ".ducky", ".script"):
+                        found_file = f; break
+                if found_file: break
+
+            if found_file:
+                raw = found_file.read_text(encoding="utf-8", errors="replace")
+                self._json({"status":"ok","path":str(found_file.relative_to(ROOT_DIR)),
+                            "content":raw,"source":"file_fuzzy"})
+                return
+
+            # ── 3. ChromaDB fallback — extract DuckyScript from doc ───────
             import chromadb
             KB_PATH = str(ROOT_DIR / "errors_knowledge_db")
             client  = chromadb.PersistentClient(path=KB_PATH)
-            col     = client.get_collection(col_name)
+            try:
+                col = client.get_collection(col_name)
+            except Exception:
+                self._json({"status":"error","error":f"collection '{col_name}' not found"})
+                return
 
-            resp = col.get(where={"path": {"$eq": path}}, include=["metadatas","documents"])
-            if not resp["documents"]:
-                self._json({"status":"error","error":"not found"}); return
+            resp = col.get(where={"path":{"$eq":path}}, include=["metadatas","documents"])
+            if resp["documents"]:
+                doc  = resp["documents"][0]
+                meta = resp["metadatas"][0]
+                raw  = self._extract_ducky_from_doc(doc)
+                self._json({"status":"ok","path":path,"content":raw,
+                            "metadata":meta,"source":"chromadb"})
+                return
 
-            self._json({
-                "status":   "ok",
-                "path":     path,
-                "content":  resp["documents"][0],
-                "metadata": resp["metadatas"][0],
-            })
+            self._json({"status":"error","error":f"not found: {path}"})
+
         except Exception as e:
             self._json({"status":"error","error":str(e)})
+
+    def _extract_ducky_from_doc(self, doc: str) -> str:
+        """Extract the DuckyScript payload lines from a ChromaDB document."""
+        # After "PAYLOAD:\n" marker is cleanest
+        if "\nPAYLOAD:\n" in doc:
+            section = doc.split("\nPAYLOAD:\n", 1)[1].strip()
+            # Skip === filename === headers inside the payload section
+            lines = [l for l in section.split("\n")
+                     if not re.match(r'^===\s.*\s===$', l.strip())]
+            return "\n".join(lines).strip()
+
+        # Otherwise walk line by line — grab from first DuckyScript keyword
+        ducky_re = re.compile(
+            r'^(REM|DELAY|STRING|STRINGLN|GUI|ENTER|CTRL|ALT|SHIFT|WINDOWS|'
+            r'ATTACKMODE|DEFAULT_DELAY|REPEAT|ID|CAPSLOCK|ESCAPE|BACKSPACE|'
+            r'DELETE|UPARROW|DOWNARROW|LEFTARROW|RIGHTARROW|F\d{1,2}|'
+            r'HOME|END|PAGEUP|PAGEDOWN|INSERT|SPACE|TAB|PRINTSCREEN)\b'
+        )
+        lines       = doc.split("\n")
+        out         = []
+        in_payload  = False
+        for line in lines:
+            if not in_payload:
+                if ducky_re.match(line.strip()):
+                    in_payload = True
+                    out.append(line)
+            else:
+                out.append(line)
+
+        return "\n".join(out).strip() if out else doc
+
+
 
     def _explain_line(self, line: str) -> dict:
         try:
@@ -2028,27 +2180,50 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
     def _generate_payload(self, payload: dict) -> dict:
         """
         POST /api/payload_studio/generate
-        Body: { "description": "wifi harvester", "target_os": "windows",
-                "output_format": "duckyscript" }
+        Template match is instant. Ollama runs in a thread with 22s cap.
+        Always returns within 25s — never blocks the HTTP thread.
         """
+        import concurrent.futures
         try:
             from src.tools.badusb_studio.payload_generator import PayloadGenerator
-            pg = PayloadGenerator()
             description   = payload.get("description", "").strip()
             target_os     = payload.get("target_os", "windows").strip()
             output_format = payload.get("output_format", "duckyscript").strip()
+
             if not description:
                 return {"status": "error", "error": "description required"}
-            script = pg.generate(description, target_os=target_os,
-                                 output_format=output_format)
-            return {
-                "status":  "ok",
-                "script":  script,
-                "target_os": target_os,
-                "format":  output_format,
-                "lines":   len(script.splitlines()),
-                "ai_used": pg._ollama_available,
-            }
+
+            # ── Instant template match — no I/O at all ────────────────────
+            pg       = PayloadGenerator()                 # 0.3s (just checks ollama ping)
+            template = pg._match_template(description, target_os)
+
+            # If Ollama not available, return template immediately
+            if not pg._ollama_available:
+                script = template or pg._generic_stub(description, target_os)
+                return {"status":"ok","script":script,"target_os":target_os,
+                        "format":output_format,"lines":len(script.splitlines()),"ai_used":False}
+
+            # ── Ollama in background thread — hard 22s timeout ─────────────
+            script  = None
+            ai_used = False
+
+            def _gen():
+                return pg._generate_ollama(description, target_os, output_format)
+
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    result = ex.submit(_gen).result(timeout=22)
+                    if result:
+                        script  = result
+                        ai_used = True
+            except (concurrent.futures.TimeoutError, Exception):
+                pass   # fall through to template
+
+            if not script:
+                script = template or pg._generic_stub(description, target_os)
+
+            return {"status":"ok","script":script,"target_os":target_os,
+                    "format":output_format,"lines":len(script.splitlines()),"ai_used":ai_used}
         except Exception as e:
             return {"status": "error", "error": str(e)}
 

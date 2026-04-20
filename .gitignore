@@ -73,3 +73,11 @@ npm-debug.log*
 # Kali / Pi specific
 *.img
 *.iso
+
+# ChromaDB runtime data
+errors_knowledge_db/*.sqlite3-shm
+errors_knowledge_db/*.sqlite3-wal
+errors.db-shm
+errors.db-wal
+errors_knowledge_db/*/
+errors_knowledge_db/*.sqlite3

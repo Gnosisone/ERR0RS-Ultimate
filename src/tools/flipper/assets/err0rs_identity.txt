@@ -1,0 +1,12 @@
+ERR0RS-Ultimate Physical Sensor
+================================
+Provisioned by ERR0RS OTA System
+github.com/Gnosisone/ERR0RS-Ultimate
+
+Knowledge. Integrity. Security.
+
+This device operates as an authorized
+penetration testing sensor. All captures
+are logged to an active engagement ID.
+
+Unauthorized use is prohibited.

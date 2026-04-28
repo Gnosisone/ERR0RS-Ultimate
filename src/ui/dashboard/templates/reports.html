@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ERR0RS // Reports</title>
+<style>
+body{background:#04000a;color:#d4b8ff;font-family:'Share Tech Mono',monospace;padding:30px}
+h1{color:#bf6fff;margin-bottom:20px} a{color:#00f5ff;text-decoration:none}
+a:hover{text-decoration:underline}
+.file{padding:10px;margin:6px 0;background:#0c0020;border:1px solid #1e0040;border-radius:6px}
+.back{color:#7b2fbe;margin-bottom:16px;display:block}
+</style>
+</head>
+<body>
+<a class="back" href="/">← Dashboard</a>
+<h1>📄 Reports</h1>
+{% for f in files %}
+<div class="file"><a href="/report/{{ f }}">{{ f }}</a></div>
+{% else %}
+<p style="color:#4a2870">No reports generated yet.</p>
+{% endfor %}
+</body>
+</html>

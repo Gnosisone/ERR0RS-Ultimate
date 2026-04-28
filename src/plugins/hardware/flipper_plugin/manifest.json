@@ -1,0 +1,11 @@
+{
+  "name": "flipper_plugin",
+  "version": "1.0",
+  "author": "Gnosisone",
+  "description": "Flipper Zero controller — SubGHz, BadUSB, NFC, IR, GPIO",
+  "category": "hardware",
+  "commands": ["subghz", "badusb", "nfc", "ir", "gpio", "status"],
+  "entry_point": "plugin.py",
+  "requires": [],
+  "permissions": ["hardware", "network"]
+}

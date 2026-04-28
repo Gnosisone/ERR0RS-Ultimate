@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>PHOENIX OS — Mascot Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: #04000a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+    }
+
+    /* ── SCANLINES ── */
+    body::after {
+      content:'';
+      position:fixed; inset:0;
+      background: repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.1) 3px,rgba(0,0,0,.1) 4px);
+      pointer-events:none;
+      z-index:9999;
+    }
+
+    /* ── BACKGROUND EMBER PARTICLES ── */
+    .ember {
+      position: fixed;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: #ff6a00;
+      box-shadow: 0 0 6px #ff6a00, 0 0 12px #ff4400;
+      animation: float-ember linear infinite;
+      pointer-events: none;
+    }
+    @keyframes float-ember {
+      0%   { transform: translateY(100vh) translateX(0) scale(1); opacity: 1; }
+      100% { transform: translateY(-20px) translateX(var(--drift)) scale(0); opacity: 0; }
+    }
+
+    /* ── TITLE ── */
+    .title-wrap {
+      text-align: center;
+      margin-bottom: 20px;
+      z-index: 10;
+    }
+    .title {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.4rem;
+      font-weight: 900;
+      letter-spacing: 8px;
+      background: linear-gradient(135deg, #ff6a00, #ffcc00, #ff4400);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      filter: drop-shadow(0 0 20px rgba(255,106,0,.8));
+      animation: title-pulse 3s ease-in-out infinite;
+    }
+    .subtitle {
+      font-size: .75rem;
+      letter-spacing: 6px;
+      color: rgba(255,106,0,.5);
+      margin-top: 4px;
+    }
+    @keyframes title-pulse {
+      0%,100% { filter: drop-shadow(0 0 20px rgba(255,106,0,.8)); }
+      50%      { filter: drop-shadow(0 0 40px rgba(255,200,0,1)); }
+    }
+
+    /* ── PHOENIX SVG CONTAINER ── */
+    .phoenix-wrap {
+      position: relative;
+      z-index: 10;
+    }
+    #phoenix-svg {
+      width: 320px;
+      height: 380px;
+      filter: drop-shadow(0 0 30px rgba(255,106,0,.6));
+      animation: phoenix-float 4s ease-in-out infinite;
+    }
+    @keyframes phoenix-float {
+      0%,100% { transform: translateY(0px) rotate(0deg); }
+      25%      { transform: translateY(-12px) rotate(-1deg); }
+      75%      { transform: translateY(-6px) rotate(1deg); }
+    }
+
+    /* Wing flap animation */
+    .wing-left  { animation: wing-left  2s ease-in-out infinite; transform-origin: 60% 45%; }
+    .wing-right { animation: wing-right 2s ease-in-out infinite; transform-origin: 40% 45%; }
+    @keyframes wing-left  {
+      0%,100% { transform: rotate(0deg) scaleY(1); }
+      50%      { transform: rotate(-12deg) scaleY(0.85); }
+    }
+    @keyframes wing-right {
+      0%,100% { transform: rotate(0deg) scaleY(1); }
+      50%      { transform: rotate(12deg) scaleY(0.85); }
+    }
+
+    /* Eye glow */
+    .phoenix-eye { animation: eye-glow 1.5s ease-in-out infinite; }
+    @keyframes eye-glow {
+      0%,100% { opacity:1; }
+      50%      { opacity:.4; }
+    }
+
+    /* Flame body pulse */
+    .flame-core { animation: flame-pulse 1.8s ease-in-out infinite; }
+    @keyframes flame-pulse {
+      0%,100% { opacity:1; transform: scaleY(1); }
+      50%      { opacity:.8; transform: scaleY(1.04); }
+    }
+
+    /* Tail flame */
+    .tail-flame { animation: tail-wave 2.5s ease-in-out infinite; transform-origin: 50% 0%; }
+    @keyframes tail-wave {
+      0%,100% { transform: rotate(-5deg) scaleX(1); }
+      50%      { transform: rotate(5deg) scaleX(1.1); }
+    }
+
+    /* ── STATUS BADGE ── */
+    .status {
+      margin-top: 20px;
+      display: flex;
+      gap: 16px;
+      z-index: 10;
+    }
+    .badge {
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: .65rem;
+      letter-spacing: 2px;
+      border: 1px solid;
+      font-family: 'Orbitron', monospace;
+    }
+    .badge.fire  { border-color:#ff6a00; color:#ff6a00; background:rgba(255,106,0,.08); animation: badge-pulse 2s infinite; }
+    .badge.gold  { border-color:#ffcc00; color:#ffcc00; background:rgba(255,204,0,.06); }
+    .badge.white { border-color:#ff9966; color:#ff9966; background:rgba(255,153,102,.06); }
+    @keyframes badge-pulse { 0%,100%{opacity:1}50%{opacity:.5} }
+
+    /* ── LORE TEXT ── */
+    .lore {
+      margin-top: 16px;
+      font-size: .7rem;
+      color: rgba(255,106,0,.4);
+      letter-spacing: 2px;
+      text-align: center;
+      z-index: 10;
+      max-width: 400px;
+      line-height: 1.8;
+    }
+    .lore span { color: rgba(255,204,0,.7); }
+  </style>
+</head>
+<body>
+
+<!-- Floating ember particles -->
+<script>
+  // Generate ember particles on load
+  window.addEventListener('DOMContentLoaded', () => {
+    for(let i = 0; i < 25; i++) {
+      const e = document.createElement('div');
+      e.className = 'ember';
+      e.style.left = Math.random() * 100 + 'vw';
+      e.style.bottom = '-10px';
+      e.style.setProperty('--drift', (Math.random()-0.5)*200 + 'px');
+      e.style.animationDuration = (4 + Math.random()*6) + 's';
+      e.style.animationDelay = (Math.random()*8) + 's';
+      e.style.width = e.style.height = (2 + Math.random()*4) + 'px';
+      // Vary colors between orange/yellow/red
+      const colors = ['#ff6a00','#ffcc00','#ff4400','#ff9900','#ffaa33'];
+      const c = colors[Math.floor(Math.random()*colors.length)];
+      e.style.background = c;
+      e.style.boxShadow = `0 0 6px ${c}, 0 0 12px ${c}`;
+      document.body.appendChild(e);
+    }
+  });
+</script>
+
+<div class="title-wrap">
+  <div class="title">PHOENIX OS</div>
+  <div class="subtitle">ERR0RS ULTIMATE // PI 5 BUILD</div>
+</div>
+
+<!-- ══ PHOENIX SVG MASCOT ══ -->
+<div class="phoenix-wrap">
+<svg id="phoenix-svg" viewBox="0 0 320 380" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Flame gradients -->
+    <radialGradient id="bodyFlame" cx="50%" cy="60%">
+      <stop offset="0%"   stop-color="#ffcc00"/>
+      <stop offset="40%"  stop-color="#ff6a00"/>
+      <stop offset="100%" stop-color="#cc2200"/>
+    </radialGradient>
+    <radialGradient id="wingGrad" cx="50%" cy="50%">
+      <stop offset="0%"   stop-color="#ff9900"/>
+      <stop offset="60%"  stop-color="#ff4400"/>
+      <stop offset="100%" stop-color="#880000" stop-opacity="0.6"/>
+    </radialGradient>
+    <radialGradient id="coreGlow" cx="50%" cy="50%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="30%"  stop-color="#ffee88"/>
+      <stop offset="100%" stop-color="#ff6a00" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="headGrad" cx="50%" cy="40%">
+      <stop offset="0%"   stop-color="#ffaa33"/>
+      <stop offset="100%" stop-color="#cc4400"/>
+    </radialGradient>
+    <linearGradient id="tailGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%"   stop-color="#ff6a00"/>
+      <stop offset="100%" stop-color="#cc2200" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="crownGrad" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%"   stop-color="#ff9900"/>
+      <stop offset="100%" stop-color="#ffee00"/>
+    </linearGradient>
+
+    <!-- Glow filters -->
+    <filter id="fireGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="emberGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ── BACKGROUND AURA ── -->
+  <ellipse cx="160" cy="310" rx="100" ry="25" fill="#ff4400" opacity=".15" filter="url(#fireGlow)"/>
+  <ellipse cx="160" cy="220" rx="120" ry="130" fill="#ff6a00" opacity=".08" filter="url(#fireGlow)"/>
+
+  <!-- ── TAIL FLAMES ── -->
+  <g class="tail-flame">
+    <!-- Main tail stream -->
+    <path d="M 140 310 Q 120 350 100 380 Q 130 360 160 340 Q 190 360 220 380 Q 200 350 180 310 Z"
+          fill="url(#tailGrad)" opacity=".8"/>
+    <!-- Side tail wisps -->
+    <path d="M 148 315 Q 110 370 85 400 Q 125 365 155 330 Z"
+          fill="#ff4400" opacity=".5"/>
+    <path d="M 172 315 Q 210 370 235 400 Q 195 365 165 330 Z"
+          fill="#ff4400" opacity=".5"/>
+    <!-- Wisp tip glows -->
+    <ellipse cx="100" cy="375" rx="8" ry="4" fill="#ffcc00" opacity=".4" filter="url(#emberGlow)"/>
+    <ellipse cx="220" cy="375" rx="8" ry="4" fill="#ffcc00" opacity=".4" filter="url(#emberGlow)"/>
+  </g>
+
+  <!-- ── LEFT WING ── -->
+  <g class="wing-left" filter="url(#softGlow)">
+    <!-- Main wing shape -->
+    <path d="M 120 190 Q 50 150 20 100 Q 40 140 60 170 Q 30 160 10 180 Q 45 175 75 185 Q 45 200 30 230 Q 70 210 100 205 Q 80 230 75 260 Q 105 235 120 215 Z"
+          fill="url(#wingGrad)" opacity=".9"/>
+    <!-- Wing feather details -->
+    <path d="M 115 195 Q 55 160 25 110 Q 48 148 65 172" stroke="#ffcc00" stroke-width="1.5" fill="none" opacity=".6"/>
+    <path d="M 108 205 Q 48 185 18 188 Q 52 180 80 188" stroke="#ffcc00" stroke-width="1" fill="none" opacity=".4"/>
+    <!-- Wing flame tips -->
+    <path d="M 22 102 Q 15 85 18 70 Q 24 88 28 100 Z" fill="#ffee44" opacity=".7"/>
+    <path d="M 12 182 Q 2 170 5 155 Q 12 168 15 178 Z" fill="#ffee44" opacity=".6"/>
+    <path d="M 32 232 Q 22 225 25 210 Q 31 222 34 230 Z" fill="#ffee44" opacity=".5"/>
+  </g>
+
+  <!-- ── RIGHT WING ── -->
+  <g class="wing-right" filter="url(#softGlow)">
+    <path d="M 200 190 Q 270 150 300 100 Q 280 140 260 170 Q 290 160 310 180 Q 275 175 245 185 Q 275 200 290 230 Q 250 210 220 205 Q 240 230 245 260 Q 215 235 200 215 Z"
+          fill="url(#wingGrad)" opacity=".9"/>
+    <path d="M 205 195 Q 265 160 295 110 Q 272 148 255 172" stroke="#ffcc00" stroke-width="1.5" fill="none" opacity=".6"/>
+    <path d="M 212 205 Q 272 185 302 188 Q 268 180 240 188" stroke="#ffcc00" stroke-width="1" fill="none" opacity=".4"/>
+    <path d="M 298 102 Q 305 85 302 70 Q 296 88 292 100 Z" fill="#ffee44" opacity=".7"/>
+    <path d="M 308 182 Q 318 170 315 155 Q 308 168 305 178 Z" fill="#ffee44" opacity=".6"/>
+    <path d="M 288 232 Q 298 225 295 210 Q 289 222 286 230 Z" fill="#ffee44" opacity=".5"/>
+  </g>
+
+  <!-- ── BODY ── -->
+  <g class="flame-core" filter="url(#fireGlow)">
+    <!-- Body base -->
+    <ellipse cx="160" cy="230" rx="55" ry="70" fill="url(#bodyFlame)"/>
+    <!-- Body flame wisps rising from body -->
+    <path d="M 130 175 Q 120 150 128 130 Q 135 155 138 172 Z" fill="#ffee44" opacity=".7"/>
+    <path d="M 160 168 Q 155 140 162 118 Q 168 142 165 166 Z" fill="#ffee44" opacity=".8"/>
+    <path d="M 190 175 Q 200 150 192 130 Q 185 155 182 172 Z" fill="#ffee44" opacity=".7"/>
+    <!-- Inner bright core -->
+    <ellipse cx="160" cy="235" rx="28" ry="35" fill="url(#coreGlow)" opacity=".6"/>
+  </g>
+
+  <!-- ── NECK ── -->
+  <path d="M 140 185 Q 138 165 145 155 Q 155 148 165 155 Q 172 165 170 185 Z"
+        fill="url(#headGrad)" filter="url(#softGlow)"/>
+
+  <!-- ── HEAD ── -->
+  <g filter="url(#softGlow)">
+    <!-- Head shape — sleek, bird-like -->
+    <ellipse cx="160" cy="138" rx="38" ry="34" fill="url(#headGrad)"/>
+    <!-- Beak -->
+    <path d="M 180 132 Q 208 128 205 136 Q 206 144 178 142 Z" fill="#ffcc00"/>
+    <!-- Beak highlight -->
+    <path d="M 182 131 Q 202 128 200 133" stroke="#ffee88" stroke-width="1" fill="none" opacity=".6"/>
+  </g>
+
+  <!-- ── CROWN / CREST FEATHERS ── -->
+  <g filter="url(#softGlow)">
+    <!-- Center crest — tallest -->
+    <path d="M 160 108 Q 156 80 160 55 Q 164 80 164 108 Z" fill="url(#crownGrad)"/>
+    <ellipse cx="160" cy="56" rx="5" ry="5" fill="#ffee00" filter="url(#emberGlow)"/>
+    <!-- Left crest -->
+    <path d="M 148 110 Q 136 86 138 64 Q 145 87 150 108 Z" fill="url(#crownGrad)" opacity=".85"/>
+    <ellipse cx="138" cy="65" rx="4" ry="4" fill="#ffee00" opacity=".8" filter="url(#emberGlow)"/>
+    <!-- Right crest -->
+    <path d="M 172 110 Q 184 86 182 64 Q 175 87 170 108 Z" fill="url(#crownGrad)" opacity=".85"/>
+    <ellipse cx="182" cy="65" rx="4" ry="4" fill="#ffee00" opacity=".8" filter="url(#emberGlow)"/>
+    <!-- Far left crest -->
+    <path d="M 138 113 Q 118 95 122 74 Q 132 94 140 112 Z" fill="#ff9900" opacity=".7"/>
+    <!-- Far right crest -->
+    <path d="M 182 113 Q 202 95 198 74 Q 188 94 180 112 Z" fill="#ff9900" opacity=".7"/>
+  </g>
+
+  <!-- ── EYES ── -->
+  <g class="phoenix-eye" filter="url(#fireGlow)">
+    <!-- Left eye -->
+    <ellipse cx="147" cy="133" rx="9" ry="9" fill="#1a0000"/>
+    <ellipse cx="147" cy="133" rx="6" ry="6" fill="#ff4400"/>
+    <ellipse cx="147" cy="133" rx="3" ry="3" fill="#ffcc00"/>
+    <circle  cx="149" cy="131" r="1.5" fill="white" opacity=".9"/>
+    <!-- Left eye flame ring -->
+    <ellipse cx="147" cy="133" rx="10" ry="10" fill="none" stroke="#ff9900" stroke-width="1.5" opacity=".6"/>
+    <!-- Right eye -->
+    <ellipse cx="172" cy="133" rx="9" ry="9" fill="#1a0000"/>
+    <ellipse cx="172" cy="133" rx="6" ry="6" fill="#ff4400"/>
+    <ellipse cx="172" cy="133" rx="3" ry="3" fill="#ffcc00"/>
+    <circle  cx="174" cy="131" r="1.5" fill="white" opacity=".9"/>
+    <ellipse cx="172" cy="133" rx="10" ry="10" fill="none" stroke="#ff9900" stroke-width="1.5" opacity=".6"/>
+  </g>
+
+  <!-- ── TALONS ── -->
+  <g filter="url(#softGlow)">
+    <!-- Left leg -->
+    <path d="M 142 292 Q 135 308 130 320" stroke="#cc4400" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <!-- Left talons -->
+    <path d="M 130 320 Q 118 328 112 335" stroke="#ffcc00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 130 320 Q 125 333 122 342" stroke="#ffcc00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 130 320 Q 133 334 133 344" stroke="#ffcc00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <!-- Right leg -->
+    <path d="M 178 292 Q 185 308 190 320" stroke="#cc4400" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <!-- Right talons -->
+    <path d="M 190 320 Q 202 328 208 335" stroke="#ffcc00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 190 320 Q 195 333 198 342" stroke="#ffcc00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 190 320 Q 187 334 187 344" stroke="#ffcc00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- ── FLOATING EMBERS around Phoenix ── -->
+  <g filter="url(#emberGlow)" opacity=".8">
+    <circle cx="85"  cy="160" r="3" fill="#ffcc00"><animate attributeName="cy" values="160;148;160" dur="2.1s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;.3;.8" dur="2.1s" repeatCount="indefinite"/></circle>
+    <circle cx="240" cy="175" r="2" fill="#ff9900"><animate attributeName="cy" values="175;162;175" dur="1.7s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;.2;.8" dur="1.7s" repeatCount="indefinite"/></circle>
+    <circle cx="60"  cy="220" r="2" fill="#ffee44"><animate attributeName="cy" values="220;205;220" dur="2.5s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;.1;.6" dur="2.5s" repeatCount="indefinite"/></circle>
+    <circle cx="265" cy="240" r="3" fill="#ff6a00"><animate attributeName="cy" values="240;225;240" dur="1.9s" repeatCount="indefinite"/><animate attributeName="opacity" values=".7;.2;.7" dur="1.9s" repeatCount="indefinite"/></circle>
+    <circle cx="100" cy="270" r="2" fill="#ffcc00"><animate attributeName="cy" values="270;258;270" dur="2.3s" repeatCount="indefinite"/><animate attributeName="opacity" values=".5;.1;.5" dur="2.3s" repeatCount="indefinite"/></circle>
+    <circle cx="220" cy="130" r="2" fill="#ffee44"><animate attributeName="cy" values="130;118;130" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values=".7;.2;.7" dur="1.5s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- ── PI 5 CHIP on chest (Easter egg — Phoenix runs on Pi 5) ── -->
+  <g opacity=".7">
+    <rect x="148" y="218" width="24" height="24" rx="3" fill="#0a0a1a" stroke="#ff6a00" stroke-width="1"/>
+    <text x="160" y="228" text-anchor="middle" font-family="monospace" font-size="5" fill="#ff9900">Pi 5</text>
+    <text x="160" y="236" text-anchor="middle" font-family="monospace" font-size="4" fill="#ff6a00">16GB</text>
+    <!-- Chip pins -->
+    <line x1="148" y1="222" x2="143" y2="222" stroke="#ff6a00" stroke-width="1"/>
+    <line x1="148" y1="227" x2="143" y2="227" stroke="#ff6a00" stroke-width="1"/>
+    <line x1="148" y1="232" x2="143" y2="232" stroke="#ff6a00" stroke-width="1"/>
+    <line x1="172" y1="222" x2="177" y2="222" stroke="#ff6a00" stroke-width="1"/>
+    <line x1="172" y1="227" x2="177" y2="227" stroke="#ff6a00" stroke-width="1"/>
+    <line x1="172" y1="232" x2="177" y2="232" stroke="#ff6a00" stroke-width="1"/>
+  </g>
+
+</svg>
+</div>
+
+<!-- Status badges -->
+<div class="status">
+  <span class="badge fire">● RISING</span>
+  <span class="badge gold">PI 5 // 16GB</span>
+  <span class="badge white">HAILO NPU</span>
+</div>
+
+<!-- Lore text -->
+<div class="lore">
+  Born from the ashes of every failed boot.<br/>
+  <span>PHOENIX OS</span> — the soul of ERR0RS, running on silicon and fire.
+</div>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "nmap_plugin",
+  "version": "1.0",
+  "author": "Gnosisone",
+  "description": "Network scanner — recon, port scan, stealth, vuln detection",
+  "category": "recon",
+  "commands": ["scan", "portscan", "stealth", "udp", "vuln", "full"],
+  "entry_point": "plugin.py",
+  "requires": ["nmap"],
+  "permissions": ["network"]
+}

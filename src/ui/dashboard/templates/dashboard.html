@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERR0RS-Ultimate // Dashboard</title>
+<style>
+:root{--void:#04000a;--panel:#0c0020;--border:#1e0040;--purple:#7b2fbe;
+  --neon:#bf6fff;--green:#39ff14;--cyan:#00f5ff;--red:#ff2255;
+  --amber:#ffaa00;--text:#d4b8ff;--dim:#4a2870}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--void);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh}
+header{background:var(--panel);border-bottom:1px solid var(--border);
+  padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+header h1{color:var(--neon);font-size:20px;letter-spacing:2px}
+.status-dot{width:10px;height:10px;border-radius:50%;background:var(--green);
+  display:inline-block;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.layout{display:grid;grid-template-columns:280px 1fr 280px;gap:16px;padding:16px;height:calc(100vh - 55px)}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel-title{background:#1a0040;color:var(--cyan);font-size:11px;letter-spacing:2px;
+  padding:10px 14px;border-bottom:1px solid var(--border);text-transform:uppercase}
+.panel-body{padding:14px;height:calc(100% - 38px);overflow-y:auto}
+/* Devices */
+.device{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;margin-bottom:8px;background:#0a0018;border-radius:6px;
+  border:1px solid var(--border)}
+.device .name{color:var(--neon);font-size:13px}
+.device .conn{font-size:11px}
+.conn.yes{color:var(--green)} .conn.no{color:var(--red)}
+/* Live feed */
+#live-feed{background:#000;padding:10px;font-size:12px;color:#7fff7f;
+  height:calc(100% - 16px);overflow-y:auto;border-radius:4px}
+.feed-line{margin:3px 0;border-bottom:1px solid #0a0a0a;padding-bottom:3px}
+.feed-line .ts{color:var(--dim);margin-right:8px;font-size:10px}
+.feed-line .ev{color:var(--cyan)}
+.feed-line .msg{color:#a0ffa0}
+/* Controls */
+.ctrl-section{margin-bottom:16px}
+.ctrl-label{font-size:10px;color:var(--dim);text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:6px}
+input[type=text]{width:100%;background:#0a0018;border:1px solid var(--border);
+  color:var(--text);padding:8px 10px;border-radius:4px;font-family:inherit;font-size:12px}
+input[type=text]:focus{outline:none;border-color:var(--purple)}
+select{width:100%;background:#0a0018;border:1px solid var(--border);
+  color:var(--text);padding:8px 10px;border-radius:4px;font-family:inherit;font-size:12px}
+.btn{display:block;width:100%;padding:9px;border:none;border-radius:4px;
+  font-family:inherit;font-size:12px;cursor:pointer;margin-top:6px;letter-spacing:1px}
+.btn-primary{background:var(--purple);color:#fff}
+.btn-primary:hover{background:#9b3fde}
+.btn-danger{background:#3d0020;color:var(--red);border:1px solid var(--red)}
+.btn-danger:hover{background:#5a0030}
+.btn-info{background:#001a3d;color:var(--cyan);border:1px solid var(--cyan)}
+.btn-info:hover{background:#002a5d}
+/* Stats bar */
+.stats-bar{display:flex;gap:10px;margin-bottom:10px}
+.stat-chip{background:#1a0040;border:1px solid var(--border);border-radius:6px;
+  padding:6px 12px;text-align:center;flex:1}
+.stat-chip .n{font-size:20px;font-weight:bold}
+.stat-chip .l{font-size:9px;color:var(--dim);text-transform:uppercase}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ ERR0RS-ULTIMATE</h1>
+  <div><span class="status-dot"></span><span id="conn-status" style="font-size:12px;color:var(--green)">CONNECTED</span></div>
+</header>
+
+<div class="layout">
+  <!-- LEFT — Devices + Workflows -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="panel" style="flex:0 0 auto">
+      <div class="panel-title">🔌 Hardware Devices</div>
+      <div class="panel-body" id="device-list">
+        {% for d in devices %}
+        <div class="device">
+          <div>
+            <div class="name">{{ d.name }}</div>
+            <div style="font-size:10px;color:var(--dim)">{{ d.device }}</div>
+          </div>
+          <span class="conn {{ 'yes' if d.connected else 'no' }}">
+            {{ 'ONLINE' if d.connected else 'OFFLINE' }}
+          </span>
+        </div>
+        {% else %}
+        <div style="color:var(--dim);font-size:12px">No devices registered.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="panel" style="flex:1">
+      <div class="panel-title">📋 Workflows</div>
+      <div class="panel-body">
+        {% for wf in workflows %}
+        <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span style="color:var(--neon)">{{ wf }}</span>
+          <button class="btn btn-info" style="margin-top:4px;padding:4px"
+            onclick="runWorkflow('{{ wf }}')">▶ Run</button>
+        </div>
+        {% endfor %}
+        <button class="btn btn-info" style="margin-top:10px" onclick="window.location='/reports'">
+          📄 View Reports
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTRE — Live Feed -->
+  <div class="panel">
+    <div class="panel-title">
+      🔴 Live Activity
+      <span style="float:right;cursor:pointer;color:var(--dim)" onclick="clearFeed()">CLR</span>
+    </div>
+    <div class="panel-body" style="padding:8px">
+      <div id="live-feed"><div class="feed-line"><span class="msg">ERR0RS dashboard ready.</span></div></div>
+    </div>
+  </div>
+
+  <!-- RIGHT — Controls -->
+  <div class="panel">
+    <div class="panel-title">🎛 Controls</div>
+    <div class="panel-body">
+      <!-- Target -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Target</div>
+        <input type="text" id="target-input" placeholder="IP / hostname">
+      </div>
+
+      <!-- Scan -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Quick Scan</div>
+        <button class="btn btn-primary" onclick="runScan()">⚡ Run Scan</button>
+      </div>
+
+      <!-- Workflow -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Workflow</div>
+        <select id="wf-select">
+          {% for wf in workflows %}
+          <option value="{{ wf }}">{{ wf }}</option>
+          {% endfor %}
+          <option value="webapp">webapp</option>
+          <option value="network">network</option>
+          <option value="quick">quick</option>
+        </select>
+        <button class="btn btn-primary" onclick="runSelectedWorkflow()">🚀 Run Workflow</button>
+      </div>
+
+      <!-- Hardware -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Deploy Payload</div>
+        <select id="dev-select">
+          {% for d in devices %}
+          <option value="{{ d.name }}">{{ d.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" id="payload-input" placeholder="payload name" style="margin-top:6px">
+        <button class="btn btn-danger" onclick="deployPayload()">🔌 Deploy</button>
+      </div>
+
+      <!-- Report -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Report</div>
+        <button class="btn btn-info" onclick="generateReport()">📄 Generate Report</button>
+      </div>
+
+      <!-- Session stats -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">Session</div>
+        <div class="stats-bar" id="stats-bar">
+          <div class="stat-chip"><div class="n" id="s-findings">—</div><div class="l">Findings</div></div>
+          <div class="stat-chip"><div class="n" id="s-history">—</div><div class="l">Actions</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+<script>
+const socket = io();
+const feed   = document.getElementById('live-feed');
+
+function log(event, message, color) {
+  const ts  = new Date().toLocaleTimeString();
+  const div = document.createElement('div');
+  div.className = 'feed-line';
+  div.innerHTML = `<span class="ts">${ts}</span>`
+    + `<span class="ev" style="color:${color||'var(--cyan)'}">[${event}]</span> `
+    + `<span class="msg">${message}</span>`;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function clearFeed() { feed.innerHTML = ''; }
+
+// SocketIO event handlers
+socket.on('connect',            () => { document.getElementById('conn-status').textContent = 'CONNECTED'; log('SYS', 'Dashboard connected', 'var(--green)'); });
+socket.on('disconnect',         () => { document.getElementById('conn-status').textContent = 'DISCONNECTED'; log('SYS', 'Connection lost', 'var(--red)'); });
+socket.on('workflow_start',     d  => log('WFLOW', `Starting ${d.workflow} on ${d.target}`, 'var(--amber)'));
+socket.on('workflow_step',      d  => log('STEP',  `[${d.step}/${d.total}] ${d.name}`, 'var(--neon)'));
+socket.on('workflow_complete',  d  => log('DONE',  `Workflow complete — ${d.steps_run} steps`, 'var(--green)'));
+socket.on('command_result',     d  => log('RESULT',`${d.command}: ${String(d.result||'').slice(0,120)}`, '#a0ffa0'));
+socket.on('ai_decision',        d  => log('AI',    `${d.command} — ${d.reason||''}`, 'var(--purple)'));
+socket.on('finding.added',      d  => { log('FIND', `${d.severity?.toUpperCase()||'?'} — ${d.title||d.type||'Finding'}`, 'var(--red)'); refreshStats(); });
+socket.on('device.action',      d  => log('HW',    `${d.device} → ${d.payload}`, 'var(--amber)'));
+socket.on('device.success',     d  => log('HW ✓',  `${d.device} payload success`, 'var(--green)'));
+socket.on('device.error',       d  => log('HW ✗',  `${d.device} error: ${d.error}`, 'var(--red)'));
+socket.on('analysis_complete',  d  => log('ANLYS', `${d.findings?.length||0} findings | services: ${JSON.stringify(d.context?.services||[])}`, 'var(--cyan)'));
+socket.on('session_summary',    d  => updateStats(d));
+socket.on('error',              d  => log('ERR',   d.message||'Unknown error', 'var(--red)'));
+
+function target() { return document.getElementById('target-input').value.trim(); }
+
+async function runScan() {
+  const t = target();
+  if (!t) { log('ERR', 'Enter a target first', 'var(--red)'); return; }
+  log('SCAN', `Queuing scan → ${t}`, 'var(--amber)');
+  socket.emit('run_scan', {target: t});
+}
+
+async function runSelectedWorkflow() {
+  const t  = target();
+  const wf = document.getElementById('wf-select').value;
+  if (!t) { log('ERR', 'Enter a target first', 'var(--red)'); return; }
+  log('WFLOW', `Queuing ${wf} → ${t}`, 'var(--amber)');
+  socket.emit('run_workflow', {workflow: wf, target: t});
+}
+
+function runWorkflow(name) {
+  document.getElementById('wf-select').value = name;
+  runSelectedWorkflow();
+}
+
+async function deployPayload() {
+  const dev     = document.getElementById('dev-select').value;
+  const payload = document.getElementById('payload-input').value.trim();
+  if (!payload) { log('ERR', 'Enter payload name', 'var(--red)'); return; }
+  log('HW', `Deploying ${payload} → ${dev}`, 'var(--amber)');
+  socket.emit('deploy_payload', {device: dev, payload});
+}
+
+async function generateReport() {
+  const t = target();
+  log('RPT', 'Generating report…', 'var(--cyan)');
+  const r = await fetch('/api/reports/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({target: t, formats: ['md','html','json']})
+  });
+  const d = await r.json();
+  if (d.saved) {
+    log('RPT ✓', `Saved: ${Object.values(d.saved).join(', ')}`, 'var(--green)');
+  } else {
+    log('RPT ✗', d.error || 'Unknown error', 'var(--red)');
+  }
+}
+
+async function refreshStats() {
+  const r = await fetch('/api/session');
+  if (!r.ok) return;
+  updateStats(await r.json());
+}
+
+function updateStats(d) {
+  if (!d) return;
+  document.getElementById('s-findings').textContent = d.findings ?? '—';
+  document.getElementById('s-history').textContent  = d.history  ?? '—';
+}
+
+// Poll stats every 10s
+setInterval(refreshStats, 10000);
+refreshStats();
+</script>
+</body>
+</html>

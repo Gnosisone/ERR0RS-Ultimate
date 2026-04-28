@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ERR0RS // PURPLE TEAM OPERATOR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+
+  <!-- xterm.js — real terminal renderer (v5.5.0) -->
+  <link  rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/addon-fit.min.js"></script>
+
+  <style>
+    :root {
+      --void:      #04000a;
+      --panel:     #0c0020;
+      --border:    #1e0040;
+      --purple:    #7b2fbe;
+      --purple-hi: #c084fc;
+      --purple-lo: #2d0a60;
+      --neon:      #bf6fff;
+      --green:     #39ff14;
+      --cyan:      #00f5ff;
+      --red:       #ff2255;
+      --blue:      #4488ff;
+      --amber:     #ffaa00;
+      --text:      #d4b8ff;
+      --text-dim:  #4a2870;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body {
+      height: 100%;
+      background: var(--void);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+    }
+    body::after {
+      content:'';
+      position:fixed; inset:0;
+      background: repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.1) 3px,rgba(0,0,0,.1) 4px);
+      pointer-events:none;
+      z-index:9999;
+    }
+
+    /* ── TOP BAR ─────────────────────────────── */
+    #topbar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: linear-gradient(90deg, #04000a 0%, #110033 50%, #04000a 100%);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 100;
+    }
+    .tb-logo {
+      font-family: 'Orbitron', monospace;
+      font-size: .65rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: var(--neon);
+    }
+    .tb-mode-badge {
+      font-family: 'Orbitron', monospace;
+      font-size: .55rem;
+      letter-spacing: 3px;
+      padding: 4px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--purple-hi);
+      background: rgba(123,47,190,.15);
+      color: var(--purple-hi);
+    }
+    .tb-actions { display:flex; gap:10px; align-items:center; }
+    .tb-btn {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: .6rem;
+      letter-spacing: 1.5px;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid;
+      transition: all .2s;
+    }
+    .tb-btn.save  { border-color:var(--green);  color:var(--green);  background:rgba(57,255,20,.06); }
+    .tb-btn.load  { border-color:var(--cyan);   color:var(--cyan);   background:rgba(0,245,255,.06); }
+    .tb-btn.clear { border-color:var(--red);    color:var(--red);    background:rgba(255,34,85,.06); }
+    .tb-btn.home  { border-color:var(--neon);   color:var(--neon);   background:rgba(191,111,255,.06); }
+    .tb-btn:hover { filter:brightness(1.4); }
+    #session-name-input {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .65rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      width: 180px;
+    }
+    #session-name-input:focus { outline:none; border-color:var(--neon); }
+
+    /* ── MAIN SPLIT LAYOUT ───────────────────── */
+    #split-view {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr;
+      height: calc(100vh - 44px - 38px);
+      gap: 0;
+    }
+
+    /* ── TEAM PANEL ──────────────────────────── */
+    .team-panel {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .team-panel.blue { border-right: none; border-left: 1px solid var(--border); }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      flex-shrink: 0;
+    }
+    .panel-header.red  { background: linear-gradient(90deg, rgba(255,34,85,.12), transparent); border-bottom: 1px solid rgba(255,34,85,.3); }
+    .panel-header.blue { background: linear-gradient(90deg, rgba(68,136,255,.12), transparent); border-bottom: 1px solid rgba(68,136,255,.3); }
+
+    .ph-title {
+      font-family: 'Orbitron', monospace;
+      font-size: .55rem;
+      letter-spacing: 3px;
+      font-weight: 700;
+    }
+    .ph-title.red  { color: var(--red); }
+    .ph-title.blue { color: var(--blue); }
+
+    .ph-badge {
+      font-size: .52rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .ph-badge.red  { border:1px solid var(--red);  color:var(--red);  background:rgba(255,34,85,.08); }
+    .ph-badge.blue { border:1px solid var(--blue); color:var(--blue); background:rgba(68,136,255,.08); }
+    .ph-badge.live { animation: pulse-pill 1.5s infinite; }
+
+    @keyframes pulse-pill {
+      0%,100% { opacity:1; }
+      50%      { opacity:.4; }
+    }
+
+    /* xterm container */
+    .xterm-container {
+      flex: 1;
+      overflow: hidden;
+      padding: 4px;
+      background: #000;
+    }
+    .xterm-container .xterm { height: 100%; }
+
+    /* Blue team detection feed */
+    #blue-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      background: #000812;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #blue-feed::-webkit-scrollbar { width: 3px; }
+    #blue-feed::-webkit-scrollbar-thumb { background: rgba(68,136,255,.3); }
+
+    .detection-event {
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: .68rem;
+      line-height: 1.5;
+      border-left: 3px solid;
+      animation: fadeIn .3s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+
+    .det-critical { border-color:#ff2255; background:rgba(255,34,85,.08); color:#ff8099; }
+    .det-high     { border-color:#ff6600; background:rgba(255,102,0,.08); color:#ffaa66; }
+    .det-medium   { border-color:#ffaa00; background:rgba(255,170,0,.08); color:#ffd066; }
+    .det-low      { border-color:#4488ff; background:rgba(68,136,255,.06); color:#99bbff; }
+    .det-info     { border-color:#7b2fbe; background:rgba(123,47,190,.06); color:#c084fc; }
+
+    .det-time { color: var(--text-dim); font-size: .6rem; }
+    .det-tool { font-weight: bold; font-size: .6rem; letter-spacing: 1px; }
+    .det-desc { margin-top: 2px; }
+    .det-ioc  { color: #ff2255; font-size: .62rem; margin-top: 2px; font-family: 'Share Tech Mono', monospace; }
+    .det-mitigation { color: #39ff14; font-size: .62rem; margin-top: 2px; }
+
+    /* Empty state */
+    #blue-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      gap: 8px;
+    }
+    .blue-empty-icon { font-size: 2rem; opacity: .4; }
+    .blue-empty-text { font-size: .65rem; letter-spacing: 2px; opacity: .5; }
+
+    /* ── INPUT ROW ───────────────────────────── */
+    #input-row {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      background: #000;
+      border-top: 1px solid var(--border);
+      position: relative;
+    }
+    #term-prompt { color: var(--green); font-size: .72rem; white-space: nowrap; }
+    #cmd-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .72rem;
+      caret-color: var(--green);
+    }
+    #cmd-input::placeholder { color: var(--text-dim); }
+    #autocomplete-box {
+      position: absolute;
+      bottom: 40px;
+      left: 14px;
+      background: #0c0020;
+      border: 1px solid var(--purple);
+      border-radius: 6px;
+      display: none;
+      flex-direction: column;
+      min-width: 280px;
+      max-height: 160px;
+      overflow-y: auto;
+      z-index: 500;
+    }
+    .ac-item {
+      padding: 4px 12px;
+      font-size: .65rem;
+      cursor: pointer;
+      color: var(--text);
+      transition: background .1s;
+    }
+    .ac-item:hover, .ac-item.selected { background: rgba(123,47,190,.3); color: var(--neon); }
+    .ac-item span { color: var(--text-dim); margin-left: 8px; font-size: .6rem; }
+
+    .input-btns { display:flex; gap:6px; }
+    .in-btn {
+      font-family:'Rajdhani',sans-serif; font-weight:700;
+      font-size:.55rem; letter-spacing:1px;
+      padding:3px 10px; border-radius:4px;
+      cursor:pointer; border:1px solid; transition:all .2s;
+    }
+    #btn-teach { border-color:var(--amber); color:var(--amber); background:rgba(255,170,0,.06); }
+    #btn-teach.on { background:rgba(255,170,0,.2); box-shadow:0 0 8px rgba(255,170,0,.3); }
+    #btn-ctrlc { border-color:var(--red); color:var(--red); background:rgba(255,34,85,.06); }
+    #btn-ctrlc:hover { background:rgba(255,34,85,.2); }
+    #ws-status {
+      font-size:.55rem; padding:2px 8px; border-radius:20px;
+      font-family:'Rajdhani',sans-serif; font-weight:700; letter-spacing:1px;
+    }
+    #ws-status.connected { border:1px solid var(--green); color:var(--green); background:rgba(57,255,20,.08); }
+    #ws-status.disconnected { border:1px solid var(--text-dim); color:var(--text-dim); }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="tb-logo">ERR0RS // OPERATOR CONSOLE</div>
+  <div class="tb-mode-badge">⬛ PURPLE TEAM — ATTACK + DETECT</div>
+  <div class="tb-actions">
+    <input id="session-name-input" type="text" placeholder="session name (e.g. lab_scan_1)" value=""/>
+    <button class="tb-btn save"  onclick="saveSession()">💾 SAVE</button>
+    <button class="tb-btn load"  onclick="loadSession()">📂 LOAD</button>
+    <button class="tb-btn clear" onclick="clearAll()">🗑 CLEAR</button>
+    <button class="tb-btn home"  onclick="location.href='/'">⬅ DASHBOARD</button>
+  </div>
+</div>
+
+<!-- SPLIT VIEW -->
+<div id="split-view">
+
+  <!-- ── RED TEAM — ATTACK TERMINAL ── -->
+  <div class="team-panel red">
+    <div class="panel-header red">
+      <div class="ph-title red">🔴 RED TEAM — ATTACK TERMINAL</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span class="ph-badge red" id="red-status">⬤ IDLE</span>
+        <span class="ph-badge red live" id="teach-indicator" style="display:none;">📚 TEACH ON</span>
+      </div>
+    </div>
+    <!-- xterm.js renders here -->
+    <div class="xterm-container" id="red-term-container"></div>
+  </div>
+
+  <!-- ── BLUE TEAM — DETECTION FEED ── -->
+  <div class="team-panel blue">
+    <div class="panel-header blue">
+      <div class="ph-title blue">🔵 BLUE TEAM — DETECTION FEED</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span class="ph-badge blue" id="blue-status">⬤ MONITORING</span>
+        <span class="ph-badge blue" id="det-count">0 EVENTS</span>
+      </div>
+    </div>
+
+    <!-- Detection events render here -->
+    <div id="blue-feed">
+      <div id="blue-empty">
+        <div class="blue-empty-icon">🛡</div>
+        <div class="blue-empty-text">WAITING FOR ATTACK ACTIVITY</div>
+        <div class="blue-empty-text" style="font-size:.55rem;margin-top:4px;">
+          Run a tool in the red terminal to see what a defender would detect
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /split-view -->
+
+<!-- INPUT ROW (shared, controls red terminal) -->
+<div id="input-row">
+  <span id="term-prompt">ERR0RS@kali:~$&nbsp;</span>
+  <input id="cmd-input" type="text" autocomplete="off" spellcheck="false"
+    placeholder="type command or ask ERR0RS... --teach for inline education... ↑↓ history... TAB autocomplete"/>
+  <div id="autocomplete-box"></div>
+  <div class="input-btns">
+    <span id="ws-status" class="disconnected">⬤ CONNECTING</span>
+    <button class="in-btn" id="btn-teach" onclick="toggleTeach()">📚 TEACH OFF</button>
+    <button class="in-btn" id="btn-ctrlc" onclick="sendCtrlC()">⬛ CTRL+C</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════
+// XTERM.JS TERMINAL — Real terminal renderer
+// ══════════════════════════════════════════════════════════
+const term = new Terminal({
+  fontFamily: "'Share Tech Mono', 'Courier New', monospace",
+  fontSize: 13,
+  lineHeight: 1.3,
+  cursorBlink: true,
+  cursorStyle: 'block',
+  theme: {
+    background:    '#000000',
+    foreground:    '#d4b8ff',
+    cursor:        '#39ff14',
+    cursorAccent:  '#000000',
+    black:         '#000000',
+    red:           '#ff2255',
+    green:         '#39ff14',
+    yellow:        '#ffaa00',
+    blue:          '#4488ff',
+    magenta:       '#bf6fff',
+    cyan:          '#00f5ff',
+    white:         '#d4b8ff',
+    brightBlack:   '#4a2870',
+    brightRed:     '#ff6680',
+    brightGreen:   '#6fff50',
+    brightYellow:  '#ffd066',
+    brightBlue:    '#88aaff',
+    brightMagenta: '#e0b0ff',
+    brightCyan:    '#66ffff',
+    brightWhite:   '#ffffff',
+  },
+  scrollback: 5000,
+  allowTransparency: false,
+  convertEol: true,
+});
+
+// FitAddon resizes terminal to fill container
+const fitAddon = new FitAddon.FitAddon();
+term.loadAddon(fitAddon);
+
+const container = document.getElementById('red-term-container');
+term.open(container);
+fitAddon.fit();
+window.addEventListener('resize', () => fitAddon.fit());
+
+// Write styled text helpers
+const W = {
+  line:    (s) => term.writeln(s),
+  system:  (s) => term.writeln(`\x1b[38;5;141m${s}\x1b[0m`),
+  green:   (s) => term.writeln(`\x1b[38;5;82m${s}\x1b[0m`),
+  red:     (s) => term.writeln(`\x1b[38;5;196m${s}\x1b[0m`),
+  yellow:  (s) => term.writeln(`\x1b[38;5;220m${s}\x1b[0m`),
+  cyan:    (s) => term.writeln(`\x1b[38;5;51m${s}\x1b[0m`),
+  blue:    (s) => term.writeln(`\x1b[38;5;69m${s}\x1b[0m`),
+  dim:     (s) => term.writeln(`\x1b[38;5;60m${s}\x1b[0m`),
+  teach:   (s) => {
+    term.writeln('');
+    term.writeln(`\x1b[38;5;220m┌─ [ERR0RS TEACHES] ──────────────────────────────\x1b[0m`);
+    s.split('\n').forEach(l => term.writeln(`\x1b[38;5;220m│ ${l}\x1b[0m`));
+    term.writeln(`\x1b[38;5;220m└──────────────────────────────────────────────────\x1b[0m`);
+    term.writeln('');
+  },
+  banner:  (s) => term.writeln(`\x1b[38;5;129m${s}\x1b[0m`),
+  prompt:  ()  => term.write(`\x1b[38;5;82mERR0RS@kali:~$\x1b[0m `),
+};
+
+// Boot banner
+W.banner('  ██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗');
+W.banner('  ██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝');
+W.banner('  ██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗  ');
+W.banner('  ██╔═══╝ ██║   ██║██╔══██╗██╔═══╝ ██║     ██╔══╝  ');
+W.banner('  ██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗');
+W.banner('  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝');
+W.system('  PURPLE TEAM OPERATOR CONSOLE v3.0 — ATTACK + DETECT');
+W.dim   ('  ─────────────────────────────────────────────────────');
+W.system('  Red  terminal → run attacks, tools, exploits');
+W.system('  Blue feed     → see what a defender would detect');
+W.system('  Type HELP for command guide. Add --teach for lessons.');
+W.dim   ('  ─────────────────────────────────────────────────────');
+term.writeln('');
+
+// ══════════════════════════════════════════════════════════
+// SESSION MANAGEMENT — save/load engagement state
+// ══════════════════════════════════════════════════════════
+let sessionLog = [];  // {time, type, data}[]
+
+function logEvent(type, data) {
+  sessionLog.push({ time: new Date().toISOString(), type, data });
+}
+
+function saveSession() {
+  const name = document.getElementById('session-name-input').value.trim()
+    || `errz_session_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}`;
+  const payload = {
+    name,
+    saved: new Date().toISOString(),
+    cmdHistory,
+    detectionEvents,
+    sessionLog,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${name}.errz.json`;
+  a.click();
+  W.system(`[ERR0RS] Session saved → ${name}.errz.json`);
+}
+
+function loadSession() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,.errz.json';
+  inp.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        document.getElementById('session-name-input').value = data.name || '';
+        if (data.cmdHistory) cmdHistory = data.cmdHistory;
+        if (data.detectionEvents) {
+          detectionEvents = data.detectionEvents;
+          detectionEvents.forEach(e => renderDetection(e));
+        }
+        W.system(`[ERR0RS] Session loaded: ${data.name}`);
+        W.system(`[ERR0RS] Commands: ${data.cmdHistory?.length || 0} | Detections: ${data.detectionEvents?.length || 0}`);
+      } catch(err) {
+        W.red(`[ERR0RS] Failed to load session: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+function clearAll() {
+  term.clear();
+  document.getElementById('blue-feed').innerHTML = `
+    <div id="blue-empty">
+      <div class="blue-empty-icon">🛡</div>
+      <div class="blue-empty-text">WAITING FOR ATTACK ACTIVITY</div>
+    </div>`;
+  detectionEvents = [];
+  sessionLog = [];
+  detCount = 0;
+  document.getElementById('det-count').textContent = '0 EVENTS';
+  W.system('[ERR0RS] Session cleared.');
+}
+
+// ══════════════════════════════════════════════════════════
+// COMMAND HISTORY — up/down arrow navigation
+// ══════════════════════════════════════════════════════════
+let cmdHistory = [];
+let histIdx    = -1;
+const cmdInput = document.getElementById('cmd-input');
+
+cmdInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (histIdx < cmdHistory.length - 1) {
+      histIdx++;
+      cmdInput.value = cmdHistory[cmdHistory.length - 1 - histIdx];
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx > 0) {
+      histIdx--;
+      cmdInput.value = cmdHistory[cmdHistory.length - 1 - histIdx];
+    } else {
+      histIdx = -1;
+      cmdInput.value = '';
+    }
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    handleTabComplete(cmdInput.value);
+  } else if (e.key === 'Escape') {
+    closeAutocomplete();
+  }
+});
+
+// ══════════════════════════════════════════════════════════
+// TAB AUTOCOMPLETE
+// ══════════════════════════════════════════════════════════
+const AUTOCOMPLETE_CMDS = [
+  // Tool commands
+  { cmd: 'nmap',         hint: '<target> — port scan' },
+  { cmd: 'sqlmap',       hint: '-u <url> — SQLi test' },
+  { cmd: 'gobuster',     hint: 'dir -u <url> — directory bust' },
+  { cmd: 'nikto',        hint: '-h <target> — web scanner' },
+  { cmd: 'hydra',        hint: '<target> ssh — brute force' },
+  { cmd: 'metasploit',   hint: 'msfconsole — exploit framework' },
+  { cmd: 'hashcat',      hint: '<hash> — crack password hash' },
+  { cmd: 'nuclei',       hint: '-u <url> — vuln scanner' },
+  { cmd: 'subfinder',    hint: '-d <domain> — subdomain enum' },
+  { cmd: 'wpscan',       hint: '--url <url> — WordPress scanner' },
+  { cmd: 'enum4linux',   hint: '-a <target> — SMB enumeration' },
+  { cmd: 'crackmapexec', hint: 'smb <target> — AD attack' },
+  { cmd: 'ffuf',         hint: '-u <url>/FUZZ — web fuzzer' },
+  { cmd: 'aircrack-ng',  hint: '<cap> — WiFi cracker' },
+  // Teach commands
+  { cmd: 'teach me nmap',         hint: '→ offline nmap lesson' },
+  { cmd: 'teach me sqlmap',       hint: '→ offline SQLi lesson' },
+  { cmd: 'teach me metasploit',   hint: '→ offline MSF lesson' },
+  { cmd: 'teach me hydra',        hint: '→ offline brute force lesson' },
+  { cmd: 'teach me gobuster',     hint: '→ offline dir bust lesson' },
+  { cmd: 'teach me privesc',      hint: '→ privilege escalation lesson' },
+  { cmd: 'teach me xss',          hint: '→ XSS lesson' },
+  { cmd: 'teach me sql injection', hint: '→ SQLi concept lesson' },
+  { cmd: 'teach me hashcat',      hint: '→ password cracking lesson' },
+  { cmd: 'teach me wireshark',    hint: '→ packet analysis lesson' },
+  // Natural language
+  { cmd: 'scan',              hint: '<target> — nmap scan via NLP' },
+  { cmd: 'run nmap on',       hint: '<target>' },
+  { cmd: 'run sqlmap on',     hint: '<url>' },
+  { cmd: 'brute force',       hint: '<target> — hydra via NLP' },
+  { cmd: 'enumerate',         hint: '<target> — gobuster via NLP' },
+  { cmd: 'exploit',           hint: '<target> — metasploit via NLP' },
+  { cmd: 'status',            hint: '— system health check' },
+  { cmd: 'help',              hint: '— command guide' },
+  { cmd: 'clear',             hint: '— clear terminal' },
+];
+
+let acIdx = -1;
+const acBox = document.getElementById('autocomplete-box');
+
+function handleTabComplete(val) {
+  if (!val.trim()) return;
+  const lower = val.toLowerCase();
+  const matches = AUTOCOMPLETE_CMDS.filter(c => c.cmd.startsWith(lower) || c.cmd.includes(lower));
+  if (matches.length === 0) { closeAutocomplete(); return; }
+  if (matches.length === 1) {
+    cmdInput.value = matches[0].cmd + ' ';
+    closeAutocomplete();
+    return;
+  }
+  renderAutocomplete(matches);
+}
+
+function renderAutocomplete(matches) {
+  acBox.innerHTML = '';
+  acIdx = -1;
+  matches.slice(0, 10).forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'ac-item';
+    div.innerHTML = `${m.cmd}<span>${m.hint}</span>`;
+    div.addEventListener('click', () => {
+      cmdInput.value = m.cmd + ' ';
+      closeAutocomplete();
+      cmdInput.focus();
+    });
+    acBox.appendChild(div);
+  });
+  acBox.style.display = 'flex';
+}
+
+function closeAutocomplete() {
+  acBox.style.display = 'none';
+  acIdx = -1;
+}
+
+cmdInput.addEventListener('input', () => {
+  const val = cmdInput.value;
+  if (!val.trim()) { closeAutocomplete(); return; }
+  const lower = val.toLowerCase();
+  const matches = AUTOCOMPLETE_CMDS.filter(c => c.cmd.startsWith(lower));
+  if (matches.length > 0 && matches.length < 10) renderAutocomplete(matches);
+  else closeAutocomplete();
+});
+
+document.addEventListener('click', (e) => {
+  if (!acBox.contains(e.target) && e.target !== cmdInput) closeAutocomplete();
+});
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// BLUE TEAM DETECTION INTELLIGENCE ENGINE
+// Maps every attack → what a defender would see
+// ══════════════════════════════════════════════════════════
+
+let detectionEvents = [];
+let detCount = 0;
+
+const DETECTION_MAP = {
+  // ── NMAP ─────────────────────────────────────────────
+  nmap: [
+    {
+      sev: 'high',
+      title: 'PORT SCAN DETECTED',
+      tool: 'IDS/IPS (Snort/Suricata)',
+      desc: 'TCP SYN packets sent to multiple ports in rapid sequence. Classic nmap -sS signature.',
+      ioc: 'RULE: ET SCAN Nmap Scripting Engine User-Agent Detected',
+      mitigation: 'Block: iptables -A INPUT -m recent --rcheck --seconds 60 --hitcount 20 -j DROP',
+    },
+    {
+      sev: 'medium',
+      title: 'SERVICE VERSION PROBE',
+      tool: 'WAF / Network Monitor',
+      desc: 'Service banner grabbing detected (-sV flag). Attacker is fingerprinting services.',
+      ioc: 'Multiple TCP connections to various ports with banner-grabbing behavior',
+      mitigation: 'Harden: Remove version info from service banners (ServerTokens Prod)',
+    },
+    {
+      sev: 'low',
+      title: 'HOST DISCOVERY SWEEP',
+      tool: 'SIEM (Splunk/ELK)',
+      desc: 'ICMP echo requests + ARP requests to sequential IPs. Network recon in progress.',
+      ioc: 'Source IP: attacker | Dest: subnet range | Protocol: ICMP/ARP',
+      mitigation: 'Alert on: >10 ICMP requests from single IP in 30 seconds',
+    },
+  ],
+
+  // ── SQLMAP ───────────────────────────────────────────
+  sqlmap: [
+    {
+      sev: 'critical',
+      title: 'SQL INJECTION ATTEMPT',
+      tool: 'WAF (ModSecurity/Cloudflare)',
+      desc: 'Malicious SQL payloads detected in HTTP request parameters. SQLMap signature detected.',
+      ioc: "REQUEST: GET /page?id=1' OR '1'='1 — OWASP Rule 942100 triggered",
+      mitigation: 'Block: ModSecurity rule 942100-942999 | Enable WAF blocking mode',
+    },
+    {
+      sev: 'critical',
+      title: 'DATABASE ENUMERATION',
+      tool: 'DB Audit Log / SIEM',
+      desc: 'Unusual database queries: UNION SELECT, information_schema access, schema enumeration.',
+      ioc: 'DB Query: SELECT schema_name FROM information_schema.schemata -- SQLMap fingerprint',
+      mitigation: 'Enable DB query logging. Alert on: information_schema access from app user',
+    },
+    {
+      sev: 'high',
+      title: 'WEB SCANNER USER-AGENT',
+      tool: 'Web Application Firewall',
+      desc: 'HTTP User-Agent matches known scanner signatures (sqlmap/1.x).',
+      ioc: 'User-Agent: sqlmap/1.7.8#stable (https://sqlmap.org)',
+      mitigation: 'Block known scanner UAs. Rate-limit: >50 req/min from single IP',
+    },
+  ],
+
+  // ── GOBUSTER ─────────────────────────────────────────
+  gobuster: [
+    {
+      sev: 'medium',
+      title: 'DIRECTORY ENUMERATION',
+      tool: 'WAF / Web Server Logs',
+      desc: 'Sequential HTTP requests to common paths. Directory busting signature.',
+      ioc: '500+ 404 responses from single IP in <60 seconds — wordlist enumeration',
+      mitigation: 'Rate limit: Nginx limit_req_zone. Alert: >100 404s from single IP/min',
+    },
+    {
+      sev: 'low',
+      title: 'HIDDEN PATH DISCOVERY',
+      tool: 'SIEM Alert',
+      desc: 'If 200/301 responses found: attacker has discovered unlisted endpoints.',
+      ioc: 'Paths found: /admin, /backup, /.git, /config — sensitive endpoints exposed',
+      mitigation: 'Audit: Remove dev files from prod. Use robots.txt disallow for admin paths',
+    },
+  ],
+
+  // ── HYDRA ────────────────────────────────────────────
+  hydra: [
+    {
+      sev: 'critical',
+      title: 'CREDENTIAL BRUTE FORCE',
+      tool: 'Auth Logs / SIEM',
+      desc: 'Multiple failed authentication attempts from single IP in rapid succession.',
+      ioc: 'SSH: Failed password for root from 192.168.1.x port 4444 ssh2 (x1000)',
+      mitigation: 'Block: fail2ban -j DROP after 5 failures. Enforce MFA immediately.',
+    },
+    {
+      sev: 'high',
+      title: 'ACCOUNT LOCKOUT TRIGGERED',
+      tool: 'Active Directory / LDAP',
+      desc: 'User accounts locked out due to failed login threshold exceeded.',
+      ioc: 'Event ID 4740: Account locked out. Source: attacker IP. Target: admin accounts',
+      mitigation: 'Alert on: >5 failed logins/min per IP. Enable AD audit policy.',
+    },
+  ],
+
+  // ── METASPLOIT ───────────────────────────────────────
+  metasploit: [
+    {
+      sev: 'critical',
+      title: 'EXPLOIT ATTEMPT DETECTED',
+      tool: 'IDS/IPS (Snort)',
+      desc: 'Known exploit payload signature detected in network traffic.',
+      ioc: 'ALERT: ET EXPLOIT Possible MSF Payload | Shellcode pattern in TCP stream',
+      mitigation: 'Patch immediately. Block: IP-based firewall rules for attack source.',
+    },
+    {
+      sev: 'critical',
+      title: 'REVERSE SHELL CONNECTION',
+      tool: 'EDR / Network Monitor',
+      desc: 'Outbound connection from internal host to external IP on unusual port.',
+      ioc: 'PROCESS: cmd.exe → connection to 192.168.1.x:4444 — Meterpreter C2 pattern',
+      mitigation: 'Block outbound: unknown executables cannot initiate connections (AppLocker)',
+    },
+  ],
+
+  // ── NIKTO ────────────────────────────────────────────
+  nikto: [
+    {
+      sev: 'medium',
+      title: 'WEB VULNERABILITY SCAN',
+      tool: 'WAF / Web Server Logs',
+      desc: 'Nikto scanner signature detected. Aggressive HTTP probing of web application.',
+      ioc: 'User-Agent: Mozilla/5.00 (Nikto/2.1.6) | Header probing: X-Scan-Memo',
+      mitigation: 'Block Nikto UA. Rate limit aggressive scanners. Enable WAF blocking.',
+    },
+  ],
+
+  // ── HASHCAT ──────────────────────────────────────────
+  hashcat: [
+    {
+      sev: 'info',
+      title: 'OFFLINE ATTACK — LOCAL ONLY',
+      tool: 'N/A (offline operation)',
+      desc: 'Hash cracking is an offline attack. No network traffic generated. Defender would only detect IF the cracked password is then used to authenticate.',
+      ioc: 'WHEN USED: Event ID 4624 (successful login) after previous lockout = cracked cred',
+      mitigation: 'Use bcrypt/Argon2 hashing (resistant to GPU cracking). Enforce MFA.',
+    },
+  ],
+
+  // ── SUBFINDER ────────────────────────────────────────
+  subfinder: [
+    {
+      sev: 'low',
+      title: 'SUBDOMAIN ENUMERATION',
+      tool: 'DNS Logging / SIEM',
+      desc: 'Passive recon via public DNS records. No direct target traffic generated.',
+      ioc: 'DNS queries to: virustotal.com, securitytrails.com, crtsh — OSINT sources',
+      mitigation: 'Register DNS monitoring. Alert on external DNS recon via cert transparency.',
+    },
+  ],
+
+  // ── NUCLEI ───────────────────────────────────────────
+  nuclei: [
+    {
+      sev: 'high',
+      title: 'VULNERABILITY SCANNER DETECTED',
+      tool: 'WAF / IDS',
+      desc: 'Nuclei template probes detected: CVE-specific payloads in HTTP requests.',
+      ioc: 'HTTP requests matching known CVE PoC patterns from single source IP',
+      mitigation: 'Enable WAF. Alert on: vulnerability probe signatures from external IPs.',
+    },
+  ],
+
+  // ── ENUM4LINUX ───────────────────────────────────────
+  enum4linux: [
+    {
+      sev: 'high',
+      title: 'SMB NULL SESSION ATTEMPT',
+      tool: 'Windows Event Log / SIEM',
+      desc: 'Unauthenticated SMB enumeration attempt. Attacker probing domain info.',
+      ioc: 'Event ID 4625: Logon failure — null session SMB | Event 4776: NTLM auth attempt',
+      mitigation: 'Disable null sessions: HKLM\\SYSTEM\\CurrentControlSet\\Control\\LSA RestrictAnonymous=2',
+    },
+  ],
+
+  // ── WPSCAN ───────────────────────────────────────────
+  wpscan: [
+    {
+      sev: 'medium',
+      title: 'WORDPRESS SCANNER DETECTED',
+      tool: 'WAF / Web Logs',
+      desc: 'WPScan User-Agent and WordPress-specific endpoint probing detected.',
+      ioc: 'User-Agent: WPScan | Requests to: /wp-json/wp/v2/users, /wp-content/plugins',
+      mitigation: 'Disable user enumeration in WP. Block wpscan UA. Restrict /wp-json/ access.',
+    },
+  ],
+};
+
+function getDetectionsForTool(tool) {
+  return DETECTION_MAP[tool] || [{
+    sev: 'info',
+    title: 'TOOL EXECUTED',
+    tool: 'ERR0RS Monitor',
+    desc: `${tool} executed. Check tool-specific logs for detection signatures.`,
+    ioc: `Monitor network traffic and system logs during ${tool} execution`,
+    mitigation: 'Review tool documentation for known detection signatures.',
+  }];
+}
+
+function renderDetection(event) {
+  const feed = document.getElementById('blue-feed');
+  const empty = document.getElementById('blue-empty');
+  if (empty) empty.remove();
+
+  const el = document.createElement('div');
+  el.className = `detection-event det-${event.sev}`;
+  const now = new Date().toLocaleTimeString();
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span class="det-tool">[${event.sev.toUpperCase()}] ${event.title}</span>
+      <span class="det-time">${now}</span>
+    </div>
+    <div class="det-tool" style="color:var(--blue);font-size:.58rem;margin-top:2px;">
+      DETECTION SOURCE: ${event.tool}
+    </div>
+    <div class="det-desc">${event.desc}</div>
+    ${event.ioc ? `<div class="det-ioc">📌 IOC: ${event.ioc}</div>` : ''}
+    ${event.mitigation ? `<div class="det-mitigation">🛡 MITIGATION: ${event.mitigation}</div>` : ''}
+  `;
+  feed.appendChild(el);
+  feed.scrollTop = feed.scrollHeight;
+
+  detCount++;
+  document.getElementById('det-count').textContent = `${detCount} EVENTS`;
+  document.getElementById('blue-status').textContent = '⬤ ACTIVE';
+}
+
+function triggerDetections(tool, target) {
+  const detections = getDetectionsForTool(tool);
+  // Stagger them realistically
+  detections.forEach((det, i) => {
+    setTimeout(() => {
+      detectionEvents.push({ ...det, tool, target, time: new Date().toISOString() });
+      renderDetection(det);
+    }, i * 800 + Math.random() * 400);
+  });
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// WEBSOCKET CLIENT + COMMAND ROUTING
+// ══════════════════════════════════════════════════════════
+let ws          = null;
+let wsConnected = false;
+let teachMode   = false;
+let currentTool = '';
+
+const wsStatus = document.getElementById('ws-status');
+
+async function connectWS() {
+  let wsUrl = `ws://${location.hostname}:8766`;
+  try {
+    const r = await fetch('/api/ws_info');
+    const d = await r.json();
+    if (d.ws_available) wsUrl = d.ws_url;
+  } catch(e) {}
+
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    wsConnected = true;
+    wsStatus.textContent = '⬤ LIVE';
+    wsStatus.className = 'connected';
+    W.system('[ERR0RS] WebSocket connected → Live streaming active');
+    W.dim   ('[ERR0RS] Commands route to real Kali tools via PTY');
+    term.writeln('');
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      handleMsg(msg);
+    } catch(e) {
+      term.writeln(evt.data);
+    }
+  };
+
+  ws.onclose = () => {
+    wsConnected = false;
+    wsStatus.textContent = '⬤ OFFLINE';
+    wsStatus.className = 'disconnected';
+    W.red('[ERR0RS] WebSocket disconnected — retrying in 3s...');
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => {
+    wsStatus.textContent = '⬤ ERROR';
+    wsStatus.className = 'disconnected';
+    W.red('[ERR0RS] WS Error — ensure: pip3 install websockets && python3 src/ui/errorz_launcher.py');
+  };
+}
+
+function handleMsg(msg) {
+  switch(msg.type) {
+    case 'output':
+      // Write raw output — xterm handles ANSI colors automatically
+      term.writeln(msg.data || '');
+      logEvent('output', msg.data);
+      break;
+    case 'teach':
+      W.teach(msg.data);
+      logEvent('teach', msg.data);
+      break;
+    case 'teach_block':
+      W.teach(msg.data);
+      logEvent('teach_block', msg.data);
+      break;
+    case 'system':
+      W.system(msg.data || '');
+      logEvent('system', msg.data);
+      break;
+    case 'error':
+      W.red('[ERROR] ' + (msg.data || ''));
+      logEvent('error', msg.data);
+      break;
+    case 'done':
+      W.system(msg.data || '[ERR0RS] Done.');
+      W.dim('─'.repeat(54));
+      document.getElementById('red-status').textContent = '⬤ IDLE';
+      logEvent('done', msg.data);
+      break;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// COMMAND EXECUTION
+// ══════════════════════════════════════════════════════════
+
+// Tool detection for purple team
+const TOOL_DETECT = {
+  'nmap':         ['nmap','port scan','scan port','network scan'],
+  'sqlmap':       ['sqlmap','sql injection','sqli'],
+  'gobuster':     ['gobuster','dir bust','dirb','enumerate dir'],
+  'hydra':        ['hydra','brute force','bruteforce','credential'],
+  'metasploit':   ['metasploit','msfconsole','msf'],
+  'hashcat':      ['hashcat','crack hash'],
+  'nikto':        ['nikto','web scan'],
+  'nuclei':       ['nuclei','vuln scan'],
+  'subfinder':    ['subfinder','subdomain'],
+  'enum4linux':   ['enum4linux','smb enum'],
+  'wpscan':       ['wpscan','wordpress'],
+};
+
+function detectTool(cmd) {
+  const lower = cmd.toLowerCase();
+  for (const [tool, triggers] of Object.entries(TOOL_DETECT)) {
+    if (triggers.some(t => lower.includes(t))) return tool;
+  }
+  return null;
+}
+
+// Target extraction
+function extractTarget(cmd) {
+  const m = cmd.match(/(?:on|against|target|scan|at|for|http:\/\/|https:\/\/)\s*([\w.\-/:]+)/i);
+  if (m) return m[1];
+  const parts = cmd.trim().split(/\s+/);
+  return parts[1] || '';
+}
+
+async function executeCommand(raw) {
+  const cmd   = raw.trim();
+  if (!cmd) return;
+
+  // Add to history
+  cmdHistory = cmdHistory.filter(h => h !== cmd);
+  cmdHistory.push(cmd);
+  if (cmdHistory.length > 200) cmdHistory.shift();
+  histIdx = -1;
+
+  // Echo to terminal
+  term.writeln('');
+  term.write(`\x1b[38;5;82mERR0RS@kali:~$\x1b[0m `);
+  term.writeln(`\x1b[38;5;255m${cmd}\x1b[0m`);
+  logEvent('cmd', cmd);
+
+  // Local commands
+  if (cmd === 'clear' || cmd === 'cls') { term.clear(); return; }
+  if (cmd === 'help') { showHelp(); return; }
+
+  // Detect tool for Purple Team
+  const tool = detectTool(cmd);
+  if (tool) {
+    const target = extractTarget(cmd);
+    currentTool = tool;
+
+    // Update red status
+    document.getElementById('red-status').textContent = `⬤ RUNNING ${tool.toUpperCase()}`;
+
+    // Trigger blue team detections with delay (simulating detection lag)
+    setTimeout(() => {
+      W.blue(`\n[BLUE TEAM] Triggering detection engine for: ${tool.toUpperCase()}`);
+      triggerDetections(tool, target);
+    }, 1500);
+  }
+
+  // Route to WebSocket
+  if (ws && wsConnected) {
+    const isTeach = teachMode || cmd.includes('--teach');
+    ws.send(JSON.stringify({
+      type:    'run',
+      command: cmd.replace('--teach', '').trim(),
+      teach:   isTeach,
+    }));
+  } else {
+    // HTTP fallback
+    W.yellow('[ERR0RS] WS offline → HTTP fallback mode');
+    try {
+      const r = await fetch('/api/command', {
+        method:  'POST',
+        headers: {'Content-Type':'application/json'},
+        body:    JSON.stringify({command: cmd}),
+      });
+      const d = await r.json();
+      const out = d.stdout || d.error || 'No output';
+      out.split('\n').forEach(l => term.writeln(l));
+    } catch(err) {
+      W.red(`[ERR0RS] HTTP error: ${err.message}`);
+    }
+  }
+}
+
+// Input handler
+cmdInput.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = cmdInput.value.trim();
+  if (!raw) return;
+  cmdInput.value = '';
+  closeAutocomplete();
+  await executeCommand(raw);
+});
+
+function toggleTeach() {
+  teachMode = !teachMode;
+  const btn = document.getElementById('btn-teach');
+  const ind = document.getElementById('teach-indicator');
+  if (teachMode) {
+    btn.textContent = '📚 TEACH ON';
+    btn.classList.add('on');
+    ind.style.display = 'block';
+    W.yellow('[ERR0RS] TEACH MODE ON — I will explain results as they stream in');
+  } else {
+    btn.textContent = '📚 TEACH OFF';
+    btn.classList.remove('on');
+    ind.style.display = 'none';
+    W.dim('[ERR0RS] Teach mode off — raw output mode');
+  }
+}
+
+function sendCtrlC() {
+  if (ws && wsConnected) {
+    ws.send(JSON.stringify({ type: 'key', data: '\x03' }));
+    W.yellow('[ERR0RS] Ctrl+C sent → stopping tool');
+    document.getElementById('red-status').textContent = '⬤ IDLE';
+  }
+}
+
+function showHelp() {
+  const help = [
+    '',
+    '\x1b[38;5;141m══════════════════════════════════════════════════════\x1b[0m',
+    '\x1b[38;5;141m  ERR0RS PURPLE TEAM — COMMAND GUIDE\x1b[0m',
+    '\x1b[38;5;141m══════════════════════════════════════════════════════\x1b[0m',
+    '',
+    '\x1b[38;5;196m  ATTACK (Red Terminal)\x1b[0m',
+    '\x1b[38;5;60m  nmap 192.168.1.1              → port scan (NLP)\x1b[0m',
+    '\x1b[38;5;60m  run nmap on 10.0.0.1          → same, natural language\x1b[0m',
+    '\x1b[38;5;60m  sqlmap -u http://target.com   → SQL injection test\x1b[0m',
+    '\x1b[38;5;60m  gobuster dir -u http://target → directory bust\x1b[0m',
+    '\x1b[38;5;60m  hydra target ssh              → brute force SSH\x1b[0m',
+    '\x1b[38;5;60m  metasploit                    → open msfconsole\x1b[0m',
+    '\x1b[38;5;60m  $ whoami                      → raw shell passthrough\x1b[0m',
+    '',
+    '\x1b[38;5;69m  DETECT (Blue Feed — auto-populated)\x1b[0m',
+    '\x1b[38;5;60m  Every tool you run → blue feed shows what a defender sees\x1b[0m',
+    '\x1b[38;5;60m  IOCs, SIEM rules, WAF blocks, mitigation steps\x1b[0m',
+    '',
+    '\x1b[38;5;220m  TEACH MODE\x1b[0m',
+    '\x1b[38;5;60m  teach me nmap                → full nmap lesson offline\x1b[0m',
+    '\x1b[38;5;60m  nmap 192.168.1.1 --teach     → run + explain inline\x1b[0m',
+    '\x1b[38;5;60m  explain sql injection        → concept breakdown\x1b[0m',
+    '\x1b[38;5;60m  📚 TEACH button              → auto-teach all results\x1b[0m',
+    '',
+    '\x1b[38;5;82m  TERMINAL\x1b[0m',
+    '\x1b[38;5;60m  ↑↓ arrows     → command history\x1b[0m',
+    '\x1b[38;5;60m  TAB           → autocomplete commands\x1b[0m',
+    '\x1b[38;5;60m  CTRL+C btn    → stop running tool\x1b[0m',
+    '\x1b[38;5;60m  💾 SAVE       → save session to .errz.json file\x1b[0m',
+    '\x1b[38;5;60m  📂 LOAD       → restore previous session\x1b[0m',
+    '',
+    '\x1b[38;5;141m══════════════════════════════════════════════════════\x1b[0m',
+    '',
+  ];
+  help.forEach(l => term.writeln(l));
+}
+
+// ══════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════
+connectWS();
+cmdInput.focus();
+
+// Prevent default tab behavior on the page
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab' && document.activeElement === cmdInput) e.preventDefault();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERR0RS // BadUSB Catalog</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void:#04000a; --panel:#0c0020; --border:#1e0040;
+  --neon:#bf6fff; --green:#39ff14; --cyan:#00f5ff;
+  --red:#ff2255;  --amber:#ffaa00; --orange:#ff6600;
+  --text:#d4b8ff; --dim:#4a2870;
+  --shell:#ff4466;  --exfil:#ffaa00;   --creds:#ff6600;
+  --persist:#aa44ff; --recon:#00aaff; --surv:#ff44aa;
+  --evasion:#44ffaa; --privesc:#ff8800;
+  --prank:#39ff14;   --utility:#888899;
+}
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box }
+html,body { height:100%; background:var(--void); color:var(--text);
+            font-family:'Share Tech Mono',monospace; overflow-x:hidden }
+body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.07) 3px,rgba(0,0,0,.07) 4px) }
+
+/* ── TOP BAR ─────────────────────────────────────────────── */
+#topbar { height:52px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 20px; background:linear-gradient(90deg,#04000a,#110033 50%,#04000a);
+  border-bottom:1px solid var(--border); position:sticky; top:0; z-index:200 }
+.logo { font-size:.88rem; font-weight:900; letter-spacing:4px; color:var(--neon) }
+.logo em { color:var(--amber); font-style:normal }
+.topbar-right { display:flex; align-items:center; gap:10px }
+#total-badge { font-size:.73rem; letter-spacing:2px; padding:4px 14px;
+  border-radius:20px; border:1px solid var(--orange);
+  background:rgba(255,102,0,.1); color:var(--orange) }
+.nav-btn { font-size:.73rem; padding:5px 12px; border:1px solid var(--dim);
+  border-radius:4px; color:var(--dim); text-decoration:none; transition:all .2s }
+.nav-btn:hover { border-color:var(--neon); color:var(--neon) }
+
+/* ── CONTROLS ────────────────────────────────────────────── */
+#controls { padding:12px 20px; background:#050010; border-bottom:1px solid var(--border);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+#search-input { flex:1; min-width:220px; background:rgba(255,255,255,.04);
+  border:1px solid var(--border); color:var(--text); font-family:'Share Tech Mono',monospace;
+  font-size:.85rem; padding:8px 12px; border-radius:6px }
+#search-input:focus { outline:none; border-color:var(--neon) }
+#search-input::placeholder { color:var(--dim) }
+.sel { background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--text);
+  font-family:'Share Tech Mono',monospace; font-size:.82rem; padding:8px 10px; border-radius:6px }
+.sel:focus { outline:none; border-color:var(--cyan) }
+#result-count { font-size:.78rem; color:var(--dim); margin-left:auto; white-space:nowrap }
+
+/* ── CAT TABS ────────────────────────────────────────────── */
+#cat-tabs { padding:8px 20px; background:#050010; border-bottom:1px solid var(--border);
+  display:flex; flex-wrap:wrap; gap:5px }
+.ct { font-size:.71rem; letter-spacing:1px; padding:5px 13px; border-radius:20px;
+  cursor:pointer; border:1px solid var(--dim); color:var(--dim); transition:all .18s }
+.ct:hover { color:var(--text); border-color:var(--text) }
+.ct.on { color:#000 !important }
+.ct[data-c="all"].on    { background:var(--neon);    border-color:var(--neon) }
+.ct[data-c="shell"].on  { background:var(--shell);   border-color:var(--shell) }
+.ct[data-c="exfil"].on  { background:var(--exfil);   border-color:var(--exfil) }
+.ct[data-c="credentials"].on { background:var(--creds); border-color:var(--creds) }
+.ct[data-c="persistence"].on { background:var(--persist);border-color:var(--persist) }
+.ct[data-c="recon"].on       { background:var(--recon);  border-color:var(--recon) }
+.ct[data-c="surveillance"].on{ background:var(--surv);   border-color:var(--surv) }
+.ct[data-c="evasion"].on  { background:var(--evasion); border-color:var(--evasion) }
+.ct[data-c="privesc"].on  { background:var(--privesc); border-color:var(--privesc) }
+.ct[data-c="prank"].on    { background:var(--prank);   border-color:var(--prank);color:#001 !important }
+.ct[data-c="utility"].on  { background:var(--utility); border-color:var(--utility) }
+</style>
+</head>
+
+<style>
+/* ── CARD GRID ───────────────────────────────────────────── */
+#catalog { padding:16px 20px 60px; display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:10px }
+.card { background:#0c0020; border:1px solid var(--border); border-radius:8px;
+  padding:14px; cursor:pointer; transition:all .18s; position:relative; overflow:hidden }
+.card:hover { border-color:var(--neon); background:#110033; transform:translateY(-1px);
+  box-shadow:0 4px 20px rgba(191,111,255,.15) }
+.card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px }
+.card[data-c="shell"]::before       { background:var(--shell) }
+.card[data-c="exfil"]::before       { background:var(--exfil) }
+.card[data-c="credentials"]::before { background:var(--creds) }
+.card[data-c="persistence"]::before { background:var(--persist) }
+.card[data-c="recon"]::before       { background:var(--recon) }
+.card[data-c="surveillance"]::before{ background:var(--surv) }
+.card[data-c="evasion"]::before     { background:var(--evasion) }
+.card[data-c="privesc"]::before     { background:var(--privesc) }
+.card[data-c="prank"]::before       { background:var(--prank) }
+.card[data-c="utility"]::before     { background:var(--utility) }
+
+.card-title { font-size:.88rem; color:var(--text); margin-bottom:6px; line-height:1.3;
+  word-break:break-word; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.card-badges { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:7px }
+.badge { font-size:.63rem; letter-spacing:.5px; padding:2px 7px;
+  border-radius:10px; border:1px solid }
+.bc { border-color:var(--neon); color:var(--neon) }
+.bp { border-color:var(--cyan); color:var(--cyan) }
+.bp.windows { border-color:#4488ff; color:#4488ff }
+.bp.macos   { border-color:#aaa;    color:#ccc }
+.bp.linux   { border-color:#39ff14; color:#39ff14 }
+.bp.android { border-color:#44ff88; color:#44ff88 }
+.bp.ios     { border-color:#00f5ff; color:#00f5ff }
+.bp.cross   { border-color:#555;    color:#888 }
+.card-author { font-size:.71rem; color:var(--dim); margin-bottom:5px }
+.card-desc { font-size:.74rem; color:var(--dim); line-height:1.4; margin-bottom:7px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+.card-repo { font-size:.66rem; color:#2a1050; padding:2px 6px;
+  background:rgba(123,47,190,.15); border-radius:4px; display:inline-block }
+.card-btns { display:flex; gap:6px; margin-top:10px; opacity:0; transition:opacity .18s }
+.card:hover .card-btns { opacity:1 }
+.cbtn { font-size:.67rem; padding:4px 10px; border:1px solid; border-radius:4px;
+  cursor:pointer; background:transparent; transition:all .15s; font-family:'Share Tech Mono',monospace }
+.cbtn.v { border-color:var(--cyan);  color:var(--cyan) }
+.cbtn.v:hover { background:rgba(0,245,255,.1) }
+.cbtn.l { border-color:var(--neon);  color:var(--neon) }
+.cbtn.l:hover { background:rgba(191,111,255,.15) }
+
+/* ── MODAL ────────────────────────────────────────────────── */
+#mbg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.88);
+  z-index:1000; align-items:center; justify-content:center; padding:20px }
+#mbg.open { display:flex }
+#modal { background:#0c0020; border:1px solid var(--neon); border-radius:10px;
+  width:100%; max-width:820px; max-height:90vh; display:flex; flex-direction:column;
+  box-shadow:0 0 60px rgba(191,111,255,.25) }
+#mhead { padding:16px 20px; border-bottom:1px solid var(--border);
+  display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-shrink:0 }
+#mtitle { font-size:1rem; color:var(--neon); line-height:1.3 }
+#mmeta { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px }
+#mclose { font-size:1.3rem; color:var(--dim); cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0 }
+#mclose:hover { color:var(--red) }
+#mbody { flex:1; overflow-y:auto; padding:16px 20px }
+#mbody::-webkit-scrollbar { width:4px }
+#mbody::-webkit-scrollbar-thumb { background:var(--border) }
+#mdesc { font-size:.82rem; color:var(--dim); margin-bottom:12px; line-height:1.6; white-space:pre-wrap }
+#mcode { background:#020008; border:1px solid var(--border); border-radius:6px;
+  padding:14px; font-size:.82rem; color:#d4b8ff; white-space:pre-wrap;
+  word-break:break-word; max-height:440px; overflow-y:auto; line-height:1.5 }
+#mcode::-webkit-scrollbar { width:4px }
+#mcode::-webkit-scrollbar-thumb { background:var(--border) }
+/* DuckyScript syntax highlight */
+.dk-rem    { color:#4a2870 }
+.dk-delay  { color:#ff8800 }
+.dk-string { color:#39ff14 }
+.dk-key    { color:#00f5ff }
+.dk-cmd    { color:#bf6fff }
+
+#mfoot { padding:12px 20px; border-top:1px solid var(--border);
+  display:flex; gap:8px; flex-shrink:0 }
+.mbtn { flex:1; padding:9px; font-size:.77rem; letter-spacing:1.5px; cursor:pointer;
+  border-radius:6px; border:1px solid; text-align:center; transition:all .2s;
+  background:transparent; font-family:'Share Tech Mono',monospace }
+.mbtn.load  { border-color:var(--neon);  color:var(--neon) }
+.mbtn.load:hover  { background:rgba(191,111,255,.15) }
+.mbtn.copy  { border-color:var(--cyan);  color:var(--cyan) }
+.mbtn.copy:hover  { background:rgba(0,245,255,.1) }
+.mbtn.close { border-color:var(--dim);   color:var(--dim) }
+.mbtn.close:hover { background:rgba(255,255,255,.05) }
+
+/* ── LOADING / STATUS BAR ────────────────────────────────── */
+#loading-msg { text-align:center; padding:60px 20px; color:var(--dim);
+  font-size:.85rem; grid-column:1/-1 }
+.spinner { display:inline-block; width:22px; height:22px; border:2px solid var(--border);
+  border-top-color:var(--neon); border-radius:50%; animation:spin .8s linear infinite; margin-bottom:10px }
+@keyframes spin { to { transform:rotate(360deg) } }
+.overflow-note { text-align:center; padding:20px; color:var(--amber);
+  font-size:.78rem; grid-column:1/-1; letter-spacing:1px }
+
+#statusbar { position:fixed; bottom:0; left:0; right:0; height:28px; background:#020008;
+  border-top:1px solid var(--border); display:flex; align-items:center;
+  padding:0 16px; gap:18px; font-size:.74rem; font-family:'Rajdhani',sans-serif;
+  font-weight:600; letter-spacing:1px; color:var(--dim); z-index:100 }
+#statusbar span { color:var(--text) }
+#sb-msg { margin-left:auto; color:var(--green) }
+</style>
+
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">ERR0RS // <em>BADUSB CATALOG</em></div>
+  <div class="topbar-right">
+    <div id="total-badge">Loading...</div>
+    <a href="/" class="nav-btn">⬅ DASHBOARD</a>
+    <a href="/payload_studio.html" class="nav-btn">⚡ STUDIO</a>
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div id="controls">
+  <input id="search-input" type="text"
+    placeholder="🔍  Search title, author, description, repo..."
+    oninput="onSearch()">
+  <select class="sel" id="plat-sel" onchange="filter()">
+    <option value="all">All Platforms</option>
+    <option value="windows">🪟 Windows</option>
+    <option value="macos">🍎 macOS</option>
+    <option value="linux">🐧 Linux</option>
+    <option value="android">🤖 Android</option>
+    <option value="ios">📱 iOS</option>
+    <option value="cross">🌐 Cross</option>
+  </select>
+  <select class="sel" id="repo-sel" onchange="filter()">
+    <option value="all">All Repos</option>
+  </select>
+  <div id="result-count">loading...</div>
+</div>
+
+<!-- CATEGORY TABS -->
+<div id="cat-tabs">
+  <div class="ct on" data-c="all"         onclick="setCat('all')">ALL</div>
+  <div class="ct"    data-c="shell"        onclick="setCat('shell')">🔴 SHELL</div>
+  <div class="ct"    data-c="exfil"        onclick="setCat('exfil')">🟠 EXFIL</div>
+  <div class="ct"    data-c="credentials"  onclick="setCat('credentials')">🟤 CREDS</div>
+  <div class="ct"    data-c="persistence"  onclick="setCat('persistence')">🟣 PERSIST</div>
+  <div class="ct"    data-c="recon"        onclick="setCat('recon')">🔵 RECON</div>
+  <div class="ct"    data-c="surveillance" onclick="setCat('surveillance')">🩷 SURV</div>
+  <div class="ct"    data-c="evasion"      onclick="setCat('evasion')">🟢 EVASION</div>
+  <div class="ct"    data-c="privesc"      onclick="setCat('privesc')">🟠 PRIVESC</div>
+  <div class="ct"    data-c="prank"        onclick="setCat('prank')">💚 PRANK</div>
+  <div class="ct"    data-c="utility"      onclick="setCat('utility')">⚪ UTILITY</div>
+</div>
+
+<!-- CARD GRID -->
+<div id="catalog">
+  <div id="loading-msg">
+    <div class="spinner"></div><br>Loading 2,165 BadUSB payloads...
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="mbg" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <div id="mhead">
+      <div>
+        <div id="mtitle">—</div>
+        <div id="mmeta"></div>
+      </div>
+      <div id="mclose" onclick="closeModal()">✕</div>
+    </div>
+    <div id="mbody">
+      <div id="mdesc"></div>
+      <div id="mcode">Loading payload...</div>
+    </div>
+    <div id="mfoot">
+      <button class="mbtn load"  onclick="loadIntoStudio()">⚡ LOAD IN STUDIO</button>
+      <button class="mbtn copy"  onclick="copyCode()">📋 COPY CODE</button>
+      <button class="mbtn close" onclick="closeModal()">✕ CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusbar">
+  <div>CAT: <span id="sb-cat">ALL</span></div>
+  <div>PLAT: <span id="sb-plat">ALL</span></div>
+  <div>SHOWN: <span id="sb-shown">0</span></div>
+  <div>TOTAL: <span id="sb-total">0</span></div>
+  <div id="sb-msg">⚡ ERR0RS BADUSB CATALOG</div>
+</div>
+
+
+<script>
+'use strict';
+
+let all = [], vis = [], curCat = 'all', curModal = null, stimer = null;
+
+// ── BOOT ──────────────────────────────────────────────────
+async function boot() {
+  try {
+    const d = await fetch('/api/payload_studio/payloads?limit=3000&collection=badusb_payloads')
+                     .then(r => r.json());
+    all = d.results || [];
+    document.getElementById('total-badge').textContent = `${all.length} PAYLOADS`;
+    document.getElementById('sb-total').textContent    = all.length;
+
+    // Populate repo dropdown
+    const repos = [...new Set(all.map(p => (p.source||'').replace('badusb/','')))].sort();
+    const sel   = document.getElementById('repo-sel');
+    repos.filter(Boolean).forEach(r => {
+      const o = document.createElement('option');
+      o.value = r; o.textContent = r; sel.appendChild(o);
+    });
+
+    filter();
+  } catch(e) {
+    document.getElementById('catalog').innerHTML =
+      `<div id="loading-msg" style="color:var(--red)">
+        ⚠️ API error: ${e.message}<br>
+        <small>Make sure ERR0RS is running: python3 src/ui/errorz_launcher.py</small>
+      </div>`;
+  }
+}
+
+// ── FILTER & RENDER ───────────────────────────────────────
+function filter() {
+  const q    = document.getElementById('search-input').value.toLowerCase().trim();
+  const plat = document.getElementById('plat-sel').value;
+  const repo = document.getElementById('repo-sel').value;
+
+  document.getElementById('sb-plat').textContent = plat.toUpperCase();
+
+  vis = all.filter(p => {
+    if (curCat !== 'all' && p.category !== curCat) return false;
+    if (plat  !== 'all' && p.platform !== plat)   return false;
+    if (repo  !== 'all' && (p.source||'').replace('badusb/','') !== repo) return false;
+    if (q) {
+      const h = [p.title,p.category,p.platform,p.source,p.author,p.preview].join(' ').toLowerCase();
+      if (!h.includes(q)) return false;
+    }
+    return true;
+  });
+
+  render();
+}
+
+function onSearch() {
+  clearTimeout(stimer);
+  stimer = setTimeout(filter, 180);
+}
+
+function setCat(c) {
+  curCat = c;
+  document.querySelectorAll('.ct').forEach(t => t.classList.remove('on'));
+  document.querySelector(`.ct[data-c="${c}"]`).classList.add('on');
+  document.getElementById('sb-cat').textContent = c.toUpperCase();
+  filter();
+}
+
+// ── RENDER CARDS ──────────────────────────────────────────
+const MAX = 300;
+
+function render() {
+  const cat = document.getElementById('catalog');
+  document.getElementById('sb-shown').textContent     = vis.length;
+  document.getElementById('result-count').textContent = `${vis.length} payloads`;
+
+  if (!vis.length) {
+    cat.innerHTML = '<div id="loading-msg">No payloads match — try different filters</div>';
+    return;
+  }
+
+  const slice = vis.slice(0, MAX);
+  cat.innerHTML = slice.map((p, i) => card(p, i)).join('') +
+    (vis.length > MAX
+      ? `<div class="overflow-note">
+           Showing ${MAX} of ${vis.length} — refine search or filters to see more
+         </div>`
+      : '');
+}
+
+function title(p) {
+  return (p.title || p.path?.split('/').pop()?.replace(/\.(txt|md)$/,'') || 'Payload')
+    .replace(/_/g,' ').replace(/-/g,' ');
+}
+
+function card(p, i) {
+  const t    = esc(title(p));
+  const cat  = p.category || 'utility';
+  const plat = p.platform  || 'cross';
+  const repo = (p.source||'').replace('badusb/','');
+  const auth = p.author ? `<div class="card-author">✍ ${esc(p.author)}</div>` : '';
+  const prev = p.preview
+    ? `<div class="card-desc">${esc(p.preview.replace(/^\[.*?\]\n?/,'').split('\n').slice(1,4).join(' ').trim())}</div>`
+    : '';
+  return `
+<div class="card" data-c="${cat}" onclick="showModal(${i})">
+  <div class="card-title" title="${t}">${t}</div>
+  <div class="card-badges">
+    <span class="badge bc">${cat}</span>
+    <span class="badge bp ${plat}">${plat}</span>
+  </div>
+  ${auth}
+  ${prev}
+  ${repo ? `<span class="card-repo">${esc(repo)}</span>` : ''}
+  <div class="card-btns">
+    <button class="cbtn v" onclick="event.stopPropagation();showModal(${i})">👁 VIEW</button>
+    <button class="cbtn l" onclick="event.stopPropagation();toStudio(${i})">⚡ STUDIO</button>
+  </div>
+</div>`;
+}
+
+// ── MODAL ─────────────────────────────────────────────────
+async function showModal(i) {
+  const p = vis[i]; if (!p) return;
+  curModal = p;
+
+  const t    = title(p);
+  const cat  = p.category || 'utility';
+  const plat = p.platform  || 'cross';
+  const repo = (p.source||'').replace('badusb/','');
+
+  document.getElementById('mtitle').textContent = t;
+  document.getElementById('mmeta').innerHTML = `
+    <span class="badge bc">${cat}</span>
+    <span class="badge bp ${plat}">${plat}</span>
+    ${p.author ? `<span class="badge" style="border-color:var(--amber);color:var(--amber)">✍ ${esc(p.author)}</span>` : ''}
+    ${repo     ? `<span class="badge" style="border-color:var(--dim);color:var(--dim)">${esc(repo)}</span>` : ''}
+  `;
+
+  // Show description from preview (skip the [Header] line)
+  const descLines = (p.preview||'')
+    .replace(/^\[.*?\]\n?/,'')
+    .split('\n')
+    .filter(l => l.trim().startsWith('REM') || l.trim() === '')
+    .slice(0,6)
+    .map(l => l.replace(/^REM\s?/,''))
+    .join('\n').trim();
+  document.getElementById('mdesc').textContent = descLines || '';
+  document.getElementById('mcode').innerHTML   = '<span style="color:var(--dim)">⏳ Loading payload...</span>';
+  document.getElementById('mbg').classList.add('open');
+  document.getElementById('sb-msg').textContent = `📂 ${t}`;
+
+  // Fetch full content
+  try {
+    const path = p.path || '';
+    if (path && !path.startsWith('embedded:')) {
+      const col = p.collection || 'badusb_payloads';
+      const d   = await fetch(`/api/payload_studio/payload?path=${encodeURIComponent(path)}&collection=${col}`)
+                       .then(r => r.json());
+      const code = d.content || d.error || 'Content unavailable';
+      document.getElementById('mcode').innerHTML = syntaxHL(code);
+    } else {
+      // Embedded — show full preview
+      document.getElementById('mcode').innerHTML = syntaxHL(p.preview || 'No content available');
+    }
+  } catch(e) {
+    document.getElementById('mcode').textContent = p.preview || 'Failed to load';
+  }
+}
+
+function syntaxHL(code) {
+  return esc(code)
+    .replace(/^(REM\s.*)/gm,       '<span class="dk-rem">$1</span>')
+    .replace(/^(DELAY\s+\d+)/gm,   '<span class="dk-delay">$1</span>')
+    .replace(/^(STRING(?:LN)?\s.+)/gm, '<span class="dk-string">$1</span>')
+    .replace(/^(DEFAULT_DELAY\s+\d+)/gm,'<span class="dk-delay">$1</span>')
+    .replace(/^(ATTACKMODE\s.+)/gm, '<span class="dk-cmd">$1</span>')
+    .replace(/^(GUI|CTRL|ALT|SHIFT|ENTER|TAB|ESCAPE|BACKSPACE|DELETE|HOME|END|INSERT|PAGEUP|PAGEDOWN|UPARROW|DOWNARROW|LEFTARROW|RIGHTARROW|CAPSLOCK|NUMLOCK|F\d{1,2}|WINDOWS|SPACE|PRINTSCREEN|SCROLLLOCK|REPEAT)(\s.*)?$/gm,
+      '<span class="dk-key">$1$2</span>');
+}
+
+function closeModal() {
+  document.getElementById('mbg').classList.remove('open');
+  curModal = null;
+  document.getElementById('sb-msg').textContent = '⚡ ERR0RS BADUSB CATALOG';
+}
+
+function copyCode() {
+  const code = document.getElementById('mcode').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.querySelector('.mbtn.copy');
+    const old = btn.textContent;
+    btn.textContent = '✅ COPIED!';
+    setTimeout(() => btn.textContent = old, 2000);
+  });
+}
+
+function toStudio(i) {
+  const p = vis[i]; if (!p) return;
+  xferToStudio(p);
+}
+
+function loadIntoStudio() {
+  if (curModal) xferToStudio(curModal);
+}
+
+function xferToStudio(p) {
+  sessionStorage.setItem('loadPayload', JSON.stringify({
+    path:       p.path || '',
+    collection: p.collection || 'badusb_payloads',
+    title:      title(p),
+  }));
+  window.location.href = '/payload_studio.html';
+}
+
+// ── UTILS ─────────────────────────────────────────────────
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── KEYBOARD ──────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === '/' && !document.getElementById('mbg').classList.contains('open')) {
+    e.preventDefault();
+    document.getElementById('search-input').focus();
+  }
+});
+
+boot();
+</script>
+</body>
+</html>

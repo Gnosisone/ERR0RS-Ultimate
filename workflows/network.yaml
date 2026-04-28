@@ -1,0 +1,33 @@
+id: network
+name: Network Infrastructure Assessment
+
+steps:
+  - name: Full Port Scan
+    command: portscan
+    args:
+      target: "{target}"
+    learn: true
+    timeout: 180
+
+  - name: Analyse Services
+    type: analyze
+
+  - name: SMB Enumeration
+    command: smb_enum
+    args:
+      target: "{target}"
+    condition: '445 in open_ports or 139 in open_ports'
+    learn: true
+
+  - name: SSH Audit
+    command: ssh_audit
+    args:
+      target: "{target}"
+    condition: '22 in open_ports'
+    learn: true
+
+  - name: Vulnerability Scan
+    command: vuln
+    args:
+      target: "{target}"
+    timeout: 240

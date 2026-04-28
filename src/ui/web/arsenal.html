@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ERR0RS — Phoenix Arsenal</title>
+<style>
+:root {
+  --bg0:     #060608;
+  --bg1:     #0d0d12;
+  --bg2:     #111118;
+  --bg3:     #181820;
+  --border:  #1e1e2e;
+  --border2: #2a2a3e;
+  --orange:  #ff6b00;
+  --orange2: #ff8c00;
+  --orange-dim: rgba(255,107,0,.12);
+  --orange-glow: rgba(255,107,0,.06);
+  --cyan:    #00d4ff;
+  --cyan-dim: rgba(0,212,255,.1);
+  --red:     #ff3355;
+  --red-dim: rgba(255,51,85,.1);
+  --green:   #00ff88;
+  --green-dim: rgba(0,255,136,.08);
+  --yellow:  #ffd700;
+  --text:    #e8e8f0;
+  --text-dim:#7070a0;
+  --text-muted:#404060;
+  --mono:    'JetBrains Mono','Fira Code','Courier New',monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+
+body {
+  background: var(--bg0);
+  color: var(--text);
+  font-family: var(--mono);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* scanlines overlay */
+body::after {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 3px);
+  pointer-events:none; z-index:9999;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  display:flex; align-items:center; gap:16px;
+  padding:0 20px; height:48px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  flex-shrink:0;
+}
+.topbar-logo {
+  font-size:11px; font-weight:700; letter-spacing:4px;
+  color: var(--orange);
+  text-shadow: 0 0 12px rgba(255,107,0,.5);
+}
+.topbar-sep { width:1px; height:20px; background:var(--border2); }
+.topbar-title { font-size:11px; color:var(--text-dim); letter-spacing:2px; }
+.topbar-status {
+  margin-left:auto; display:flex; align-items:center; gap:12px; font-size:10px;
+}
+.status-pill {
+  display:flex; align-items:center; gap:5px;
+  padding:3px 10px; border-radius:2px;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+}
+.status-pill .dot {
+  width:5px; height:5px; border-radius:50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.back-btn {
+  padding:4px 12px; font-size:10px; letter-spacing:2px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--text-dim); cursor:pointer; font-family:var(--mono);
+  transition: all .15s;
+}
+.back-btn:hover { border-color:var(--orange); color:var(--orange); }
+
+/* ── MAIN LAYOUT ── */
+.layout { display:flex; flex:1; overflow:hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width:200px; flex-shrink:0;
+  background:var(--bg1); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden;
+}
+.sidebar::-webkit-scrollbar { width:2px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--border2); }
+
+.sidebar-section {
+  padding:14px 14px 6px;
+  font-size:8px; letter-spacing:3px; color:var(--text-muted);
+}
+.cat-item {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 14px; cursor:pointer; font-size:11px;
+  color:var(--text-dim); border-left:2px solid transparent;
+  transition:all .12s; white-space:nowrap;
+}
+.cat-item:hover { color:var(--text); background:var(--orange-glow); border-left-color:var(--border2); }
+.cat-item.active { color:var(--orange); background:var(--orange-dim); border-left-color:var(--orange); }
+.cat-item .ci { font-size:12px; width:16px; text-align:center; }
+.cat-count {
+  margin-left:auto; font-size:9px; padding:1px 5px;
+  background:var(--bg3); color:var(--text-muted); border-radius:2px;
+}
+.sidebar-divider { height:1px; background:var(--border); margin:6px 10px; }
+
+/* Kill Chain section */
+.kc-section { padding:10px 14px; border-top:1px solid var(--border); margin-top:auto; }
+.kc-label { font-size:8px; letter-spacing:3px; color:var(--text-muted); margin-bottom:8px; }
+.kc-target {
+  font-size:10px; color:var(--orange2);
+  background:var(--orange-dim); border:1px solid rgba(255,107,0,.2);
+  padding:6px 10px; border-radius:2px; margin-bottom:8px;
+  word-break:break-all;
+}
+.kc-btn {
+  width:100%; padding:7px; font-size:10px; letter-spacing:2px;
+  border:1px solid var(--orange); background:var(--orange-dim);
+  color:var(--orange); cursor:pointer; font-family:var(--mono);
+  transition:all .15s; text-align:center;
+}
+.kc-btn:hover { background:var(--orange); color:#000; }
+.kc-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── CENTER: SEARCH + GRID ── */
+.center { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+.search-bar {
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  display:flex; gap:10px; align-items:center; flex-shrink:0;
+}
+.search-input {
+  flex:1; background:var(--bg2); border:1px solid var(--border2);
+  color:var(--text); font-family:var(--mono); font-size:12px;
+  padding:8px 14px; outline:none; transition:border .15s;
+}
+.search-input:focus { border-color:var(--orange); }
+.search-input::placeholder { color:var(--text-muted); }
+.tool-count { font-size:10px; color:var(--text-dim); white-space:nowrap; }
+
+.grid-wrap { flex:1; overflow-y:auto; padding:14px; }
+.grid-wrap::-webkit-scrollbar { width:3px; }
+.grid-wrap::-webkit-scrollbar-thumb { background:var(--border2); }
+
+.tool-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+  gap:10px;
+}
+
+/* ── TOOL CARD ── */
+.tool-card {
+  background:var(--bg2); border:1px solid var(--border);
+  padding:13px 14px; cursor:pointer;
+  transition:all .15s; position:relative;
+  display:flex; flex-direction:column; gap:6px;
+}
+.tool-card:hover {
+  border-color:var(--orange);
+  background:var(--bg3);
+  box-shadow: 0 0 16px rgba(255,107,0,.08);
+}
+.tool-card.selected {
+  border-color:var(--cyan);
+  background: rgba(0,212,255,.04);
+}
+.tc-name {
+  font-size:13px; font-weight:700; color:var(--text);
+  display:flex; align-items:center; gap:8px;
+}
+.tc-source {
+  font-size:8px; padding:1px 5px; border-radius:1px;
+  font-weight:700; letter-spacing:1px;
+}
+.src-phoenix { background:rgba(255,107,0,.2); color:var(--orange); }
+.src-blackarch { background:rgba(255,51,85,.15); color:var(--red); }
+.tc-desc { font-size:10px; color:var(--text-dim); line-height:1.5; }
+.tc-phase {
+  font-size:9px; color:var(--text-muted); letter-spacing:1px;
+  text-transform:uppercase; display:flex; align-items:center; gap:6px;
+}
+.phase-dot { width:4px; height:4px; border-radius:50%; }
+.tc-actions { display:flex; gap:6px; margin-top:2px; }
+.tc-btn {
+  font-size:9px; padding:4px 10px; letter-spacing:1px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--text-dim); cursor:pointer; font-family:var(--mono);
+  transition:all .12s; text-transform:uppercase;
+}
+.tc-btn.run { border-color:var(--orange); color:var(--orange); }
+.tc-btn.run:hover { background:var(--orange); color:#000; }
+.tc-btn.info:hover { border-color:var(--cyan); color:var(--cyan); }
+.tc-btn:disabled { opacity:.3; cursor:not-allowed; }
+
+/* loading shimmer */
+.shimmer {
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+  background-size:200% 100%;
+  animation: shimmer 1.2s infinite;
+  height:90px; border:1px solid var(--border);
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ── RIGHT PANEL: EXECUTION ── */
+.right-panel {
+  width:340px; flex-shrink:0;
+  background:var(--bg1); border-left:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.rp-header {
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  font-size:9px; letter-spacing:3px; color:var(--text-muted);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.rp-clear {
+  font-size:9px; color:var(--text-muted); cursor:pointer;
+  padding:2px 8px; border:1px solid var(--border2); background:transparent;
+  font-family:var(--mono); transition:all .12s;
+}
+.rp-clear:hover { color:var(--red); border-color:var(--red); }
+
+/* selected tool info */
+.rp-tool-info { padding:14px 16px; border-bottom:1px solid var(--border); }
+.rp-tool-name { font-size:15px; font-weight:700; color:var(--orange); margin-bottom:4px; }
+.rp-tool-desc { font-size:10px; color:var(--text-dim); line-height:1.5; margin-bottom:10px; }
+.rp-field-label { font-size:8px; letter-spacing:2px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; }
+.rp-args {
+  width:100%; background:var(--bg2); border:1px solid var(--border2);
+  color:var(--text); font-family:var(--mono); font-size:11px;
+  padding:7px 10px; outline:none; transition:border .12s;
+  resize:vertical; min-height:40px;
+}
+.rp-args:focus { border-color:var(--orange); }
+.rp-run-btn {
+  width:100%; margin-top:10px; padding:10px; font-size:11px;
+  letter-spacing:3px; text-transform:uppercase;
+  border:1px solid var(--orange); background:var(--orange-dim);
+  color:var(--orange); cursor:pointer; font-family:var(--mono);
+  transition:all .15s;
+}
+.rp-run-btn:hover:not(:disabled) { background:var(--orange); color:#000; font-weight:700; }
+.rp-run-btn:disabled { opacity:.3; cursor:not-allowed; }
+.rp-docs {
+  font-size:10px; color:var(--cyan); background:var(--cyan-dim);
+  border:1px solid rgba(0,212,255,.15);
+  padding:8px 10px; margin-top:8px; line-height:1.5;
+  font-style:italic; word-break:break-all;
+}
+
+/* output terminal */
+.rp-output { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.rp-output-header {
+  padding:8px 16px; border-top:1px solid var(--border);
+  font-size:9px; letter-spacing:2px; color:var(--text-muted);
+  display:flex; align-items:center; gap:8px;
+}
+.rp-output-header .running-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--green); display:none;
+  box-shadow:0 0 8px var(--green); animation:pulse 1s infinite;
+}
+.rp-terminal {
+  flex:1; overflow-y:auto; padding:10px 14px;
+  font-size:10px; line-height:1.7; color:#00ff88;
+  background:var(--bg0); white-space:pre-wrap; word-break:break-all;
+}
+.rp-terminal::-webkit-scrollbar { width:2px; }
+.rp-terminal::-webkit-scrollbar-thumb { background:var(--border2); }
+.rp-terminal .t-meta { color:var(--text-muted); }
+.rp-terminal .t-err  { color:var(--red); }
+.rp-terminal .t-ok   { color:var(--green); }
+.rp-terminal .t-warn { color:var(--yellow); }
+
+/* Kill Chain Panel (replaces output when KC running) */
+.kc-panel { padding:14px 16px; border-top:1px solid var(--border); overflow-y:auto; }
+.kc-step {
+  display:flex; gap:10px; align-items:flex-start;
+  padding:8px 0; border-bottom:1px solid var(--border);
+  font-size:10px;
+}
+.kc-step:last-child { border-bottom:none; }
+.kc-step-num {
+  width:20px; height:20px; border-radius:50%;
+  border:1px solid var(--border2); display:flex; align-items:center; justify-content:center;
+  font-size:9px; color:var(--text-muted); flex-shrink:0;
+}
+.kc-step.done .kc-step-num { background:var(--green); border-color:var(--green); color:#000; }
+.kc-step.running .kc-step-num { background:var(--orange); border-color:var(--orange); color:#000; animation:pulse .8s infinite; }
+.kc-step.fail .kc-step-num { background:var(--red); border-color:var(--red); color:#fff; }
+.kc-step-info { flex:1; }
+.kc-step-tool { font-weight:700; color:var(--text); margin-bottom:2px; }
+.kc-step-phase { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+.kc-step-result { font-size:9px; color:var(--green); margin-top:3px; word-break:break-all; }
+.kc-step.fail .kc-step-result { color:var(--red); }
+
+/* phase color dots */
+.p-recon       { background:#00d4ff; }
+.p-scanning    { background:#ffd700; }
+.p-exploitation{ background:#ff3355; }
+.p-post        { background:#ff6b00; }
+.p-active_directory{ background:#9966ff; }
+.p-wireless    { background:#00ff88; }
+.p-password    { background:#ff8800; }
+.p-web_attacks { background:#ff3355; }
+.p-forensics   { background:#00aaff; }
+.p-cloud       { background:#00d4ff; }
+.p-social_engineering{ background:#ffaa00; }
+.p-network     { background:#44ff88; }
+.p-default     { background:#444; }
+
+/* empty state */
+.empty { padding:60px; text-align:center; color:var(--text-muted); font-size:12px; }
+.empty .e-icon { font-size:32px; margin-bottom:12px; opacity:.3; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-logo">ERR0RS</span>
+  <div class="topbar-sep"></div>
+  <span class="topbar-title">PHOENIX ARSENAL</span>
+  <div class="topbar-status">
+    <div class="status-pill"><div class="dot"></div><span id="tool-total">—</span> TOOLS</div>
+    <div class="status-pill" id="bridge-status-pill">BRIDGE</div>
+    <button class="back-btn" onclick="location.href='/'">← DASHBOARD</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">CATEGORY</div>
+    <div class="cat-item active" data-cat="all" onclick="setCategory(this,'all')">
+      <span class="ci">⚡</span> All Tools <span class="cat-count" id="count-all">—</span>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="cat-item" data-cat="recon" onclick="setCategory(this,'recon')">
+      <span class="ci">📡</span> Recon <span class="cat-count" id="count-recon">—</span>
+    </div>
+    <div class="cat-item" data-cat="scanning" onclick="setCategory(this,'scanning')">
+      <span class="ci">🔎</span> Scanning <span class="cat-count" id="count-scanning">—</span>
+    </div>
+    <div class="cat-item" data-cat="web_attacks" onclick="setCategory(this,'web_attacks')">
+      <span class="ci">🌐</span> Web Attacks <span class="cat-count" id="count-web_attacks">—</span>
+    </div>
+    <div class="cat-item" data-cat="exploitation" onclick="setCategory(this,'exploitation')">
+      <span class="ci">💥</span> Exploitation <span class="cat-count" id="count-exploitation">—</span>
+    </div>
+    <div class="cat-item" data-cat="post_exploit" onclick="setCategory(this,'post_exploit')">
+      <span class="ci">🏴</span> Post-Exploit <span class="cat-count" id="count-post_exploit">—</span>
+    </div>
+    <div class="cat-item" data-cat="password" onclick="setCategory(this,'password')">
+      <span class="ci">🔑</span> Password <span class="cat-count" id="count-password">—</span>
+    </div>
+    <div class="cat-item" data-cat="active_directory" onclick="setCategory(this,'active_directory')">
+      <span class="ci">🏢</span> Active Dir <span class="cat-count" id="count-active_directory">—</span>
+    </div>
+    <div class="cat-item" data-cat="wireless" onclick="setCategory(this,'wireless')">
+      <span class="ci">📶</span> Wireless <span class="cat-count" id="count-wireless">—</span>
+    </div>
+    <div class="cat-item" data-cat="network" onclick="setCategory(this,'network')">
+      <span class="ci">🔗</span> Network <span class="cat-count" id="count-network">—</span>
+    </div>
+    <div class="cat-item" data-cat="cloud" onclick="setCategory(this,'cloud')">
+      <span class="ci">☁️</span> Cloud <span class="cat-count" id="count-cloud">—</span>
+    </div>
+    <div class="cat-item" data-cat="forensics" onclick="setCategory(this,'forensics')">
+      <span class="ci">🔬</span> Forensics <span class="cat-count" id="count-forensics">—</span>
+    </div>
+    <div class="cat-item" data-cat="social_engineering" onclick="setCategory(this,'social_engineering')">
+      <span class="ci">🎭</span> Social Eng <span class="cat-count" id="count-social_engineering">—</span>
+    </div>
+
+    <!-- Kill Chain -->
+    <div class="kc-section">
+      <div class="kc-label">KILL CHAIN</div>
+      <div class="kc-target" id="kc-target">loading...</div>
+      <button class="kc-btn" id="kc-btn" onclick="runKillChain()">▶ RUN KILL CHAIN</button>
+    </div>
+  </div>
+
+  <!-- CENTER GRID -->
+  <div class="center">
+    <div class="search-bar">
+      <input class="search-input" id="search" placeholder="search 2172 tools — nmap, xss, sqlmap, wifi..."
+             oninput="onSearch(this.value)"/>
+      <span class="tool-count" id="showing-count">loading...</span>
+    </div>
+    <div class="grid-wrap">
+      <div class="tool-grid" id="tool-grid">
+        <!-- shimmer placeholders -->
+        <div class="shimmer"></div><div class="shimmer"></div>
+        <div class="shimmer"></div><div class="shimmer"></div>
+        <div class="shimmer"></div><div class="shimmer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT EXECUTION PANEL -->
+  <div class="right-panel">
+    <div class="rp-header">
+      <span>EXECUTION PANEL</span>
+      <button class="rp-clear" onclick="clearPanel()">CLEAR</button>
+    </div>
+
+    <div class="rp-tool-info" id="rp-tool-info">
+      <div style="color:var(--text-muted);font-size:11px;padding:20px 0;text-align:center;">
+        Select a tool from the grid →
+      </div>
+    </div>
+
+    <div class="rp-output">
+      <div class="rp-output-header">
+        <span>OUTPUT</span>
+        <div class="running-dot" id="running-dot"></div>
+        <span id="run-status" style="font-size:9px;color:var(--text-muted);margin-left:auto;"></span>
+      </div>
+      <div class="rp-terminal" id="terminal">
+<span class="t-meta">╔══════════════════════════════════╗
+║  ERR0RS × PHOENIX ARSENAL v1.0  ║
+║  2172 tools · Purple Team       ║
+╚══════════════════════════════════╝
+
+Select a tool and click RUN.
+Or use the kill chain for
+a prebuilt attack sequence.
+</span></div>
+    </div>
+
+    <!-- Kill Chain progress (hidden initially) -->
+    <div class="kc-panel" id="kc-panel" style="display:none; max-height:280px;"></div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let allTools   = [];
+let filtered   = [];
+let currentCat = 'all';
+let currentQ   = '';
+let selectedTool = null;
+let running    = false;
+let kcSteps    = [];
+
+const API = 'http://127.0.0.1:8765';
+
+// ── Boot ────────────────────────────────────────────────────────────────
+async function boot() {
+  await Promise.all([ loadStatus(), loadTools(), loadKillChain() ]);
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch(`${API}/api/phoenix/status`);
+    const d = await r.json();
+    document.getElementById('tool-total').textContent = d.total_tools.toLocaleString();
+    const pill = document.getElementById('bridge-status-pill');
+    pill.textContent = d.status.replace('✅ ','');
+    pill.style.color = '#00ff88';
+  } catch(e) {}
+}
+
+async function loadTools() {
+  try {
+    const r = await fetch(`${API}/api/phoenix/tools`);
+    const d = await r.json();
+    allTools = d.tools || [];
+    // Also load blackarch count from status
+    updateCounts(allTools);
+    filtered = allTools;
+    renderGrid(filtered);
+    document.getElementById('showing-count').textContent =
+      `${filtered.length.toLocaleString()} tools`;
+  } catch(e) {
+    document.getElementById('tool-grid').innerHTML =
+      '<div class="empty"><div class="e-icon">⚠️</div>Could not load tools — is ERR0RS running?</div>';
+  }
+}
+
+async function loadKillChain() {
+  try {
+    const r = await fetch(`${API}/api/phoenix/killchain`);
+    const d = await r.json();
+    document.getElementById('kc-target').textContent = d.target;
+    kcSteps = d.steps;
+  } catch(e) {}
+}
+
+// ── Counts ──────────────────────────────────────────────────────────────
+function updateCounts(tools) {
+  const cats = {};
+  tools.forEach(t => {
+    const p = t.phase || t.category || 'unknown';
+    cats[p] = (cats[p]||0) + 1;
+  });
+  cats['all'] = tools.length;
+  Object.entries(cats).forEach(([k,v]) => {
+    const el = document.getElementById(`count-${k}`);
+    if (el) el.textContent = v;
+  });
+}
+
+// ── Category filter ─────────────────────────────────────────────────────
+function setCategory(el, cat) {
+  document.querySelectorAll('.cat-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  currentCat = cat;
+  applyFilters();
+}
+
+// ── Search ───────────────────────────────────────────────────────────────
+let searchTimer;
+function onSearch(q) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    currentQ = q.trim();
+    if (currentQ.length > 1) {
+      try {
+        const r = await fetch(`${API}/api/phoenix/tools?q=${encodeURIComponent(currentQ)}`);
+        const d = await r.json();
+        filtered = d.tools || [];
+        renderGrid(filtered);
+        document.getElementById('showing-count').textContent =
+          `${filtered.length} results for "${currentQ}"`;
+        return;
+      } catch(e) {}
+    }
+    applyFilters();
+  }, 250);
+}
+
+function applyFilters() {
+  if (currentCat === 'all') {
+    filtered = allTools;
+  } else {
+    filtered = allTools.filter(t =>
+      (t.phase||'').toLowerCase().includes(currentCat) ||
+      (t.category||'').toLowerCase().includes(currentCat)
+    );
+  }
+  updateCounts(allTools);
+  renderGrid(filtered);
+  document.getElementById('showing-count').textContent =
+    `${filtered.length.toLocaleString()} tools` +
+    (currentCat !== 'all' ? ` · ${currentCat}` : '');
+}
+
+// ── Grid render ─────────────────────────────────────────────────────────
+function phaseColor(phase) {
+  const map = {
+    recon:'#00d4ff', scanning:'#ffd700', exploitation:'#ff3355',
+    post_exploit:'#ff6b00', active_directory:'#9966ff', wireless:'#00ff88',
+    password:'#ff8800', web_attacks:'#ff3355', forensics:'#00aaff',
+    cloud:'#00d4ff', social_engineering:'#ffaa00', network:'#44ff88'
+  };
+  return map[phase] || '#444';
+}
+
+function renderGrid(tools) {
+  const grid = document.getElementById('tool-grid');
+  if (!tools.length) {
+    grid.innerHTML = '<div class="empty"><div class="e-icon">🔍</div>No tools match — try a different query</div>';
+    return;
+  }
+  // Render in chunks for performance
+  const CHUNK = 80;
+  let html = '';
+  tools.slice(0, CHUNK).forEach(t => { html += toolCardHTML(t); });
+  grid.innerHTML = html;
+  if (tools.length > CHUNK) {
+    const msg = document.createElement('div');
+    msg.style.cssText = 'grid-column:1/-1;text-align:center;padding:20px;color:var(--text-muted);font-size:11px;';
+    msg.textContent = `+ ${(tools.length-CHUNK).toLocaleString()} more — search to narrow down`;
+    grid.appendChild(msg);
+  }
+}
+
+function toolCardHTML(t) {
+  const src    = (t.source||'blackarch').includes('phoenix') ? 'phoenix' : 'blackarch';
+  const srcLbl = src === 'phoenix' ? '◈ CURATED' : '◆ BLACKARCH';
+  const srcCls = src === 'phoenix' ? 'src-phoenix' : 'src-blackarch';
+  const phase  = t.phase || t.category || 'unknown';
+  const col    = phaseColor(phase);
+  const desc   = (t.description||'BlackArch security tool').replace(/[<>]/g,'').slice(0,90);
+  const name   = (t.name||'').replace(/[<>]/g,'');
+  return `
+<div class="tool-card" onclick="selectTool(${JSON.stringify(JSON.stringify(t))})" id="tc-${name}">
+  <div class="tc-name">
+    ${name}
+    <span class="tc-source ${srcCls}">${srcLbl}</span>
+  </div>
+  <div class="tc-desc">${desc}${desc.length>=90?'…':''}</div>
+  <div class="tc-phase">
+    <div class="phase-dot" style="background:${col}"></div>
+    ${phase.replace(/_/g,' ')}
+  </div>
+  <div class="tc-actions">
+    <button class="tc-btn run" onclick="event.stopPropagation();quickRun(${JSON.stringify(JSON.stringify(t))})">▶ RUN</button>
+    <button class="tc-btn info" onclick="event.stopPropagation();selectTool(${JSON.stringify(JSON.stringify(t))})">INFO</button>
+  </div>
+</div>`;
+}
+
+// ── Tool selection ──────────────────────────────────────────────────────
+function selectTool(tJson) {
+  const t = JSON.parse(tJson);
+  selectedTool = t;
+  document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('selected'));
+  const el = document.getElementById(`tc-${t.name}`);
+  if (el) el.classList.add('selected');
+
+  const docs  = t.docs || t.command || `${t.name} --help`;
+  const phase = t.phase || t.category || '?';
+  document.getElementById('rp-tool-info').innerHTML = `
+    <div class="rp-tool-name">${t.name}</div>
+    <div class="rp-tool-desc">${(t.description||'').slice(0,180)}</div>
+    <div class="rp-field-label">PHASE / CATEGORY</div>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px">
+      ${phase.replace(/_/g,' ')} · ${t.category||''} · ${t.source||'blackarch'}
+    </div>
+    <div class="rp-field-label">ARGUMENTS</div>
+    <textarea class="rp-args" id="rp-args-input" rows="2" placeholder="e.g. --version or -h"></textarea>
+    <button class="rp-run-btn" onclick="runSelected()" ${running?'disabled':''}>
+      ▶ EXECUTE ${t.name.toUpperCase()}
+    </button>
+    <div class="rp-docs">${docs}</div>
+  `;
+}
+
+// ── Run tool ────────────────────────────────────────────────────────────
+function quickRun(tJson) {
+  selectTool(tJson);
+  // small delay so UI updates first
+  setTimeout(() => runSelected(), 100);
+}
+
+async function runSelected() {
+  if (!selectedTool || running) return;
+  const argsRaw = (document.getElementById('rp-args-input')?.value || '').trim();
+  const args = argsRaw ? argsRaw.split(/\s+/) : ['--help'];
+  await executeTool(selectedTool.name, args, 60);
+}
+
+async function executeTool(toolName, args, timeout=60) {
+  running = true;
+  document.getElementById('running-dot').style.display = 'block';
+  document.getElementById('run-status').textContent = `running ${toolName}...`;
+
+  const term = document.getElementById('terminal');
+  const ts = new Date().toLocaleTimeString();
+  term.innerHTML += `\n<span class="t-meta">[${ ts }] ▶ ${toolName} ${args.join(' ')}</span>\n`;
+  term.scrollTop = term.scrollHeight;
+
+  try {
+    const r = await fetch(`${API}/api/phoenix/run`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ tool: toolName, args, timeout })
+    });
+    const d = await r.json();
+
+    // Strip ANSI codes
+    const clean = s => s.replace(/\x1b\[[0-9;]*m/g,'');
+    const stdout = clean(d.stdout || '');
+    const stderr = clean(d.stderr || '');
+    const ok     = d.success;
+    const dur    = d.duration;
+
+    if (stdout) {
+      term.innerHTML += stdout.split('\n').map(l =>
+        `<span class="t-ok">${l}</span>`
+      ).join('\n') + '\n';
+    }
+    if (stderr && !stderr.includes('TIMEOUT')) {
+      term.innerHTML += `<span class="t-warn">${stderr.slice(0,400)}</span>\n`;
+    }
+    term.innerHTML += `<span class="t-meta">[${ok?'✅':'❌'}] ${toolName} exited RC:${d.returncode} in ${dur}s</span>\n\n`;
+  } catch(e) {
+    term.innerHTML += `<span class="t-err">Error: ${e.message}</span>\n`;
+  }
+
+  term.scrollTop = term.scrollHeight;
+  running = false;
+  document.getElementById('running-dot').style.display = 'none';
+  document.getElementById('run-status').textContent = '';
+}
+
+// ── Kill Chain ───────────────────────────────────────────────────────────
+async function runKillChain() {
+  if (running) return;
+  const btn = document.getElementById('kc-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ RUNNING...';
+
+  // Show KC panel
+  const kcPanel = document.getElementById('kc-panel');
+  kcPanel.style.display = 'block';
+  kcPanel.innerHTML = kcSteps.map((s,i) => `
+    <div class="kc-step" id="kcs-${i}">
+      <div class="kc-step-num">${i+1}</div>
+      <div class="kc-step-info">
+        <div class="kc-step-tool">${s.tool}</div>
+        <div class="kc-step-phase">${s.phase}</div>
+        <div class="kc-step-result" id="kcs-r-${i}">pending...</div>
+      </div>
+    </div>`).join('');
+
+  running = true;
+  const term = document.getElementById('terminal');
+  term.innerHTML += `\n<span class="t-meta">╔═══════════════════════════════╗
+║  KILL CHAIN INITIATED         ║
+║  ${kcSteps.length} phases · ${document.getElementById('kc-target').textContent}
+╚═══════════════════════════════╝</span>\n\n`;
+
+  for (let i=0; i<kcSteps.length; i++) {
+    const step = kcSteps[i];
+    const stepEl = document.getElementById(`kcs-${i}`);
+    const resEl  = document.getElementById(`kcs-r-${i}`);
+    stepEl.classList.add('running');
+    resEl.textContent = 'running...';
+    kcPanel.scrollTop = kcPanel.scrollHeight;
+
+    try {
+      const r = await fetch(`${API}/api/phoenix/run`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ tool:step.tool, args:step.args||[], timeout:120 })
+      });
+      const d = await r.json();
+      const clean = s => s.replace(/\x1b\[[0-9;]*m/g,'');
+      const preview = clean(d.stdout||'').split('\n')
+        .filter(l=>l.trim()).slice(0,3).join(' | ').slice(0,80);
+
+      stepEl.classList.remove('running');
+      stepEl.classList.add(d.success ? 'done' : 'fail');
+      resEl.textContent = preview || (d.success ? 'completed' : `RC:${d.returncode}`);
+
+      const out = clean(d.stdout||'');
+      term.innerHTML += `<span class="t-meta">[${i+1}/${kcSteps.length}] ${step.tool} · ${step.phase}</span>\n`;
+      if (out) term.innerHTML += out.split('\n').slice(0,15).map(l=>`<span class="t-ok">${l}</span>`).join('\n')+'\n';
+      term.innerHTML += `<span class="t-meta">[${d.success?'✅':'❌'}] ${d.duration}s</span>\n\n`;
+      term.scrollTop = term.scrollHeight;
+    } catch(e) {
+      stepEl.classList.remove('running');
+      stepEl.classList.add('fail');
+      resEl.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  running = false;
+  btn.disabled = false;
+  btn.textContent = '▶ RUN AGAIN';
+  term.innerHTML += `<span class="t-meta">╔═══════════════════════════════╗
+║  KILL CHAIN COMPLETE          ║
+╚═══════════════════════════════╝</span>\n`;
+  term.scrollTop = term.scrollHeight;
+}
+
+// ── Utils ────────────────────────────────────────────────────────────────
+function clearPanel() {
+  document.getElementById('terminal').innerHTML =
+    '<span class="t-meta">Terminal cleared.\n</span>';
+  document.getElementById('kc-panel').style.display = 'none';
+}
+
+// boot
+boot();
+</script>
+</body>
+</html>

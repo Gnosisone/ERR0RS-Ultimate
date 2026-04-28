@@ -1,0 +1,568 @@
+{
+  "timestamp": "2026-04-15T15:25:59.838572",
+  "total": 80,
+  "passed": 80,
+  "failed": 0,
+  "results": [
+    {
+      "id": "T-01",
+      "name": "HTTP:8765 + WS:8766 listening",
+      "ok": true,
+      "detail": "http=UP ws=UP",
+      "ms": 1
+    },
+    {
+      "id": "T-02",
+      "name": "All HTML pages: 200 + utf-8 charset",
+      "ok": true,
+      "detail": "5/5 pages OK",
+      "ms": 30
+    },
+    {
+      "id": "T-03",
+      "name": "payload_studio.html JS backticks balanced",
+      "ok": true,
+      "detail": "3 scripts OK",
+      "ms": 3
+    },
+    {
+      "id": "T-04",
+      "name": "payload_studio.html: required JS functions present",
+      "ok": true,
+      "detail": "all present",
+      "ms": 0
+    },
+    {
+      "id": "T-05",
+      "name": "Unit tests: 28/28 passing",
+      "ok": true,
+      "detail": "28 passed in 0.13s",
+      "ms": 1741
+    },
+    {
+      "id": "T-06",
+      "name": "/api/status: \u226520 engines true",
+      "ok": true,
+      "detail": "23 engines true | ollama=True hailo=True",
+      "ms": 4
+    },
+    {
+      "id": "T-07",
+      "name": "/api/tools: 16 tools available",
+      "ok": true,
+      "detail": "16 available",
+      "ms": 22
+    },
+    {
+      "id": "T-08",
+      "name": "/api/phases: 6 phases returned",
+      "ok": true,
+      "detail": "6 phases",
+      "ms": 2
+    },
+    {
+      "id": "T-09",
+      "name": "/api/ws_info: WebSocket available",
+      "ok": true,
+      "detail": "{'ws_url': 'ws://127.0.0.1:8766', 'ws_available': True, 'live_terminal': True}",
+      "ms": 1
+    },
+    {
+      "id": "T-10",
+      "name": "/api/tool/registry: 200 OK",
+      "ok": true,
+      "detail": "",
+      "ms": 8
+    },
+    {
+      "id": "T-11",
+      "name": "/api/shell {command}: returns kali",
+      "ok": true,
+      "detail": "kali",
+      "ms": 5
+    },
+    {
+      "id": "T-12",
+      "name": "/api/shell {cmd}: alt key works",
+      "ok": true,
+      "detail": "uid=1000(kali) gid=1003(kali) ",
+      "ms": 5
+    },
+    {
+      "id": "T-13",
+      "name": "/api/command: 200 OK",
+      "ok": true,
+      "detail": "",
+      "ms": 15
+    },
+    {
+      "id": "T-14",
+      "name": "/api/teach: nmap lesson returned",
+      "ok": true,
+      "detail": "3235 chars",
+      "ms": 2
+    },
+    {
+      "id": "T-15",
+      "name": "/api/ctf: CTF solver",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-16",
+      "name": "/api/opsec: OPSEC checklist",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-17",
+      "name": "/api/postex: Post-Ex sysinfo",
+      "ok": true,
+      "detail": "OK",
+      "ms": 5
+    },
+    {
+      "id": "T-18",
+      "name": "/api/privesc: Privesc sudo",
+      "ok": true,
+      "detail": "OK",
+      "ms": 35
+    },
+    {
+      "id": "T-19",
+      "name": "/api/lateral: Lateral dry run",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-20",
+      "name": "/api/wireless: Wireless scan dry",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-21",
+      "name": "/api/se: SE templates",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-22",
+      "name": "/api/ai_threat: AI Threat list",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-23",
+      "name": "/api/campaign: Campaign list",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-24",
+      "name": "/api/credentials: Credentials summary",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-25",
+      "name": "/api/compliance: Compliance NIST",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-26",
+      "name": "/api/blue_team: Blue team harden",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-27",
+      "name": "/api/report: Report generate",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1854
+    },
+    {
+      "id": "T-28",
+      "name": "/api/flipper: Flipper status",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-29",
+      "name": "/api/rocketgod: RocketGod hackrf",
+      "ok": true,
+      "detail": "OK",
+      "ms": 7
+    },
+    {
+      "id": "T-30",
+      "name": "/api/wizard: Wizard nmap",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-31",
+      "name": "/api/bas: BAS list",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-32",
+      "name": "/api/killchain DRY_RUN: success",
+      "ok": true,
+      "detail": "OK",
+      "ms": 4
+    },
+    {
+      "id": "T-33",
+      "name": "WebSocket terminal: receives messages",
+      "ok": true,
+      "detail": "type=system data=[ERR0RS] WebSocket connec",
+      "ms": 10074
+    },
+    {
+      "id": "T-34",
+      "name": "/api/payload_studio/snippets: \u226521 snippets",
+      "ok": true,
+      "detail": "21 snippets across ['windows', 'macos', 'android', 'ios']",
+      "ms": 17
+    },
+    {
+      "id": "T-35",
+      "name": "/api/payload_studio/validate: valid DuckyScript",
+      "ok": true,
+      "detail": "{'status': 'ok', 'valid': True, 'errors': [], 'line_count': 5}",
+      "ms": 1
+    },
+    {
+      "id": "T-36",
+      "name": "/api/payload_studio/validate: catches DELAY error",
+      "ok": true,
+      "detail": "[{'line': 1, 'msg': 'DELAY requires a number (e.g. DELAY 500)'}]",
+      "ms": 1
+    },
+    {
+      "id": "T-37",
+      "name": "/api/payload_studio/explain: GUI r",
+      "ok": true,
+      "detail": "Opens Windows Run dialog (Win+R)",
+      "ms": 0
+    },
+    {
+      "id": "T-38",
+      "name": "/api/payload_studio/suggest: returns suggestions",
+      "ok": true,
+      "detail": "2 suggestions",
+      "ms": 0
+    },
+    {
+      "id": "T-39",
+      "name": "/api/payload_studio/generate: returns \u226428s",
+      "ok": true,
+      "detail": "20105ms lines=8 ai=False",
+      "ms": 20105
+    },
+    {
+      "id": "T-40",
+      "name": "KB badusb_payloads: total \u22652165",
+      "ok": true,
+      "detail": "total=2165",
+      "ms": 856
+    },
+    {
+      "id": "T-41",
+      "name": "KB collection= param isolates correctly",
+      "ok": true,
+      "detail": "all=2896 badusb=2165 patt=731",
+      "ms": 210
+    },
+    {
+      "id": "T-42",
+      "name": "KB platform filter: win/mac/linux counts correct",
+      "ok": true,
+      "detail": "win=1196 mac=508 lin=288",
+      "ms": 842
+    },
+    {
+      "id": "T-43",
+      "name": "KB category filter: all 7 categories have results",
+      "ok": true,
+      "detail": "['shell', 'exfil', 'credentials', 'persistence', 'recon', 'prank', 'utility']",
+      "ms": 327
+    },
+    {
+      "id": "T-44",
+      "name": "KB search 'wifi password': results found",
+      "ok": true,
+      "detail": "5 hits",
+      "ms": 6775
+    },
+    {
+      "id": "T-45",
+      "name": "Detail route: returns payload content",
+      "ok": true,
+      "detail": "source=chromadb len=979 ducky=False title=Debug",
+      "ms": 8576
+    },
+    {
+      "id": "T-46",
+      "name": "badusb_catalog.html: loads with boot()",
+      "ok": true,
+      "detail": "21893 bytes",
+      "ms": 2
+    },
+    {
+      "id": "T-47",
+      "name": "badusb_catalog.html: all UI functions present",
+      "ok": true,
+      "detail": "all present",
+      "ms": 0
+    },
+    {
+      "id": "T-48",
+      "name": "Dashboard: BadUSB Catalog nav button present",
+      "ok": true,
+      "detail": "found",
+      "ms": 3
+    },
+    {
+      "id": "T-49",
+      "name": "Catalog API: all 2165 payloads fetchable",
+      "ok": true,
+      "detail": "total=2165 results=2165",
+      "ms": 656
+    },
+    {
+      "id": "T-50",
+      "name": "Studio: sessionStorage handoff + panel init present",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-51",
+      "name": "ChromaDB: both collections exist",
+      "ok": true,
+      "detail": "['badusb_payloads', 'lanjelot_kb', 'payloads_all_things', 'kb_submodules', 'errors_knowledge', 'github_rag']",
+      "ms": 1313
+    },
+    {
+      "id": "T-52",
+      "name": "badusb_payloads: \u22652165 documents",
+      "ok": true,
+      "detail": "count=2165",
+      "ms": 72
+    },
+    {
+      "id": "T-53",
+      "name": "payloads_all_things: \u2265500 documents",
+      "ok": true,
+      "detail": "count=731",
+      "ms": 124
+    },
+    {
+      "id": "T-54",
+      "name": "badusb_payloads: categories normalised",
+      "ok": true,
+      "detail": "top={'utility': 700, 'prank': 595, 'exfil': 315, 'credentials': 188, 'recon': 156}",
+      "ms": 264
+    },
+    {
+      "id": "T-55",
+      "name": "badusb_payloads: all entries have platform",
+      "ok": true,
+      "detail": "missing=0",
+      "ms": 0
+    },
+    {
+      "id": "T-56",
+      "name": "Hailo-10H NPU: detected and loaded",
+      "ok": true,
+      "detail": "\u2705 HAILO10H | FW 5.1.1 (release,app) | hailo1x_pci | inferenc",
+      "ms": 6
+    },
+    {
+      "id": "T-57",
+      "name": "Ollama: running with \u22651 model",
+      "ok": true,
+      "detail": "['err0rs-pi5:latest', 'qwen2.5-coder:7b']",
+      "ms": 0
+    },
+    {
+      "id": "T-58",
+      "name": "Flipper engine: loaded",
+      "ok": true,
+      "detail": "true",
+      "ms": 0
+    },
+    {
+      "id": "T-59",
+      "name": "/api/flipper status: 200 OK",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-60",
+      "name": "/api/rocketgod hackrf: 200 OK",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-61",
+      "name": "import tool_executor",
+      "ok": true,
+      "detail": "OK",
+      "ms": 21
+    },
+    {
+      "id": "T-62",
+      "name": "import teach_engine",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-63",
+      "name": "import auto_killchain",
+      "ok": true,
+      "detail": "OK",
+      "ms": 23
+    },
+    {
+      "id": "T-64",
+      "name": "import campaign_manager",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-65",
+      "name": "import pro_reporter",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-66",
+      "name": "import credential_engine",
+      "ok": true,
+      "detail": "OK",
+      "ms": 2
+    },
+    {
+      "id": "T-67",
+      "name": "import se_engine",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-68",
+      "name": "import ai_threat_engine",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-69",
+      "name": "import payload_generator",
+      "ok": true,
+      "detail": "OK",
+      "ms": 4
+    },
+    {
+      "id": "T-70",
+      "name": "import blue_team",
+      "ok": true,
+      "detail": "OK",
+      "ms": 4
+    },
+    {
+      "id": "T-71",
+      "name": "import postex_module",
+      "ok": true,
+      "detail": "OK",
+      "ms": 5
+    },
+    {
+      "id": "T-72",
+      "name": "import privesc_module",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-73",
+      "name": "import lateral_movement",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-74",
+      "name": "import wireless_module",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-75",
+      "name": "import ctf_solver",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-76",
+      "name": "import opsec_module",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-77",
+      "name": "import cloud_module",
+      "ok": true,
+      "detail": "OK",
+      "ms": 0
+    },
+    {
+      "id": "T-78",
+      "name": "import social_module",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    },
+    {
+      "id": "T-79",
+      "name": "import hailo_npu",
+      "ok": true,
+      "detail": "OK",
+      "ms": 4
+    },
+    {
+      "id": "T-80",
+      "name": "import errz_brain",
+      "ok": true,
+      "detail": "OK",
+      "ms": 1
+    }
+  ]
+}

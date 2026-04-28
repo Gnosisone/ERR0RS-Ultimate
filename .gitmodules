@@ -1,0 +1,207 @@
+[submodule "knowledge/badusb/MacOS-DuckyScripts"]
+	path = knowledge/badusb/MacOS-DuckyScripts
+	url = https://github.com/narstybits/MacOS-DuckyScripts.git
+[submodule "knowledge/badusb/flipper-zero-evil-portal"]
+	path = knowledge/badusb/flipper-zero-evil-portal
+	url = https://github.com/bigbrodude6119/flipper-zero-evil-portal.git
+[submodule "knowledge/badusb/Flipper-Zero-BadUSB"]
+	path = knowledge/badusb/Flipper-Zero-BadUSB
+	url = https://github.com/I-Am-Jakoby/Flipper-Zero-BadUSB.git
+[submodule "knowledge/badusb/PowerShell-for-Hackers"]
+	path = knowledge/badusb/PowerShell-for-Hackers
+	url = https://github.com/I-Am-Jakoby/PowerShell-for-Hackers.git
+[submodule "knowledge/badusb/UberGuidoZ-Flipper"]
+	path = knowledge/badusb/UberGuidoZ-Flipper
+	url = https://github.com/UberGuidoZ/Flipper.git
+[submodule "knowledge/rocketgod/flipper-zero-rf-jammer"]
+	path = knowledge/rocketgod/flipper-zero-rf-jammer
+	url = https://github.com/RocketGod-git/flipper-zero-rf-jammer.git
+[submodule "knowledge/rocketgod/ProtoPirate"]
+	path = knowledge/rocketgod/ProtoPirate
+	url = https://github.com/RocketGod-git/ProtoPirate.git
+[submodule "knowledge/rocketgod/SubGHz-Toolkit"]
+	path = knowledge/rocketgod/SubGHz-Toolkit
+	url = https://github.com/RocketGod-git/RocketGods-SubGHz-Toolkit.git
+[submodule "knowledge/rocketgod/Flipper_Zero"]
+	path = knowledge/rocketgod/Flipper_Zero
+	url = https://github.com/RocketGod-git/Flipper_Zero.git
+[submodule "knowledge/rocketgod/flipper-zero-carjacker"]
+	path = knowledge/rocketgod/flipper-zero-carjacker
+	url = https://github.com/RocketGod-git/flipper-zero-carjacker.git
+[submodule "knowledge/rocketgod/Flipper-Zero-SUB-Analyzer"]
+	path = knowledge/rocketgod/Flipper-Zero-SUB-Analyzer
+	url = https://github.com/RocketGod-git/Flipper-Zero-SUB-Analyzer.git
+[submodule "knowledge/rocketgod/SubGHz-Signal-Generator"]
+	path = knowledge/rocketgod/SubGHz-Signal-Generator
+	url = https://github.com/RocketGod-git/Flipper-Zero-SubGHz-Signal-Generator.git
+[submodule "knowledge/rocketgod/Flipper-Zero-Radio-Scanner"]
+	path = knowledge/rocketgod/Flipper-Zero-Radio-Scanner
+	url = https://github.com/RocketGod-git/Flipper-Zero-Radio-Scanner.git
+[submodule "knowledge/rocketgod/ghidra-firmware-symbol-porter"]
+	path = knowledge/rocketgod/ghidra-firmware-symbol-porter
+	url = https://github.com/RocketGod-git/ghidra-firmware-symbol-porter.git
+[submodule "knowledge/rocketgod/DFU-Binary-Extractor"]
+	path = knowledge/rocketgod/DFU-Binary-Extractor
+	url = https://github.com/RocketGod-git/DFU-Binary-Extractor.git
+[submodule "knowledge/rocketgod/WiGLE-Vault"]
+	path = knowledge/rocketgod/WiGLE-Vault
+	url = https://github.com/RocketGod-git/WiGLE-Vault.git
+[submodule "knowledge/rocketgod/Dark-Web-Discord-Bot"]
+	path = knowledge/rocketgod/Dark-Web-Discord-Bot
+	url = https://github.com/RocketGod-git/Dark-Web-Discord-Bot.git
+[submodule "knowledge/rocketgod/HackRF-Treasure-Chest"]
+	path = knowledge/rocketgod/HackRF-Treasure-Chest
+	url = https://github.com/RocketGod-git/HackRF-Treasure-Chest.git
+[submodule "knowledge/recon/ScoutSuite"]
+	path = knowledge/recon/ScoutSuite
+	url = https://github.com/nccgroup/ScoutSuite.git
+[submodule "knowledge/exploitation/singularity"]
+	path = knowledge/exploitation/singularity
+	url = https://github.com/nccgroup/singularity.git
+[submodule "knowledge/redteam/SteppingStones"]
+	path = knowledge/redteam/SteppingStones
+	url = https://github.com/nccgroup/SteppingStones.git
+[submodule "knowledge/mobile/house-frida"]
+	path = knowledge/mobile/house-frida
+	url = https://github.com/nccgroup/house.git
+[submodule "knowledge/credentials/SharpChromium"]
+	path = knowledge/credentials/SharpChromium
+	url = https://github.com/djhohnstein/SharpChromium.git
+[submodule "knowledge/credentials/SharpWeb"]
+	path = knowledge/credentials/SharpWeb
+	url = https://github.com/djhohnstein/SharpWeb.git
+[submodule "knowledge/enumeration/SharpShares"]
+	path = knowledge/enumeration/SharpShares
+	url = https://github.com/djhohnstein/SharpShares.git
+[submodule "knowledge/enumeration/EventLogParser"]
+	path = knowledge/enumeration/EventLogParser
+	url = https://github.com/djhohnstein/EventLogParser.git
+[submodule "knowledge/surveillance/WireTap"]
+	path = knowledge/surveillance/WireTap
+	url = https://github.com/djhohnstein/WireTap.git
+[submodule "knowledge/windows/WinPwn"]
+	path = knowledge/windows/WinPwn
+	url = https://github.com/S3cur3Th1sSh1t/WinPwn.git
+[submodule "knowledge/evasion/Amsi-Bypass-Powershell"]
+	path = knowledge/evasion/Amsi-Bypass-Powershell
+	url = https://github.com/S3cur3Th1sSh1t/Amsi-Bypass-Powershell.git
+[submodule "knowledge/windows/PowerSharpPack"]
+	path = knowledge/windows/PowerSharpPack
+	url = https://github.com/S3cur3Th1sSh1t/PowerSharpPack.git
+[submodule "knowledge/evasion/OffensiveVBA"]
+	path = knowledge/evasion/OffensiveVBA
+	url = https://github.com/S3cur3Th1sSh1t/OffensiveVBA.git
+[submodule "knowledge/social-engineering/SET"]
+	path = knowledge/social-engineering/SET
+	url = https://github.com/trustedsec/social-engineer-toolkit.git
+[submodule "knowledge/c2/CS-Situational-Awareness-BOF"]
+	path = knowledge/c2/CS-Situational-Awareness-BOF
+	url = https://github.com/trustedsec/CS-Situational-Awareness-BOF.git
+[submodule "knowledge/credentials/hate_crack"]
+	path = knowledge/credentials/hate_crack
+	url = https://github.com/trustedsec/hate_crack.git
+[submodule "knowledge/mobile/AndroRAT"]
+	path = knowledge/mobile/AndroRAT
+	url = https://github.com/karma9874/AndroRAT.git
+[submodule "knowledge/mobile/beerus-android"]
+	path = knowledge/mobile/beerus-android
+	url = https://github.com/hakaioffsec/beerus-android.git
+[submodule "knowledge/c2/SubSeven"]
+	path = knowledge/c2/SubSeven
+	url = https://github.com/DarkCoderSc/SubSeven.git
+[submodule "knowledge/c2/OptixGate"]
+	path = knowledge/c2/OptixGate
+	url = https://github.com/DarkCoderSc/OptixGate.git
+[submodule "knowledge/c2/PowerRemoteShell"]
+	path = knowledge/c2/PowerRemoteShell
+	url = https://github.com/DarkCoderSc/PowerRemoteShell.git
+[submodule "knowledge/evasion/inno-shellcode-example"]
+	path = knowledge/evasion/inno-shellcode-example
+	url = https://github.com/DarkCoderSc/inno-shellcode-example.git
+[submodule "knowledge/windows/run-as"]
+	path = knowledge/windows/run-as
+	url = https://github.com/DarkCoderSc/run-as.git
+[submodule "knowledge/c2/Sub7Fun"]
+	path = knowledge/c2/Sub7Fun
+	url = https://github.com/DarkCoderSc/Sub7Fun.git
+[submodule "knowledge/c2/PowerRemoteDesktop_LogonUI"]
+	path = knowledge/c2/PowerRemoteDesktop_LogonUI
+	url = https://github.com/DarkCoderSc/PowerRemoteDesktop_LogonUI.git
+[submodule "knowledge/windows/precompiled-binaries"]
+	path = knowledge/windows/precompiled-binaries
+	url = https://github.com/grejh0t/precompiled-binaries.git
+[submodule "knowledge/exploitation/PayloadsAllTheThings"]
+	path = knowledge/exploitation/PayloadsAllTheThings
+	url = https://github.com/swisskyrepo/PayloadsAllTheThings.git
+[submodule "knowledge/exploitation/bugbounty-cheatsheet"]
+	path = knowledge/exploitation/bugbounty-cheatsheet
+	url = https://github.com/cyber-niz/bugbounty-cheatsheet.git
+[submodule "knowledge/advanced_tradecraft/OSCP_Notes"]
+	path = knowledge/advanced_tradecraft/OSCP_Notes
+	url = https://github.com/cyber-niz/OSCP_Notes.git
+[submodule "knowledge/recon/can-i-take-over-xyz"]
+	path = knowledge/recon/can-i-take-over-xyz
+	url = https://github.com/cyber-niz/can-i-take-over-xyz.git
+[submodule "knowledge/exploitation/SSRF-Testing"]
+	path = knowledge/exploitation/SSRF-Testing
+	url = https://github.com/cyber-niz/SSRF-Testing.git
+[submodule "knowledge/exploitation/JSONBee"]
+	path = knowledge/exploitation/JSONBee
+	url = https://github.com/cyber-niz/JSONBee.git
+[submodule "knowledge/recon/awesome-bug-bounty"]
+	path = knowledge/recon/awesome-bug-bounty
+	url = https://github.com/cyber-niz/awesome-bug-bounty.git
+[submodule "knowledge/exploitation/enumXFF"]
+	path = knowledge/exploitation/enumXFF
+	url = https://github.com/cyber-niz/enumXFF.git
+[submodule "knowledge/exploitation/webshell"]
+	path = knowledge/exploitation/webshell
+	url = https://github.com/cyber-niz/webshell.git
+[submodule "knowledge/advanced_tradecraft/hackthebox-writeups"]
+	path = knowledge/advanced_tradecraft/hackthebox-writeups
+	url = https://github.com/cyber-niz/hackthebox-writeups.git
+[submodule "knowledge/advanced_tradecraft/lanjelot-kb"]
+	path = knowledge/advanced_tradecraft/lanjelot-kb
+	url = https://github.com/lanjelot/kb.git
+[submodule "knowledge/enumeration/patator"]
+	path = knowledge/enumeration/patator
+	url = https://github.com/lanjelot/patator.git
+[submodule "knowledge/advanced_tradecraft/lanjelot-ctfs"]
+	path = knowledge/advanced_tradecraft/lanjelot-ctfs
+	url = https://github.com/lanjelot/ctfs.git
+[submodule "knowledge/advanced_tradecraft/pentest-tricks"]
+	path = knowledge/advanced_tradecraft/pentest-tricks
+	url = https://github.com/lanjelot/pentest-tricks.git
+[submodule "knowledge/exploitation/albatar"]
+	path = knowledge/exploitation/albatar
+	url = https://github.com/lanjelot/albatar.git
+[submodule "knowledge/recon/web-hunter"]
+	path = knowledge/recon/web-hunter
+	url = https://github.com/lanjelot/web-hunter.git
+[submodule "knowledge/recon/pillage-svn"]
+	path = knowledge/recon/pillage-svn
+	url = https://github.com/lanjelot/pillage-svn.git
+[submodule "knowledge/exploitation/jdwp-shellifier"]
+	path = knowledge/exploitation/jdwp-shellifier
+	url = https://github.com/lanjelot/jdwp-shellifier.git
+[submodule "knowledge/wireless/flipperzero-bruteforce"]
+	path = knowledge/wireless/flipperzero-bruteforce
+	url = https://github.com/tobiabocchi/flipperzero-bruteforce.git
+[submodule "knowledge/badusb/nocomp-hack5-payloads"]
+	path = knowledge/badusb/nocomp-hack5-payloads
+	url = https://github.com/nocomp/Flipper_Zero_Badusb_hack5_payloads.git
+[submodule "knowledge/badusb/I-Am-Jakoby-FlipperBadUSB"]
+	path = knowledge/badusb/I-Am-Jakoby-FlipperBadUSB
+	url = https://github.com/I-Am-Jakoby/Flipper-Zero-BadUSB.git
+[submodule "knowledge/badusb/aleff-flipper-shits"]
+	path = knowledge/badusb/aleff-flipper-shits
+	url = https://github.com/aleff-github/my-flipper-shits.git
+[submodule "knowledge/badusb/bad_ducky"]
+	path = knowledge/badusb/bad_ducky
+	url = https://github.com/mharjac/bad_ducky.git
+[submodule "knowledge/badusb/WHID-injector"]
+	path = knowledge/badusb/WHID-injector
+	url = https://github.com/whid-injector/WHID.git
+[submodule "knowledge/badusb/WHID-31337"]
+	path = knowledge/badusb/WHID-31337
+	url = https://github.com/whid-injector/whid-31337.git

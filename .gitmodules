@@ -205,3 +205,21 @@
 [submodule "knowledge/badusb/WHID-31337"]
 	path = knowledge/badusb/WHID-31337
 	url = https://github.com/whid-injector/whid-31337.git
+[submodule "knowledge/threat-intelligence/ai-powered-threats/Purple_Team_AI"]
+	path = knowledge/threat-intelligence/ai-powered-threats/Purple_Team_AI
+	url = https://github.com/BOB-WHS/Purple_Team_AI.git
+[submodule "knowledge/threat-intelligence/ai-powered-threats/PyRIT"]
+	path = knowledge/threat-intelligence/ai-powered-threats/PyRIT
+	url = https://github.com/Azure/PyRIT.git
+[submodule "knowledge/threat-intelligence/ai-powered-threats/garak"]
+	path = knowledge/threat-intelligence/ai-powered-threats/garak
+	url = https://github.com/leondz/garak.git
+[submodule "knowledge/threat-intelligence/ai-powered-threats/PurpleLlama"]
+	path = knowledge/threat-intelligence/ai-powered-threats/PurpleLlama
+	url = https://github.com/meta-llama/PurpleLlama.git
+[submodule "knowledge/redteam/atomic-red-team"]
+	path = knowledge/redteam/atomic-red-team
+	url = https://github.com/redcanaryco/atomic-red-team.git
+[submodule "knowledge/redteam/ThreatHunter-Playbook"]
+	path = knowledge/redteam/ThreatHunter-Playbook
+	url = https://github.com/OTRF/ThreatHunter-Playbook.git

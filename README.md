@@ -21,11 +21,12 @@
 [![Arsenal](https://img.shields.io/badge/Phoenix%20Arsenal-2172%20Tools-ff6b00?style=flat-square)]()
 [![Local](https://img.shields.io/badge/LLM-100%25%20Local-f97316?style=flat-square)](https://ollama.com)
 [![Pi5](https://img.shields.io/badge/Hardware-Pi%205%20%2B%20Hailo--10H-c51a4a?style=flat-square&logo=raspberry-pi&logoColor=white)]()
-[![Stars](https://img.shields.io/github/stars/Gnosisone/ERR0RS-Ultimate?style=flat-square&color=7c3aed)](https://github.com/Gnosisone/ERR0RS-Ultimate/stargazers)
+[![Stars](https://img.shields.io/github/stars/Gnosisone/ERR0RS-clean?style=flat-square&color=7c3aed)](https://github.com/Gnosisone/ERR0RS-clean/stargazers)
+[![Juice Shop Coverage](https://img.shields.io/badge/Juice%20Shop-54%2F111%20(48.6%25)-22c55e?style=flat-square)](https://github.com/Gnosisone/juice-shop-portfolio)
 
 *100% local · zero data leaves the machine · built for red teams, blue teams, and students who are becoming both*
 
-**[Install](#-installation) · [Quick Start](#-quick-start) · [Demo](#-demo-mode) · [Architecture](docs/ARCHITECTURE.md) · [Philosophy](#-philosophy) · [Research](RESEARCH.md) · [Contribute](CONTRIBUTING.md)**
+**[Install](#-installation) · [Quick Start](#-quick-start) · [Demo](#-demo-mode) · [Architecture](docs/ARCHITECTURE.md) · [Philosophy](#-philosophy) · [Research](RESEARCH.md) · [Portfolio](https://github.com/Gnosisone/juice-shop-portfolio) · [Contribute](CONTRIBUTING.md)**
 
 </div>
 
@@ -200,8 +201,8 @@ End-of-engagement HTML reports with CVSS scoring, MITRE ATT&CK technique mapping
 
 ```bash
 # 1. Clone
-git clone https://github.com/Gnosisone/ERR0RS-Ultimate.git
-cd ERR0RS-Ultimate
+git clone https://github.com/Gnosisone/ERR0RS-clean.git
+cd ERR0RS-clean
 
 # 2. Install (handles deps, Ollama, .env, desktop icon)
 sudo bash install.sh
@@ -300,6 +301,24 @@ Demo mode runs against `localhost` and `127.0.0.1` only. It demonstrates:
 
 ---
 
+## Validation: OWASP Juice Shop Portfolio
+
+ERR0RS is benchmarked against [OWASP Juice Shop](https://owasp.org/www-project-juice-shop/) — the OWASP Foundation's flagship intentionally-vulnerable web application and the de-facto practical exam for application-security skills.
+
+| Coverage tier | Status |
+|---|---|
+| **Manual operator coverage** *(Eros, working through challenges with ERR0RS as coach)* | **54 / 111 (48.6%)** — 2 categories complete |
+| **ERR0RS autonomous coverage** *(no human in the loop)* | **18 / 111 (16%)** — 100% reliability on the 18 covered |
+| **Roadmap target** | **111 / 111** by Q4 2026 |
+
+The full breakdown — including per-challenge attack plans for the 57 unsolved challenges and the engineering roadmap to reach 111/111 autonomous coverage — lives in the dedicated portfolio repo:
+
+> 🎯 **[github.com/Gnosisone/juice-shop-portfolio](https://github.com/Gnosisone/juice-shop-portfolio)**
+
+Notable autonomous solves currently in the suite include SQL injection (Login Admin, User Credentials), DOM XSS, directory traversal (Forgotten Sales Backup, Confidential Document), Poison Null Byte bypass, hidden-route discovery (Score Board), and authorization-flow abuse (Admin Registration, Repetitive Registration). All run on a Raspberry Pi 5 cyberdeck running Kali ARM64 — no cloud calls, no client data ever leaves the device.
+
+---
+
 ## Philosophy
 
 ERR0RS is built on a belief that the security field has an access problem — and that education is the only real solution.
@@ -347,7 +366,7 @@ ERR0RS-Ultimate began as a semester research project at Oklahoma State Universit
   title     = {{ERR0RS-Ultimate}: A Fully Local, AI-Powered Penetration Testing Platform},
   year      = {2026},
   publisher = {GitHub},
-  url       = {https://github.com/Gnosisone/ERR0RS-Ultimate},
+  url       = {https://github.com/Gnosisone/ERR0RS-clean},
   version   = {3.2.0}
 }
 ```

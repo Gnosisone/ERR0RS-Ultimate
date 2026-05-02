@@ -60,7 +60,7 @@ KILL_CHAIN_PHASES = [
         "id":    "vuln_assessment",
         "name":  "Phase 3 — Vulnerability Assessment",
         "mitre": "TA0043",
-        "tools": ["nuclei_cve", "nmap_vuln_scripts", "searchsploit"],
+        "tools": ["nuclei_cve", "nmap_vuln_scripts", "searchsploit", "jwt_breaker", "nosql_injector"],
         "desc":  "Match discovered services to known CVEs and exploits",
         "auto_next": True,
     },
@@ -411,7 +411,45 @@ class AutoKillChain:
 
         t0 = datetime.now()
 
+        # Build a flat dict of all prior outputs for native tools to consume
+        prior_outputs: dict = {}
+        for prev in self.results:
+            for k, v in (prev.raw_outputs or {}).items():
+                prior_outputs[k] = v
+        # Also include this phase's outputs as we build them up
+        prior_outputs.update(result.raw_outputs)
+
         for tool_id in phase_def["tools"]:
+            # ── Native Python tool path ────────────────────────────────
+            from src.orchestration.native_tools import is_native, run_native, NativeToolContext
+            if is_native(tool_id):
+                _kc_print(f"  ▶ Running: {tool_id} (native)...", end="", flush=True)
+                t_norm = _normalize_target(self.target)
+                ctx = NativeToolContext(
+                    target=self.target,
+                    target_parts=t_norm,
+                    phase_id=phase_def["id"],
+                    params=self.params or {},
+                    prior_outputs=prior_outputs,
+                    prior_findings=list(self.all_findings),
+                )
+                nres = run_native(tool_id, ctx)
+                result.raw_outputs[tool_id] = (nres.raw_output or "")[:3000]
+                if nres.success:
+                    for f in nres.findings:
+                        f.setdefault("tool", tool_id)
+                    result.findings.extend(nres.findings)
+                    _kc_print(f" ✅ ({len(nres.findings)} findings)")
+                    result.tools_run += 1
+                else:
+                    _kc_print(f" ❌ {nres.error}")
+                    result.raw_outputs[tool_id] = f"ERROR: {nres.error}"
+                # Update the running prior_outputs so later tools in this
+                # phase can see what we just produced
+                prior_outputs[tool_id] = result.raw_outputs[tool_id]
+                continue
+
+            # ── Shell tool path (original behavior) ────────────────────
             if not shutil.which(tool_id.split("_")[0]):
                 # Tool not installed — skip silently
                 result.raw_outputs[tool_id] = "NOT_INSTALLED"
@@ -436,6 +474,8 @@ class AutoKillChain:
                 result.findings.extend(found)
                 _kc_print(f" ✅ ({len(found)} findings)")
                 result.tools_run += 1
+                # Make this output visible to native tools later in this phase
+                prior_outputs[tool_id] = output[:3000]
             except subprocess.TimeoutExpired:
                 _kc_print(f" ⏱  TIMEOUT")
                 result.raw_outputs[tool_id] = "TIMEOUT"

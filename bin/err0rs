@@ -160,12 +160,43 @@ def cmd_own(args):
         log.close()
         return 3
 
+    # ── Wire up Professor Mode if requested ─────────────────────────────
+    professor = None
+    if getattr(args, "professor", False) or getattr(args, "professor_no_llm", False):
+        try:
+            from src.core.user_profile import get_profile
+            from src.core.professor_engine import get_professor, reset_professor
+            from src.core.narrator import Narrator   # singleton-ish, see narrator.py
+            # Force a fresh professor instance per engagement so verbosity
+            # decisions reflect the *current* operator profile.
+            reset_professor()
+            profile = get_profile()
+            profile.begin_session()
+            # Build narrator from existing module-level instance if present
+            narr = None
+            try:
+                from src.core.narrator import narrator as _existing_narr
+                narr = _existing_narr
+            except ImportError:
+                narr = Narrator()
+            enable_llm = not getattr(args, "professor_no_llm", False)
+            professor = get_professor(profile=profile, narrator=narr,
+                                       enable_llm=enable_llm)
+            ok(f"Professor Mode ENABLED (level: {profile.experience_level}, "
+               f"LLM: {'on' if enable_llm else 'cached-only'})")
+            log.note(f"Professor Mode enabled at level={profile.experience_level} "
+                     f"llm={enable_llm}", phase="engagement")
+        except Exception as e:
+            warn(f"Professor Mode requested but unavailable: {e}")
+            warn("Continuing without Professor — engagement still proceeds normally.")
+            professor = None
+
     info("Launching kill chain...")
     print()
 
     try:
         result = asyncio.new_event_loop().run_until_complete(
-            auto_pentest(target=target, mode=mode)
+            auto_pentest(target=target, mode=mode, professor=professor)
         )
     except KeyboardInterrupt:
         warn("Engagement interrupted by operator (Ctrl-C)")
@@ -189,6 +220,25 @@ def cmd_own(args):
                 tool=f.get("tool", ""),
                 detail=f.get("detail", ""),
             )
+
+    # ── Persist updated profile + show professor stats ──────────────────
+    if professor is not None:
+        try:
+            from src.core.user_profile import get_profile
+            prof = get_profile()
+            # Update profile from this session's audit log
+            try:
+                prof.update_from_session(log.replay())
+            except Exception:
+                pass
+            prof.save()
+            stats = professor.stats
+            info(f"Professor stats — LLM calls: {stats['llm_calls']}, "
+                 f"cached responses: {stats['cache_hits']}")
+            info(f"Profile updated → level: {prof.experience_level}, "
+                 f"sessions: {prof.sessions_count}")
+        except Exception as e:
+            warn(f"Profile persist failed (non-fatal): {e}")
 
     log.engagement_end("complete", summary=result)
     log.close()
@@ -327,6 +377,10 @@ def build_parser() -> argparse.ArgumentParser:
     pown.add_argument("--override-refused", action="store_true",
                       help="Override .gov/.mil/.edu/DoD-CIDR refusal")
     pown.add_argument("--justification", help="Required with --override-refused")
+    pown.add_argument("--professor", action="store_true",
+                      help="Enable Professor Mode — real-time AI coaching during engagement")
+    pown.add_argument("--professor-no-llm", action="store_true",
+                      help="Professor Mode but skip LLM (cached templates only — instant)")
     pown.set_defaults(func=cmd_own)
 
     # recon

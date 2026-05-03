@@ -337,13 +337,16 @@ class AutoKillChain:
     Mode "DRY_RUN": prints the plan without executing anything
     """
 
-    def __init__(self, mode: str = "SUPERVISED"):
+    def __init__(self, mode: str = "SUPERVISED", professor=None):
         self.mode      = mode.upper()
         self.target    = ""
         self.params    = {}
         self.results:  list = []
         self.all_findings: list = []
         self.executor  = ToolExecutor() if _DEPS else None
+        # Optional ProfessorEngine — when provided, kill chain emits events
+        # (phase_start, finding, phase_end) for live coaching narration.
+        self.professor = professor
 
     async def run(self, target: str, params: dict = None,
                   phases: list = None) -> dict:
@@ -362,6 +365,22 @@ class AutoKillChain:
         _kc_print(f"  ERR0RS AUTO KILL CHAIN — {self.mode} MODE")
         _kc_print(f"  Target: {target}")
         _kc_print(f"  Phases: {len(selected)}")
+
+        # ── ProfessorEngine: announce engagement at start ───────────────
+        if self.professor is not None:
+            try:
+                from src.core.professor_engine import ProfessorEvent, EventType
+                self.professor.narrate_event(ProfessorEvent(
+                    type=EventType.PHASE_START,
+                    payload={
+                        "phase":  "engagement_start",
+                        "tools":  [],
+                        "target": self.target,
+                        "mode":   self.mode,
+                    },
+                ))
+            except Exception:
+                pass   # professor failures must never break the engagement
         _kc_print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         _kc_print(f"{'='*60}\n")
 
@@ -411,6 +430,21 @@ class AutoKillChain:
 
         t0 = datetime.now()
 
+        # ── ProfessorEngine: phase_start ─────────────────────────────────
+        if self.professor is not None:
+            try:
+                from src.core.professor_engine import ProfessorEvent, EventType
+                self.professor.narrate_event(ProfessorEvent(
+                    type=EventType.PHASE_START,
+                    payload={
+                        "phase":  phase_def["id"],
+                        "tools":  list(phase_def["tools"]),
+                        "target": self.target,
+                    },
+                ))
+            except Exception:
+                pass
+
         # Build a flat dict of all prior outputs for native tools to consume
         prior_outputs: dict = {}
         for prev in self.results:
@@ -441,6 +475,24 @@ class AutoKillChain:
                     result.findings.extend(nres.findings)
                     _kc_print(f" ✅ ({len(nres.findings)} findings)")
                     result.tools_run += 1
+                    # ── ProfessorEngine: emit FINDING events ──
+                    if self.professor is not None:
+                        try:
+                            from src.core.professor_engine import ProfessorEvent, EventType
+                            for f in nres.findings:
+                                self.professor.narrate_event(ProfessorEvent(
+                                    type=EventType.FINDING,
+                                    payload={
+                                        "title":     f.get("title", "?"),
+                                        "severity":  f.get("severity", "info"),
+                                        "technique": f.get("technique", ""),
+                                        "detail":    f.get("detail", ""),
+                                        "tool":      tool_id,
+                                        "target":    self.target,
+                                    },
+                                ))
+                        except Exception:
+                            pass
                 else:
                     _kc_print(f" ❌ {nres.error}")
                     result.raw_outputs[tool_id] = f"ERROR: {nres.error}"
@@ -476,6 +528,24 @@ class AutoKillChain:
                 result.tools_run += 1
                 # Make this output visible to native tools later in this phase
                 prior_outputs[tool_id] = output[:3000]
+                # ── ProfessorEngine: emit FINDING events ──
+                if self.professor is not None:
+                    try:
+                        from src.core.professor_engine import ProfessorEvent, EventType
+                        for f in found:
+                            self.professor.narrate_event(ProfessorEvent(
+                                type=EventType.FINDING,
+                                payload={
+                                    "title":     f.get("title", "?"),
+                                    "severity":  f.get("severity", "info"),
+                                    "technique": f.get("technique", ""),
+                                    "detail":    f.get("detail", ""),
+                                    "tool":      tool_id,
+                                    "target":    self.target,
+                                },
+                            ))
+                    except Exception:
+                        pass
             except subprocess.TimeoutExpired:
                 _kc_print(f" ⏱  TIMEOUT")
                 result.raw_outputs[tool_id] = "TIMEOUT"
@@ -486,6 +556,22 @@ class AutoKillChain:
         result.duration_s = (datetime.now() - t0).total_seconds()
         result.ended_at   = datetime.now().isoformat()
         result.status     = "complete"
+
+                # ── ProfessorEngine: phase_end ─────────────────────────────────
+        if self.professor is not None:
+            try:
+                from src.core.professor_engine import ProfessorEvent, EventType
+                self.professor.narrate_event(ProfessorEvent(
+                    type=EventType.PHASE_END,
+                    payload={
+                        "phase":      phase_def["id"],
+                        "tools_run":  result.tools_run,
+                        "findings":   len(result.findings),
+                        "duration_s": round(getattr(result, "duration_s", 0), 1),
+                    },
+                ))
+            except Exception:
+                pass
 
         _kc_print(f"\n  Phase complete: {result.tools_run} tools ran, "
               f"{len(result.findings)} findings, {result.duration_s:.0f}s")
@@ -539,9 +625,10 @@ class AutoKillChain:
 # ── Convenience function ──────────────────────────────────────────────────
 
 async def auto_pentest(target: str, mode: str = "SUPERVISED",
-                       params: dict = None, phases: list = None) -> dict:
-    """One-call automated pentest."""
-    chain = AutoKillChain(mode=mode)
+                       params: dict = None, phases: list = None,
+                       professor=None) -> dict:
+    """One-call automated pentest. If professor given, emits coaching events."""
+    chain = AutoKillChain(mode=mode, professor=professor)
     return await chain.run(target, params, phases)
 
 

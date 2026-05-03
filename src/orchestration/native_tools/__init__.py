@@ -125,5 +125,6 @@ def find_jwts_in_prior_outputs(prior_outputs: dict) -> list[tuple[str, str]]:
 # ── Import the actual tools so their @register decorators fire ────────────
 # (Keep this import at the bottom to avoid circular issues.)
 
-from . import jwt_tool   # noqa: F401, E402
-from . import nosql_tool # noqa: F401, E402
+from . import jwt_tool      # noqa: F401, E402
+from . import nosql_tool    # noqa: F401, E402
+from . import template_tool # noqa: F401, E402

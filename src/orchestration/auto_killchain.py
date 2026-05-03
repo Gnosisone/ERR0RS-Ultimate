@@ -60,7 +60,7 @@ KILL_CHAIN_PHASES = [
         "id":    "vuln_assessment",
         "name":  "Phase 3 — Vulnerability Assessment",
         "mitre": "TA0043",
-        "tools": ["nuclei_cve", "nmap_vuln_scripts", "searchsploit", "jwt_breaker", "nosql_injector"],
+        "tools": ["nuclei_cve", "nmap_vuln_scripts", "searchsploit", "jwt_breaker", "nosql_injector", "template_injector"],
         "desc":  "Match discovered services to known CVEs and exploits",
         "auto_next": True,
     },

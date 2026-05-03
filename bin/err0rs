@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+"""
+err0rs — Single-command autonomous penetration testing agent
+
+Usage:
+  err0rs own <target> [options]    Full autonomous engagement (the big one)
+  err0rs recon <target> [options]  Recon phase only — no exploitation
+  err0rs report <engagement-id>    Re-render the report for a past engagement
+  err0rs status                    List recent engagements + their state
+  err0rs lab start                 Spin up local Juice Shop for testing
+  err0rs lab stop                  Stop the local lab
+  err0rs --version                 Show ERR0RS version
+  err0rs --help                    Show this message
+
+Authorization flags (required for non-RFC1918 targets):
+  --i-have-authorization           Confirm you own the target / have written auth
+  --override-refused               Override .gov/.mil/.edu/DoD-CIDR refusal
+  --justification "<text>"         Required with --override-refused (>=20 chars)
+
+Mode flags:
+  --mode FULL_AUTO                 Run unattended (lab/CTF use only)
+  --mode SUPERVISED                Pause between phases for review (default)
+  --mode DRY_RUN                   Show plan without executing
+
+Examples:
+  err0rs own http://localhost:3000              # safe, no flags needed
+  err0rs own http://10.0.0.5 --mode FULL_AUTO   # RFC1918, no prompt
+  err0rs own http://target.example.com \\
+         --i-have-authorization                 # public IP, will prompt
+  err0rs recon http://192.168.1.5               # recon-only, fast
+  err0rs status                                  # what's happened recently
+  err0rs report 2026-05-01-001-abc123           # rebuild a report
+
+Author: Gary Holden Schneider (Eros) | Sprint 00
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import getpass
+import json
+import os
+import sys
+from pathlib import Path
+
+# Make the parent project importable when running from anywhere
+_HERE = Path(__file__).resolve().parent
+_REPO_ROOT = _HERE.parent
+sys.path.insert(0, str(_REPO_ROOT))
+
+from src.orchestration.authorization import authorize, TargetClass  # noqa: E402
+from src.orchestration.audit import AuditLogger, EventType  # noqa: E402
+
+VERSION = "3.3.0-orchestrator"
+
+
+# ── Pretty terminal output ────────────────────────────────────────────────
+
+class C:
+    RED    = "\033[0;31m"
+    GRN    = "\033[0;32m"
+    YLW    = "\033[1;33m"
+    BLU    = "\033[0;34m"
+    CYN    = "\033[0;36m"
+    MAG    = "\033[0;35m"
+    BOLD   = "\033[1m"
+    DIM    = "\033[2m"
+    RST    = "\033[0m"
+
+    @classmethod
+    def disable(cls):
+        for k in list(vars(cls)):
+            if k.isupper() and isinstance(getattr(cls, k), str) and getattr(cls, k).startswith("\033"):
+                setattr(cls, k, "")
+
+
+def banner():
+    print(f"""{C.MAG}{C.BOLD}
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║   ███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗            ║
+║   ██╔════╝██╔══██╗██╔══██╗██╔═████╗██╔══██╗██╔════╝            ║
+║   █████╗  ██████╔╝██████╔╝██║██╔██║██████╔╝███████╗            ║
+║   ██╔══╝  ██╔══██╗██╔══██╗████╔╝██║██╔══██╗╚════██║            ║
+║   ███████╗██║  ██║██║  ██║╚██████╔╝██║  ██║███████║            ║
+║   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝            ║
+║                                                                ║
+║         Autonomous Penetration Testing Agent                   ║
+║         v{VERSION:<54}║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝{C.RST}
+""")
+
+
+def info(msg):    print(f"{C.CYN}[*]{C.RST} {msg}")
+def ok(msg):      print(f"{C.GRN}[+]{C.RST} {msg}")
+def warn(msg):    print(f"{C.YLW}[!]{C.RST} {msg}")
+def err(msg):     print(f"{C.RED}[✗]{C.RST} {msg}", file=sys.stderr)
+
+
+# ── Subcommand: own ───────────────────────────────────────────────────────
+
+def cmd_own(args):
+    """Full autonomous engagement against a target."""
+    banner()
+
+    target   = args.target
+    mode     = args.mode.upper()
+    operator = args.operator or getpass.getuser()
+
+    info(f"Target:     {C.BOLD}{target}{C.RST}")
+    info(f"Mode:       {mode}")
+    info(f"Operator:   {operator}")
+    print()
+
+    # ── Authorization ──────────────────────────────────────────────────
+    info("Running authorization gate...")
+    auth = authorize(
+        target,
+        operator=operator,
+        have_authorization_flag=args.i_have_authorization,
+        override_refused=args.override_refused,
+        justification=args.justification,
+        interactive=sys.stdin.isatty(),
+    )
+
+    if not auth.authorized:
+        err(f"Authorization DENIED: {auth.reason}")
+        return 2
+
+    ok(f"Authorization granted ({auth.target_class.value})")
+    if auth.resolved_ip:
+        info(f"Resolved IP: {auth.resolved_ip}")
+    print()
+
+    # ── Open audit log ─────────────────────────────────────────────────
+    eid = AuditLogger.new_engagement_id()
+    log = AuditLogger.for_engagement(eid, operator=operator)
+    log.engagement_start(target=target, mode=mode,
+                          resolved_ip=auth.resolved_ip,
+                          target_class=auth.target_class.value)
+    log.auth(granted=True, target=target,
+             target_class=auth.target_class.value,
+             reason=auth.reason, resolved_ip=auth.resolved_ip,
+             justification=auth.justification)
+
+    info(f"Engagement ID:  {C.BOLD}{eid}{C.RST}")
+    info(f"Audit log:      {log.log_path}")
+    info(f"Reports dir:    {log.log_path.parent}")
+    print()
+
+    # ── Run the kill chain ─────────────────────────────────────────────
+    try:
+        from src.orchestration.auto_killchain import auto_pentest
+    except ImportError as e:
+        err(f"Cannot import auto_killchain: {e}")
+        log.error(f"Import error: {e}")
+        log.engagement_end("aborted", summary={"reason": "import_error"})
+        log.close()
+        return 3
+
+    info("Launching kill chain...")
+    print()
+
+    try:
+        result = asyncio.new_event_loop().run_until_complete(
+            auto_pentest(target=target, mode=mode)
+        )
+    except KeyboardInterrupt:
+        warn("Engagement interrupted by operator (Ctrl-C)")
+        log.event(EventType.ENGAGEMENT_ABORT, data={"reason": "keyboard_interrupt"})
+        log.close()
+        return 130
+    except Exception as e:
+        err(f"Engagement crashed: {e}")
+        log.error(f"Engagement crashed: {e}", exception_type=type(e).__name__)
+        log.engagement_end("crashed", summary={"error": str(e)})
+        log.close()
+        return 4
+
+    # ── Record findings to audit log ───────────────────────────────────
+    if isinstance(result, dict):
+        for f in result.get("findings", []):
+            log.finding(
+                title=f.get("title", "Unknown"),
+                severity=f.get("severity", "info"),
+                phase=f.get("phase", "unknown"),
+                tool=f.get("tool", ""),
+                detail=f.get("detail", ""),
+            )
+
+    log.engagement_end("complete", summary=result)
+    log.close()
+
+    # ── Final summary ──────────────────────────────────────────────────
+    print()
+    print(f"{C.GRN}{C.BOLD}╔════════════════════════════════════════════════════════════════╗{C.RST}")
+    print(f"{C.GRN}{C.BOLD}║  Engagement complete                                           ║{C.RST}")
+    print(f"{C.GRN}{C.BOLD}╚════════════════════════════════════════════════════════════════╝{C.RST}")
+    if isinstance(result, dict):
+        by_sev = result.get("by_severity", {})
+        print(f"  Engagement ID: {eid}")
+        print(f"  Phases run:    {result.get('phases_run', 0)}")
+        print(f"  Findings:      {result.get('total_findings', 0)} total")
+        for sev in ("critical", "high", "medium", "low", "info"):
+            n = by_sev.get(sev, 0)
+            if n:
+                color = {"critical": C.RED, "high": C.YLW, "medium": C.YLW,
+                          "low": C.CYN, "info": C.DIM}.get(sev, "")
+                icon  = {"critical": "🔴", "high": "🟠", "medium": "🟡",
+                          "low": "🟢", "info": "ℹ"}.get(sev, "•")
+                print(f"    {color}{icon} {sev.upper():<10}{C.RST} {n}")
+    print(f"  Audit log:     {log.log_path}")
+    print()
+    return 0
+
+
+# ── Subcommand: recon ─────────────────────────────────────────────────────
+
+def cmd_recon(args):
+    """Recon-only engagement — no exploitation."""
+    args.mode = "SUPERVISED"   # recon doesn't need full auto
+    # Phase override: only recon + scan
+    return cmd_own(args)  # AutoKillChain handles phase selection in supervised mode
+
+
+# ── Subcommand: report ────────────────────────────────────────────────────
+
+def cmd_report(args):
+    """Re-render a report from a past engagement's audit log."""
+    base = Path.home() / ".err0rs" / "engagements" / args.engagement_id
+    log_file = base / "audit.jsonl"
+    if not log_file.exists():
+        err(f"No engagement found at {base}")
+        return 1
+
+    log = AuditLogger.for_engagement(args.engagement_id, operator="report")
+    s = log.summary()
+    print(f"\n{C.BOLD}Engagement: {args.engagement_id}{C.RST}\n")
+    print(f"  Total events:      {s['total_events']}")
+    print(f"  Findings:          {s['findings_total']}")
+    print(f"  By severity:       {s['findings_by_severity']}")
+    print(f"  Event breakdown:   {s['event_breakdown']}")
+    print(f"  Audit log:         {log_file}")
+    print()
+    return 0
+
+
+# ── Subcommand: status ────────────────────────────────────────────────────
+
+def cmd_status(args):
+    """List recent engagements."""
+    base = Path.home() / ".err0rs" / "engagements"
+    if not base.exists():
+        info("No engagements yet. Run `err0rs own <target>` to start one.")
+        return 0
+
+    entries = sorted([p for p in base.iterdir() if p.is_dir()],
+                     key=lambda p: p.stat().st_mtime, reverse=True)[:20]
+    if not entries:
+        info("No engagements yet.")
+        return 0
+
+    print(f"\n{C.BOLD}Recent engagements (last {len(entries)}):{C.RST}\n")
+    print(f"  {'ID':<32} {'Findings':<10} {'Status':<12}")
+    print(f"  {'─'*32} {'─'*10} {'─'*12}")
+    for d in entries:
+        log_file = d / "audit.jsonl"
+        if not log_file.exists():
+            continue
+        try:
+            log = AuditLogger.for_engagement(d.name, operator="status")
+            events = log.replay()
+            findings = sum(1 for e in events if e.get("event") == "finding")
+            last_event = events[-1].get("event", "?") if events else "empty"
+            status_icon = {
+                "engagement_end": f"{C.GRN}complete{C.RST}",
+                "engagement_abort": f"{C.YLW}aborted{C.RST}",
+                "auth_denied": f"{C.RED}auth_denied{C.RST}",
+            }.get(last_event, f"{C.CYN}{last_event}{C.RST}")
+            print(f"  {d.name:<32} {findings:<10} {status_icon}")
+        except Exception:
+            print(f"  {d.name:<32} {'?':<10} {C.RED}corrupt{C.RST}")
+    print()
+    return 0
+
+
+# ── Subcommand: lab ───────────────────────────────────────────────────────
+
+def cmd_lab(args):
+    """Start/stop local Juice Shop for testing."""
+    if args.action == "start":
+        info("Starting OWASP Juice Shop on http://localhost:3000 ...")
+        os.execvp("docker", ["docker", "run", "--rm", "-d",
+                              "--name", "err0rs-juice-shop",
+                              "-p", "3000:3000",
+                              "bkimminich/juice-shop"])
+    elif args.action == "stop":
+        info("Stopping Juice Shop...")
+        os.execvp("docker", ["docker", "stop", "err0rs-juice-shop"])
+    return 0
+
+
+# ── Argument parser ───────────────────────────────────────────────────────
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="err0rs",
+        description="Autonomous Penetration Testing Agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    p.add_argument("--version", action="version", version=f"err0rs {VERSION}")
+    p.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
+
+    sub = p.add_subparsers(dest="cmd", required=True, metavar="COMMAND")
+
+    # own
+    pown = sub.add_parser("own", help="Full autonomous engagement")
+    pown.add_argument("target", help="Target URL/IP/hostname")
+    pown.add_argument("--mode", default="SUPERVISED",
+                      choices=["FULL_AUTO", "SUPERVISED", "DRY_RUN"])
+    pown.add_argument("--operator", help="Operator identity (default: $USER)")
+    pown.add_argument("--i-have-authorization", action="store_true",
+                      help="Confirm you own / have written auth for the target")
+    pown.add_argument("--override-refused", action="store_true",
+                      help="Override .gov/.mil/.edu/DoD-CIDR refusal")
+    pown.add_argument("--justification", help="Required with --override-refused")
+    pown.set_defaults(func=cmd_own)
+
+    # recon
+    precon = sub.add_parser("recon", help="Recon-only engagement (no exploit)")
+    precon.add_argument("target", help="Target URL/IP/hostname")
+    precon.add_argument("--operator", help="Operator identity (default: $USER)")
+    precon.add_argument("--i-have-authorization", action="store_true")
+    precon.add_argument("--override-refused", action="store_true")
+    precon.add_argument("--justification")
+    precon.set_defaults(func=cmd_recon)
+
+    # report
+    prep = sub.add_parser("report", help="Re-render past engagement report")
+    prep.add_argument("engagement_id", help="Engagement ID like 2026-05-01-001-abc123")
+    prep.set_defaults(func=cmd_report)
+
+    # status
+    pstat = sub.add_parser("status", help="List recent engagements")
+    pstat.set_defaults(func=cmd_status)
+
+    # lab
+    plab = sub.add_parser("lab", help="Start/stop local lab targets")
+    plab.add_argument("action", choices=["start", "stop"])
+    plab.set_defaults(func=cmd_lab)
+
+    return p
+
+
+def main(argv=None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if getattr(args, "no_color", False) or not sys.stdout.isatty():
+        C.disable()
+
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print()
+        warn("Interrupted by operator")
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -35,39 +35,63 @@ echo -e "${CYAN}[*] Running as: ${NC}$(whoami)\n"
 # ── Generate PNG icons from SVG if not present ──────────────────
 generate_icons() {
     mkdir -p "$ICON_DIR"
-    echo -e "${CYAN}[*] Generating PNG icons from SVG...${NC}"
+    echo -e "${CYAN}[*] Setting up icons...${NC}"
+
+    # Repo already ships hyphenated PNG icons: err0rs-{16,32,48,64,128,256}.png
+    # Use those directly; only fall back to SVG conversion if missing.
+    # This avoids depending on cairosvg/ImageMagick/rsvg-convert at install time.
+
+    # If we already have a usable icon, just point ICON_PNG at it.
+    for cand in err0rs.png err0rs-256.png err0rs-128.png err0rs-64.png; do
+        if [ -f "$ICON_DIR/$cand" ] && [ -s "$ICON_DIR/$cand" ]; then
+            if [ "$cand" != "err0rs.png" ]; then
+                cp "$ICON_DIR/$cand" "$ICON_PNG"
+            fi
+            echo -e "  ${GREEN}✓${NC} Using existing icon: $cand"
+            echo -e "  ${GREEN}✓${NC} Main icon ready at $ICON_PNG"
+            return 0
+        fi
+    done
+
+    # No pre-built PNG found — fall back to SVG conversion.
+    # Only proceed if SVG is a non-trivial file (>100 bytes — empty stubs are common).
+    if [ ! -f "$ICON_SVG" ] || [ "$(stat -c%s "$ICON_SVG" 2>/dev/null || echo 0)" -lt 100 ]; then
+        echo -e "  ${YELLOW}~${NC} No valid icon source found (SVG missing or stub)"
+        echo -e "  ${YELLOW}~${NC} Desktop entries will use missing-icon fallback"
+        return 0
+    fi
 
     if python3 -c "import cairosvg" 2>/dev/null; then
-        python3 - << PYEOF
-import cairosvg, shutil
+        python3 - << PYEOF || true
+import cairosvg, shutil, os
 svg = open("$ICON_SVG").read()
 for size in [16,24,32,48,64,128,256,512]:
     cairosvg.svg2png(bytestring=svg.encode(),
-                     write_to=f"$ICON_DIR/err0rs_{size}.png",
+                     write_to=f"$ICON_DIR/err0rs-{size}.png",
                      output_width=size, output_height=size)
-shutil.copy("$ICON_DIR/err0rs_256.png", "$ICON_PNG")
+if os.path.exists(f"$ICON_DIR/err0rs-256.png"):
+    shutil.copy("$ICON_DIR/err0rs-256.png", "$ICON_PNG")
 print("PNGs generated via cairosvg")
 PYEOF
     elif command -v convert &>/dev/null; then
         for size in 16 24 32 48 64 128 256 512; do
             convert "$ICON_SVG" -resize ${size}x${size} \
-                "$ICON_DIR/err0rs_${size}.png" 2>/dev/null
+                "$ICON_DIR/err0rs-${size}.png" 2>/dev/null || true
         done
-        cp "$ICON_DIR/err0rs_256.png" "$ICON_PNG"
+        [ -f "$ICON_DIR/err0rs-256.png" ] && cp "$ICON_DIR/err0rs-256.png" "$ICON_PNG"
         echo -e "  ${GREEN}✓ PNGs generated via ImageMagick${NC}"
     elif command -v rsvg-convert &>/dev/null; then
         for size in 16 24 32 48 64 128 256 512; do
             rsvg-convert -w $size -h $size "$ICON_SVG" \
-                -o "$ICON_DIR/err0rs_${size}.png" 2>/dev/null
+                -o "$ICON_DIR/err0rs-${size}.png" 2>/dev/null || true
         done
-        cp "$ICON_DIR/err0rs_256.png" "$ICON_PNG"
+        [ -f "$ICON_DIR/err0rs-256.png" ] && cp "$ICON_DIR/err0rs-256.png" "$ICON_PNG"
         echo -e "  ${GREEN}✓ PNGs generated via rsvg-convert${NC}"
     else
-        cp "$ICON_SVG" "$ICON_PNG"
-        echo -e "  ${YELLOW}~ Using SVG as icon (install cairosvg for PNG support)${NC}"
-        echo -e "    pip install cairosvg --break-system-packages"
+        cp "$ICON_SVG" "$ICON_PNG" 2>/dev/null || true
+        echo -e "  ${YELLOW}~ No PNG converter found — using SVG as icon${NC}"
     fi
-    echo -e "  ${GREEN}✓ Icons ready in $ICON_DIR${NC}"
+    echo -e "  ${GREEN}✓${NC} Icons ready in $ICON_DIR"
 }
 
 # ── Build .desktop file — main ERR0RS launcher ───────────────────
@@ -148,11 +172,12 @@ install_system_wide() {
     echo -e "${CYAN}[2/3] Installing system-wide for all users...${NC}"
 
     # Install icon into hicolor theme (standard XDG)
+    # Repo ships hyphenated filenames: err0rs-{16,32,48,64,128,256}.png
     for SIZE in 16 24 32 48 64 128 256 512; do
         HICOLOR_DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
         mkdir -p "$HICOLOR_DIR"
-        if [ -f "$ICON_DIR/err0rs_${SIZE}.png" ]; then
-            cp "$ICON_DIR/err0rs_${SIZE}.png" \
+        if [ -f "$ICON_DIR/err0rs-${SIZE}.png" ]; then
+            cp "$ICON_DIR/err0rs-${SIZE}.png" \
                "$HICOLOR_DIR/err0rs-ultimate.png"
         fi
     done

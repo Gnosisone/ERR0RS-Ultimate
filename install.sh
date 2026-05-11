@@ -85,20 +85,74 @@ install_system_deps() {
 
 # ── Step 2: Python Dependencies ───────────────────────────────────────────────
 install_python_deps() {
-  echo -e "\n${CYAN}[2/5] Installing Python dependencies...${NC}"
+  echo -e "\n${CYAN}[2/5] Installing Python dependencies (venv)...${NC}"
 
-  # Parrot and Kali both need --break-system-packages on newer Python
-  PIP_FLAGS="--break-system-packages -q"
+  # ── Modern Kali/Parrot ship PEP 668 EXTERNALLY-MANAGED Python.
+  # ── We use a project-local venv at $SCRIPT_DIR/venv to avoid clobbering
+  # ── system packages (e.g., python3-starlette) that apt manages.
+  # ── start_err0rs.sh also expects $SCRIPT_DIR/venv — same path, no surprises.
 
-  pip3 install requests fastapi uvicorn pydantic $PIP_FLAGS
-  pip3 install anthropic openai $PIP_FLAGS
-  pip3 install chromadb sentence-transformers $PIP_FLAGS
-  pip3 install psutil python-dotenv rich click $PIP_FLAGS
+  VENV_DIR="$SCRIPT_DIR/venv"
 
-  # iOS/macOS tools
-  pip3 install pyidevice 2>/dev/null || true
+  # Pick the right requirements file: prefer the lean Kali/Parrot list
+  # on those distros (no GUI / build deps), full list elsewhere.
+  if [[ "$DISTRO_ID" == "kali" ]] || [[ "$DISTRO_ID" == "parrot" ]] || [[ "$DISTRO_ID" == "parrotsec" ]]; then
+    REQ_FILE="$SCRIPT_DIR/requirements-kali.txt"
+  else
+    REQ_FILE="$SCRIPT_DIR/requirements.txt"
+  fi
 
-  echo -e "  ${GREEN}Python deps done${NC}"
+  if [ ! -f "$REQ_FILE" ]; then
+    echo -e "  ${RED}✗${NC} Missing $REQ_FILE — aborting Python install"
+    return 1
+  fi
+
+  # Create venv if missing. We use --system-site-packages OFF so the venv
+  # is fully isolated — no inheriting apt's broken-record packages.
+  if [ ! -d "$VENV_DIR" ]; then
+    echo -e "  ${CYAN}Creating venv at $VENV_DIR${NC}"
+    python3 -m venv "$VENV_DIR" || {
+      echo -e "  ${RED}✗${NC} Failed to create venv. Is python3-venv installed?"
+      return 1
+    }
+  else
+    echo -e "  ${YELLOW}~${NC} venv already exists at $VENV_DIR — reusing"
+  fi
+
+  # Fix ownership — when running under sudo, venv is created root-owned,
+  # which breaks the user's later pip installs. Chown back to the invoking user.
+  if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    chown -R "$SUDO_USER":"$SUDO_USER" "$VENV_DIR"
+  fi
+
+  VENV_PIP="$VENV_DIR/bin/pip"
+  VENV_PY="$VENV_DIR/bin/python3"
+
+  # Upgrade pip + wheel inside venv — old pip has dependency-resolver bugs.
+  echo -e "  ${CYAN}Upgrading pip + wheel inside venv...${NC}"
+  "$VENV_PY" -m pip install --upgrade pip wheel setuptools -q || {
+    echo -e "  ${RED}✗${NC} pip upgrade failed"
+    return 1
+  }
+
+  echo -e "  ${CYAN}Installing from $(basename "$REQ_FILE")...${NC}"
+  "$VENV_PIP" install -r "$REQ_FILE" || {
+    echo -e "  ${RED}✗${NC} pip install failed — see error above"
+    return 1
+  }
+
+  # Optional iOS/macOS tools — don't fail the install if these don't build
+  "$VENV_PIP" install pyidevice 2>/dev/null && \
+    echo -e "  ${GREEN}✓${NC} pyidevice (optional iOS support)" || \
+    echo -e "  ${YELLOW}~${NC} pyidevice skipped (optional)"
+
+  # Re-fix ownership after pip writes new files as root
+  if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    chown -R "$SUDO_USER":"$SUDO_USER" "$VENV_DIR"
+  fi
+
+  echo -e "  ${GREEN}✓${NC} Python deps installed into venv"
+  echo -e "  ${CYAN}venv python:${NC} $VENV_PY"
 }
 
 # ── Step 3: Ollama (Local LLM) ────────────────────────────────────────────────
@@ -231,7 +285,7 @@ DEOF
     echo "" >> ~/.bashrc
     echo "# ERR0RS ULTIMATE" >> ~/.bashrc
     echo "alias errorz='cd $SCRIPT_DIR && bash start_err0rs.sh'" >> ~/.bashrc
-    echo "alias errorz-cli='cd $SCRIPT_DIR && python3 main.py'" >> ~/.bashrc
+    echo "alias errorz-cli='cd $SCRIPT_DIR && \"$SCRIPT_DIR/venv/bin/python3\" main.py'" >> ~/.bashrc
     echo "alias err0rs='cd $SCRIPT_DIR && bash start_err0rs.sh'" >> ~/.bashrc
     echo -e "  ${GREEN}✓${NC} Aliases added: errorz | err0rs | errorz-cli"
   fi
@@ -242,7 +296,18 @@ smoke_test() {
   echo -e "\n${CYAN}Running quick smoke test...${NC}"
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$SCRIPT_DIR"
-  python3 -c "
+
+  # Prefer venv python if it exists; fall back to system python only if not
+  VENV_PY="$SCRIPT_DIR/venv/bin/python3"
+  if [ -x "$VENV_PY" ]; then
+    PYBIN="$VENV_PY"
+    echo -e "  ${CYAN}Using venv python: $PYBIN${NC}"
+  else
+    PYBIN="python3"
+    echo -e "  ${YELLOW}~${NC} venv not found — falling back to system python3"
+  fi
+
+  "$PYBIN" -c "
 import sys; sys.path.insert(0, 'src')
 tests = [
   ('src.ai.providers',         'LLMRouter'),
@@ -268,6 +333,9 @@ print(f'  Passed: {passed}/{len(tests)}')
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
+  # Resolve script directory once at top level — used by find, setup_env, setup_desktop
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
   detect_distro
   banner
 
@@ -310,3 +378,6 @@ main() {
   echo -e "  (Warning: some repos are large — allow 10-30 min on first clone)"
   echo ""
 }
+
+# ── Entry Point ───────────────────────────────────────────────────────────────
+main "$@"

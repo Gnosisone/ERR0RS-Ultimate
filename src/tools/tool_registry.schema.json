@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Gnosisone/ERR0RS-Ultimate/src/tools/tool_registry.schema.json",
+  "title": "ERR0RS Unified Tool Registry",
+  "description": "Single source of truth for every tool ERR0RS knows about. Used by Teach Mode, Phoenix Bridge, Operator Brain, and the kill chain.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version. Bump when adding required fields."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO timestamp of last regeneration."
+    },
+    "tools": {
+      "type": "object",
+      "description": "Tool entries keyed by canonical lowercase name.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*$": { "$ref": "#/$defs/tool" }
+      },
+      "additionalProperties": false
+    },
+    "concepts": {
+      "type": "object",
+      "description": "Non-tool concept entries: CIA triad, OWASP Top 10, MITRE ATT&CK, kill chain phases, etc.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*$": { "$ref": "#/$defs/concept" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["version", "tools"],
+
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": [
+        "display_name", "binary", "category", "tier",
+        "description", "teach_intro"
+      ],
+      "properties": {
+        "display_name":  { "type": "string", "description": "Human-readable name, e.g. 'Nmap'" },
+        "aliases":       { "type": "array",  "items": { "type": "string" }, "description": "Alternative names for lookup matching" },
+        "binary":        { "type": "string", "description": "Executable name on $PATH" },
+        "category":      {
+          "type": "string",
+          "enum": [
+            "recon", "web", "exploitation", "post-exploit", "persistence",
+            "c2", "wireless", "credentials", "forensics", "reverse",
+            "evasion", "social-engineering", "mobile", "cloud", "container",
+            "ad", "network", "hardware", "ids", "utility"
+          ]
+        },
+        "phases":        { "type": "array", "items": { "type": "string" }, "description": "Kill-chain phases this tool fits (e.g., reconnaissance, weaponization, delivery, exploitation, installation, c2, actions)" },
+        "tier":          { "type": "integer", "enum": [1, 2, 3], "description": "1 = hand-curated, 2 = LLM-generated, 3 = man-page/help fallback" },
+        "risk":          { "type": "string", "enum": ["stealthy", "moderate", "noisy", "loud", "safe", "quiet", "very_noisy", "requires_root", "slow", "depends_on_script", "destructive"], "description": "Default-invocation noise level on a wire/log" },
+        "authorization_required": { "type": "boolean", "description": "Does this need explicit written consent before use?" },
+
+        "description":   { "type": "string", "description": "Short one-line description for tool lists" },
+        "teach_intro":   { "type": "string", "description": "Full paragraph for 'teach me X' top-level explanation" },
+        "teach_alt":     { "type": "string", "description": "Alternative phrasing (preserved from teach_engine.LESSONS during migration)" },
+
+        "default_flags":   { "type": "array", "items": { "type": "string" } },
+        "default_command": { "type": "string", "description": "Template with {target} placeholder" },
+
+        "flags": {
+          "type": "object",
+          "description": "Per-flag teach data, keyed by flag literal (e.g. '-sV')",
+          "additionalProperties": { "$ref": "#/$defs/flag" }
+        },
+
+        "output_read": {
+          "type": "array",
+          "description": "Patterns to recognize in tool output, paired with what they mean",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "meaning"],
+            "properties": {
+              "pattern": { "type": "string", "description": "Substring or regex to look for in output" },
+              "meaning": { "type": "string", "description": "What this pattern indicates" }
+            }
+          }
+        },
+
+        "opsec_notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Things an operator should know to stay quiet, safe, or undetected"
+        },
+
+        "sample_outputs": {
+          "type": "array",
+          "description": "Annotated real-world example outputs",
+          "items": {
+            "type": "object",
+            "required": ["scenario", "output", "explanation"],
+            "properties": {
+              "scenario":    { "type": "string", "description": "Brief context: what's being scanned/run" },
+              "command":     { "type": "string", "description": "Exact command that produced this output" },
+              "output":      { "type": "string", "description": "The tool's actual output (or representative excerpt)" },
+              "explanation": { "type": "string", "description": "What this output tells you and what to do next" }
+            }
+          }
+        },
+
+        "legal_notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "When using this tool crosses legal/authorization lines"
+        },
+
+        "false_positives": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Known ways this tool will lie to you"
+        },
+
+        "mitre_attack": {
+          "type": "array",
+          "description": "MITRE ATT&CK tactics/techniques this tool maps to",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id":   { "type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$", "description": "Technique ID e.g. T1046 or T1110.001" },
+              "name": { "type": "string", "description": "Technique name e.g. 'Network Service Discovery'" }
+            }
+          }
+        },
+
+        "learning_path": {
+          "type": "object",
+          "description": "Concepts a learner should know before/after this tool",
+          "properties": {
+            "prerequisites": { "type": "array", "items": { "type": "string" }, "description": "Concept keys (refer to concepts section) the learner should know first" },
+            "leads_to":      { "type": "array", "items": { "type": "string" }, "description": "Tool or concept keys this naturally progresses toward" }
+          }
+        },
+
+        "common_pitfalls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Mistakes beginners make with this tool"
+        },
+
+        "related_tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tool keys that do similar work or chain well"
+        },
+
+        "next_steps": {
+          "type": "array",
+          "description": "Conditional 'after running this, do X' suggestions",
+          "items": {
+            "type": "object",
+            "required": ["if", "suggest"],
+            "properties": {
+              "if":      { "type": "string", "description": "Output condition that triggers this suggestion" },
+              "suggest": { "type": "string", "description": "Tool or action to recommend" }
+            }
+          }
+        },
+
+        "references": {
+          "type": "array",
+          "description": "Links for deeper learning",
+          "items": {
+            "type": "object",
+            "required": ["type", "url"],
+            "properties": {
+              "type": { "type": "string", "enum": ["official", "cheatsheet", "tutorial", "video", "writeup", "cve", "blog"] },
+              "url":  { "type": "string", "format": "uri" }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "flag": {
+      "type": "object",
+      "required": ["label", "teach"],
+      "properties": {
+        "label":     { "type": "string", "description": "Human-readable flag name e.g. 'Version Detection'" },
+        "desc":      { "type": "string", "description": "Short description (from legacy registry)" },
+        "example":   { "type": "string", "description": "Example command using this flag" },
+        "teach":     { "type": "string", "description": "Deep explanation of what this flag DOES" },
+        "mechanism": { "type": "string", "description": "How this flag works at the protocol/OS level" },
+        "detection": { "type": "string", "description": "How a blue-team analyst would see this flag in use" },
+        "evasion":   { "type": "string", "description": "Quieter alternatives or stealth tweaks" },
+        "risk":      { "type": "string", "enum": ["stealthy", "moderate", "noisy", "loud", "safe", "quiet", "very_noisy", "requires_root", "slow", "depends_on_script", "destructive"] }
+      },
+      "additionalProperties": false
+    },
+
+    "concept": {
+      "type": "object",
+      "description": "Non-tool teaching entry (frameworks, doctrines, models)",
+      "required": ["display_name", "summary"],
+      "properties": {
+        "display_name":  { "type": "string" },
+        "aliases":       { "type": "array", "items": { "type": "string" } },
+        "category":      { "type": "string", "enum": ["framework", "doctrine", "model", "standard", "phase"] },
+        "summary":       { "type": "string", "description": "One-line definition" },
+        "teach":         { "type": "string", "description": "Full paragraph explanation" },
+        "components":    { "type": "array", "items": { "type": "string" }, "description": "Sub-elements (e.g. OWASP Top 10 items, kill chain phases)" },
+        "related":       { "type": "array", "items": { "type": "string" }, "description": "Related concept keys" },
+        "references":    {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "url"],
+            "properties": {
+              "type": { "type": "string" },
+              "url":  { "type": "string", "format": "uri" }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

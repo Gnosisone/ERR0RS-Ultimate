@@ -57,7 +57,9 @@ install_system_deps() {
     theharvester subfinder dirb wordlists commix xsser \
     crackmapexec enum4linux responder bettercap evil-winrm \
     impacket-scripts dnsenum dnsrecon onesixtyone snmp-check \
-    ldap-utils smbclient smbmap"
+    ldap-utils smbclient smbmap \
+    zmap beef-xss ropgadget king-phisher cupp python3-pwntools \
+    trufflehog scrcpy seclists exploitdb"
 
   # Metasploit — installed differently on Parrot vs Kali
   if [[ "$DISTRO_ID" == "kali" ]]; then
@@ -121,6 +123,11 @@ install_go_tools() {
     "waybackurls|github.com/tomnomnom/waybackurls@latest"
     "assetfinder|github.com/tomnomnom/assetfinder@latest"
     "gf|github.com/tomnomnom/gf@latest"
+    "unfurl|github.com/tomnomnom/unfurl@latest"
+    "anew|github.com/tomnomnom/anew@latest"
+    "qsreplace|github.com/tomnomnom/qsreplace@latest"
+    "interactsh-client|github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest"
+    "gitleaks|github.com/gitleaks/gitleaks/v8@latest"
   )
 
   # Determine where `go install` writes binaries. When running under sudo,
@@ -169,6 +176,332 @@ install_go_tools() {
   done
 
   echo -e "  ${GREEN}Go tools done${NC}"
+}
+
+# ── Step 1c: pip-installed security tools ─────────────────────────────────────
+# Tools that ship via pip, not apt or go. Installed system-wide into a dedicated
+# pipx-style location so they're on PATH without polluting venvs.
+# Uses --break-system-packages on the SYSTEM python (NOT our venv) — these are
+# CLI utilities, not Python libraries to import.
+install_pip_tools() {
+  echo -e "\n${CYAN}[1c/5] Installing pip-based security tools...${NC}"
+
+  # Use pipx if available — it isolates each tool. Fall back to system pip
+  # with --break-system-packages (the only legal pip-as-root option on Kali).
+  USE_PIPX="false"
+  if command -v pipx &>/dev/null; then
+    USE_PIPX="true"
+    echo -e "  ${GREEN}✓${NC} Using pipx (isolated per-tool venvs)"
+  else
+    echo -e "  ${CYAN}Installing pipx for isolated CLI tool installs...${NC}"
+    apt install -y pipx 2>/dev/null && USE_PIPX="true"
+    if [ "$USE_PIPX" = "true" ]; then
+      # Ensure pipx bin dir is on PATH for the invoking user
+      if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        sudo -u "$SUDO_USER" -H pipx ensurepath 2>/dev/null || true
+      fi
+    fi
+  fi
+
+  # PIP_TOOLS: format "name|spec_type|spec"
+  # spec_type: "pypi" = real package on PyPI, install by name
+  #            "git"  = github repo; we clone to /opt/<name> and pipx install ./path
+  # Why two paths? pipx install git+https://… only works when the repo has a
+  # pyproject.toml or setup.py. Many security tools are loose scripts without
+  # proper packaging, so we clone-and-symlink them instead.
+  PIP_TOOLS=(
+    "droopescan|pypi|droopescan"
+    "uro|pypi|uro"
+    "graphqlmap|pypi|graphqlmap"
+    "corsy|git|https://github.com/s0md3v/Corsy.git"
+    "jwt_tool|git|https://github.com/ticarpi/jwt_tool.git"
+    "graphw00f|git|https://github.com/dolevf/graphw00f.git"
+    "ssrfmap|git|https://github.com/swisskyrepo/SSRFmap.git"
+    "nosqlmap|git|https://github.com/codingo/NoSQLMap.git"
+  )
+
+  for entry in "${PIP_TOOLS[@]}"; do
+    IFS='|' read -r name kind spec <<< "$entry"
+
+    if command -v "$name" &>/dev/null; then
+      echo -e "  ${YELLOW}~${NC} $name already on PATH — skipping"
+      continue
+    fi
+
+    if [ "$kind" = "pypi" ]; then
+      # Real PyPI package — pipx handles it cleanly.
+      # Capture output silently; only show it on failure.
+      pipx_out=$(mktemp)
+      if [ "$USE_PIPX" = "true" ] && [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        sudo -u "$SUDO_USER" -H pipx install "$spec" > "$pipx_out" 2>&1
+        rc=$?
+      elif [ "$USE_PIPX" = "true" ]; then
+        pipx install "$spec" > "$pipx_out" 2>&1
+        rc=$?
+      else
+        pip3 install --break-system-packages "$spec" > "$pipx_out" 2>&1
+        rc=$?
+      fi
+
+      # pipx returns nonzero when package is already installed via stderr message,
+      # but the tool is still callable. Check the actual binary instead.
+      if [ "$rc" -eq 0 ] || command -v "$name" &>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} $name"
+      else
+        echo -e "  ${YELLOW}~${NC} $name failed (continuing)"
+        tail -3 "$pipx_out" | sed 's/^/      /'
+      fi
+      rm -f "$pipx_out"
+
+    else
+      # git source — clone to /opt, install requirements.txt, symlink main script
+      target_dir="/opt/$name"
+      if [ -d "$target_dir/.git" ]; then
+        echo -e "  ${YELLOW}~${NC} $name already cloned at $target_dir — pulling"
+        (cd "$target_dir" && git pull --quiet 2>/dev/null) || true
+      else
+        git clone --quiet --depth 1 "$spec" "$target_dir" 2>&1 | tail -2 || {
+          echo -e "  ${YELLOW}~${NC} $name clone failed (continuing)"
+          continue
+        }
+      fi
+
+      # Install requirements.txt if present, inside a per-tool venv at /opt/<name>/.venv
+      if [ -f "$target_dir/requirements.txt" ]; then
+        python3 -m venv "$target_dir/.venv" 2>/dev/null
+        "$target_dir/.venv/bin/pip" install -q -r "$target_dir/requirements.txt" 2>/dev/null || true
+      fi
+
+      # Find the main script — common names per tool
+      main_script=""
+      for candidate in "${name}.py" "main.py" "${name^}.py" "${name^^}.py" "cli.py"; do
+        if [ -f "$target_dir/$candidate" ]; then
+          main_script="$target_dir/$candidate"; break
+        fi
+      done
+
+      if [ -n "$main_script" ]; then
+        chmod +x "$main_script" 2>/dev/null
+        # Wrapper script that activates the per-tool venv (if it exists) then runs
+        cat > "/usr/local/bin/$name" << WRAPPER
+#!/usr/bin/env bash
+# ERR0RS auto-generated wrapper for $name
+TOOL_DIR="$target_dir"
+if [ -d "\$TOOL_DIR/.venv" ]; then
+  exec "\$TOOL_DIR/.venv/bin/python3" "$main_script" "\$@"
+else
+  exec python3 "$main_script" "\$@"
+fi
+WRAPPER
+        chmod +x "/usr/local/bin/$name"
+        echo -e "  ${GREEN}✓${NC} $name → /usr/local/bin/$name"
+      else
+        echo -e "  ${YELLOW}~${NC} $name cloned but no main script auto-detected"
+      fi
+
+      # Chown back to user
+      if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        chown -R "$SUDO_USER":"$SUDO_USER" "$target_dir" 2>/dev/null || true
+      fi
+    fi
+  done
+
+  echo -e "  ${GREEN}pip tools done${NC}"
+}
+
+# ── Step 1d: Github-cloned tools (no package, just scripts) ───────────────────
+# Tools that live as a github repo with no pip/apt distribution. We clone to
+# /opt/<tool> and symlink the entry script into /usr/local/bin.
+install_github_tools() {
+  echo -e "\n${CYAN}[1d/5] Installing github-cloned security tools...${NC}"
+
+  mkdir -p /opt
+  cd /opt
+
+  # GH_TOOLS: format "name|repo_url|entry_script_relative_path|symlink_name"
+  # entry_script is the file in the cloned dir to symlink. symlink_name is
+  # what the user types to run it (added to /usr/local/bin).
+  GH_TOOLS=(
+    "Sn1per|https://github.com/1N3/Sn1per.git|install.sh|sniper-install"
+    "AutoSploit|https://github.com/NullArray/AutoSploit.git|autosploit.py|autosploit"
+    "LinkFinder|https://github.com/GerbenJavado/LinkFinder.git|linkfinder.py|linkfinder"
+    "SecretFinder|https://github.com/m4ll0k/SecretFinder.git|SecretFinder.py|secretfinder"
+  )
+
+  for entry in "${GH_TOOLS[@]}"; do
+    IFS='|' read -r name repo script symlink <<< "$entry"
+    target_dir="/opt/$name"
+
+    if [ -d "$target_dir/.git" ]; then
+      echo -e "  ${YELLOW}~${NC} $name already cloned at $target_dir — pulling latest"
+      (cd "$target_dir" && git pull --quiet 2>/dev/null) || true
+    else
+      echo -e "  ${CYAN}Cloning $name...${NC}"
+      git clone --quiet --depth 1 "$repo" "$target_dir" 2>&1 | tail -3 || {
+        echo -e "  ${YELLOW}~${NC} $name clone failed — skipping"
+        continue
+      }
+    fi
+
+    # Make the entry script executable + symlink it
+    if [ -f "$target_dir/$script" ]; then
+      chmod +x "$target_dir/$script" 2>/dev/null || true
+      ln -sf "$target_dir/$script" "/usr/local/bin/$symlink"
+      echo -e "  ${GREEN}✓${NC} $name → /usr/local/bin/$symlink"
+    else
+      echo -e "  ${YELLOW}~${NC} $name: entry script $script not found"
+    fi
+
+    # Chown to invoking user so they can update later without sudo
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+      chown -R "$SUDO_USER":"$SUDO_USER" "$target_dir" 2>/dev/null || true
+    fi
+  done
+
+  cd - > /dev/null
+  echo -e "  ${GREEN}Github tools done${NC}"
+}
+
+# ── Step 1e: C2 Frameworks (opt-in via --with-c2) ─────────────────────────────
+# Big installs. Sliver, Merlin, PoshC2, etc. Each gets its own /opt dir.
+install_c2_frameworks() {
+  echo -e "\n${CYAN}[1e/5] Installing C2 frameworks (--with-c2)...${NC}"
+  echo -e "  ${YELLOW}This will pull multi-GB of binaries. Be patient.${NC}"
+
+  mkdir -p /opt
+  cd /opt
+
+  # ── Sliver ── (Go, official install script)
+  if ! command -v sliver-client &>/dev/null; then
+    echo -e "  ${CYAN}Installing Sliver C2...${NC}"
+    curl -sSL https://sliver.sh/install 2>/dev/null | bash 2>&1 | tail -3 && \
+      echo -e "  ${GREEN}✓${NC} sliver installed" || \
+      echo -e "  ${YELLOW}~${NC} sliver install failed"
+  else
+    echo -e "  ${YELLOW}~${NC} sliver already installed"
+  fi
+
+  # ── Merlin ── (Go, github releases)
+  if [ ! -d /opt/Merlin ]; then
+    echo -e "  ${CYAN}Cloning Merlin C2 server...${NC}"
+    git clone --quiet --depth 1 https://github.com/Ne0nd0g/merlin.git /opt/Merlin 2>&1 | tail -2 || true
+    [ -d /opt/Merlin ] && echo -e "  ${GREEN}✓${NC} merlin → /opt/Merlin" || \
+      echo -e "  ${YELLOW}~${NC} merlin clone failed"
+  else
+    echo -e "  ${YELLOW}~${NC} merlin already at /opt/Merlin"
+  fi
+
+  # ── PoshC2 ── (PowerShell C2, official installer)
+  if [ ! -d /opt/PoshC2 ]; then
+    echo -e "  ${CYAN}Installing PoshC2...${NC}"
+    curl -sSL https://raw.githubusercontent.com/nettitude/PoshC2/master/Install.sh 2>/dev/null | bash 2>&1 | tail -3 || true
+    [ -d /opt/PoshC2 ] && echo -e "  ${GREEN}✓${NC} poshc2 → /opt/PoshC2" || \
+      echo -e "  ${YELLOW}~${NC} poshc2 install failed"
+  else
+    echo -e "  ${YELLOW}~${NC} poshc2 already at /opt/PoshC2"
+  fi
+
+  # ── Empire ── (apt on Kali, fallback to git clone)
+  if ! command -v powershell-empire &>/dev/null && [ ! -d /opt/Empire ]; then
+    echo -e "  ${CYAN}Installing Empire C2 (via apt)...${NC}"
+    apt install -y powershell-empire 2>/dev/null && \
+      echo -e "  ${GREEN}✓${NC} empire (apt)" || {
+        git clone --quiet --depth 1 https://github.com/BC-SECURITY/Empire.git /opt/Empire 2>&1 | tail -2 || true
+        [ -d /opt/Empire ] && echo -e "  ${GREEN}✓${NC} empire → /opt/Empire" || \
+          echo -e "  ${YELLOW}~${NC} empire install failed"
+      }
+  else
+    echo -e "  ${YELLOW}~${NC} empire already present"
+  fi
+
+  # ── Covenant ── (.NET C2, requires dotnet — clone only, build separately)
+  if [ ! -d /opt/Covenant ]; then
+    echo -e "  ${CYAN}Cloning Covenant C2 (build with dotnet separately)...${NC}"
+    git clone --quiet --recurse-submodules --depth 1 \
+      https://github.com/cobbr/Covenant.git /opt/Covenant 2>&1 | tail -2 || true
+    [ -d /opt/Covenant ] && echo -e "  ${GREEN}✓${NC} covenant → /opt/Covenant" || \
+      echo -e "  ${YELLOW}~${NC} covenant clone failed"
+  else
+    echo -e "  ${YELLOW}~${NC} covenant already at /opt/Covenant"
+  fi
+
+  # ── Mythic ── (Docker-based, just clone the repo; user runs install separately)
+  if [ ! -d /opt/Mythic ]; then
+    echo -e "  ${CYAN}Cloning Mythic C2 (run ./install_docker_ubuntu.sh separately)...${NC}"
+    git clone --quiet --depth 1 https://github.com/its-a-feature/Mythic.git /opt/Mythic 2>&1 | tail -2 || true
+    [ -d /opt/Mythic ] && echo -e "  ${GREEN}✓${NC} mythic → /opt/Mythic" || \
+      echo -e "  ${YELLOW}~${NC} mythic clone failed"
+  else
+    echo -e "  ${YELLOW}~${NC} mythic already at /opt/Mythic"
+  fi
+
+  # Chown all C2 dirs to invoking user
+  if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    for d in Merlin PoshC2 Empire Covenant Mythic; do
+      [ -d "/opt/$d" ] && chown -R "$SUDO_USER":"$SUDO_USER" "/opt/$d" 2>/dev/null || true
+    done
+  fi
+
+  cd - > /dev/null
+  echo -e "  ${GREEN}C2 frameworks done${NC}"
+  echo -e "  ${YELLOW}Note: most C2s need additional setup (db init, dotnet build,${NC}"
+  echo -e "  ${YELLOW}      docker images). See each repo's README for next steps.${NC}"
+}
+
+# ── Step 1f: Knowledge-base reference repos (Windows-side tooling) ────────────
+# These are NOT installable tools — they're PowerShell scripts, JSON databases,
+# or web resources. We clone them to /opt/knowledge so ERR0RS can index them
+# in RAG and teach about them, even though they don't "run" on Kali.
+init_knowledge_repos() {
+  echo -e "\n${CYAN}[1f/5] Cloning reference repos for RAG knowledge base...${NC}"
+
+  if [ "$WITH_KNOWLEDGE_REPOS" != "true" ]; then
+    echo -e "  ${YELLOW}~${NC} Skipped — Windows-side reference repos NOT cloned"
+    echo -e "    To clone them: ${CYAN}sudo bash install.sh --with-knowledge-repos${NC}"
+    return 0
+  fi
+
+  KB_DIR="$SCRIPT_DIR/knowledge_repos"
+  mkdir -p "$KB_DIR"
+  cd "$KB_DIR"
+
+  # KB_REPOS: format "name|repo_url"
+  KB_REPOS=(
+    "GTFOBins|https://github.com/GTFOBins/GTFOBins.github.io.git"
+    "LOLBAS|https://github.com/LOLBAS-Project/LOLBAS.git"
+    "PowerSploit|https://github.com/PowerShellMafia/PowerSploit.git"
+    "Watson|https://github.com/rasta-mouse/Watson.git"
+    "Beroot|https://github.com/AlessandroZ/BeRoot.git"
+    "windows-exploit-suggester|https://github.com/AonCyberLabs/Windows-Exploit-Suggester.git"
+    "PrivescCheck|https://github.com/itm4n/PrivescCheck.git"
+    "PayloadsAllTheThings|https://github.com/swisskyrepo/PayloadsAllTheThings.git"
+    "HackTricks|https://github.com/HackTricks-wiki/hacktricks.git"
+  )
+
+  for entry in "${KB_REPOS[@]}"; do
+    name="${entry%%|*}"
+    repo="${entry##*|}"
+    target="$KB_DIR/$name"
+
+    if [ -d "$target/.git" ]; then
+      echo -e "  ${YELLOW}~${NC} $name already cloned — pulling"
+      (cd "$target" && git pull --quiet 2>/dev/null) || true
+    else
+      echo -e "  ${CYAN}Cloning $name...${NC}"
+      git clone --quiet --depth 1 "$repo" "$target" 2>&1 | tail -2 && \
+        echo -e "  ${GREEN}✓${NC} $name" || \
+        echo -e "  ${YELLOW}~${NC} $name clone failed"
+    fi
+  done
+
+  # Chown back to invoking user
+  if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    chown -R "$SUDO_USER":"$SUDO_USER" "$KB_DIR" 2>/dev/null || true
+  fi
+
+  cd - > /dev/null
+  echo -e "  ${GREEN}Knowledge repos ready at $KB_DIR${NC}"
+  echo -e "  ${CYAN}Run RAG indexer to make these searchable.${NC}"
 }
 
 # ── Step 2: Python Dependencies ───────────────────────────────────────────────
@@ -478,33 +811,53 @@ Options:
   --with-submodules      Clone all 75 knowledge-base submodules (badusb,
                          atomic-red-team, PyRIT, etc.). Adds 10-30 min and
                          multi-GB of disk. Off by default.
+  --with-c2              Install C2 frameworks: empire, sliver, covenant,
+                         merlin, poshc2, mythic. Heavy install — multi-GB.
+                         Off by default.
+  --with-knowledge-repos Clone reference repos: GTFOBins, LOLBAS, PowerSploit,
+                         windows-exploit-suggester, etc. — for RAG indexing
+                         of Windows-side tools that can't run on Kali.
   --skip-go-tools        Skip Go-based tool installation (dalfox, katana,
                          httpx, naabu, gau, waybackurls, etc.). Use this
                          if you have a slow connection or no internet.
+  --skip-pip-tools       Skip pip-installed security tools (pwntools, droopescan,
+                         corsy, jwt_tool, graphqlmap, etc.)
+  --skip-github-tools    Skip github-clone tools (sn1per, autosploit, LinkFinder,
+                         SecretFinder, privesccheck)
   --skip-ollama          Skip Ollama install + model pull. Useful if you
                          already have it running, or you're not using local LLM.
   -h, --help             Show this help and exit.
 
 Examples:
-  sudo bash install.sh
-  sudo bash install.sh --with-submodules
-  sudo bash install.sh --skip-go-tools --skip-ollama
+  sudo bash install.sh                            # Default install
+  sudo bash install.sh --with-c2                  # + C2 frameworks
+  sudo bash install.sh --with-knowledge-repos     # + Windows-side reference repos
+  sudo bash install.sh --with-submodules --with-c2 --with-knowledge-repos  # FULL
+  sudo bash install.sh --skip-go-tools --skip-ollama                       # MINIMAL
 USAGE
 }
 
 # ── CLI parser ────────────────────────────────────────────────────────────────
 parse_args() {
   WITH_SUBMODULES="false"
+  WITH_C2="false"
+  WITH_KNOWLEDGE_REPOS="false"
   SKIP_GO_TOOLS="false"
+  SKIP_PIP_TOOLS="false"
+  SKIP_GITHUB_TOOLS="false"
   SKIP_OLLAMA="false"
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --with-submodules)  WITH_SUBMODULES="true";  shift ;;
-      --skip-go-tools)    SKIP_GO_TOOLS="true";    shift ;;
-      --skip-ollama)      SKIP_OLLAMA="true";      shift ;;
-      -h|--help)          usage; exit 0 ;;
-      *)                  echo "Unknown option: $1"; usage; exit 1 ;;
+      --with-submodules)      WITH_SUBMODULES="true";       shift ;;
+      --with-c2)              WITH_C2="true";               shift ;;
+      --with-knowledge-repos) WITH_KNOWLEDGE_REPOS="true";  shift ;;
+      --skip-go-tools)        SKIP_GO_TOOLS="true";         shift ;;
+      --skip-pip-tools)       SKIP_PIP_TOOLS="true";        shift ;;
+      --skip-github-tools)    SKIP_GITHUB_TOOLS="true";     shift ;;
+      --skip-ollama)          SKIP_OLLAMA="true";           shift ;;
+      -h|--help)              usage; exit 0 ;;
+      *)                      echo "Unknown option: $1"; usage; exit 1 ;;
     esac
   done
 }
@@ -527,9 +880,13 @@ main() {
 
   # Show what we're going to do
   echo -e "${CYAN}[*] Install plan:${NC}"
-  echo -e "    Submodules:  ${WITH_SUBMODULES}"
-  echo -e "    Go tools:    $([ "$SKIP_GO_TOOLS" = "true" ] && echo "skip" || echo "install")"
-  echo -e "    Ollama:      $([ "$SKIP_OLLAMA" = "true" ] && echo "skip" || echo "install")"
+  echo -e "    Submodules:      ${WITH_SUBMODULES}"
+  echo -e "    C2 frameworks:   ${WITH_C2}"
+  echo -e "    Knowledge repos: ${WITH_KNOWLEDGE_REPOS}"
+  echo -e "    Go tools:        $([ "$SKIP_GO_TOOLS" = "true" ] && echo "skip" || echo "install")"
+  echo -e "    Pip tools:       $([ "$SKIP_PIP_TOOLS" = "true" ] && echo "skip" || echo "install")"
+  echo -e "    Github tools:    $([ "$SKIP_GITHUB_TOOLS" = "true" ] && echo "skip" || echo "install")"
+  echo -e "    Ollama:          $([ "$SKIP_OLLAMA" = "true" ] && echo "skip" || echo "install")"
 
   # Check if running as root for system installs
   if [ "$EUID" -ne 0 ]; then
@@ -542,9 +899,13 @@ main() {
     smoke_test
   else
     install_system_deps
-    [ "$SKIP_GO_TOOLS" != "true" ] && install_go_tools
+    [ "$SKIP_GO_TOOLS"     != "true" ] && install_go_tools
+    [ "$SKIP_PIP_TOOLS"    != "true" ] && install_pip_tools
+    [ "$SKIP_GITHUB_TOOLS" != "true" ] && install_github_tools
+    [ "$WITH_C2"           = "true"  ] && install_c2_frameworks
+    init_knowledge_repos
     install_python_deps
-    [ "$SKIP_OLLAMA" != "true" ] && install_ollama
+    [ "$SKIP_OLLAMA"       != "true" ] && install_ollama
     init_submodules
     setup_env
     setup_desktop

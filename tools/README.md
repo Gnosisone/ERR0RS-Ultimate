@@ -26,10 +26,50 @@ python3 tools/validate_registry.py --quiet   # CI mode: silent on success
 
 - **Phase 1** ✅ — install.sh full tool universe (apt + go + pip + github + c2 + KB repos)
 - **Phase 2** ✅ — unified registry schema + migration of existing 47 tools
-- **Phase 3** ⏳ — LLM teach generator: fill `opsec_notes`, `sample_outputs`, `legal_notes`, `false_positives`, `mitre_attack` for all 49 tier-1 tools, then auto-generate tier-2 entries for the ~60 new tools install.sh now installs.
-- **Phase 4** ⏳ — `professor_engine.explain()` — the single front door for "teach me X" queries.
+- **Phase 3** 🟡 — LLM teach generator BUILT but DEFERRED. The generator
+  (`generate_teach.py`) is fully functional with both Ollama (local) and
+  Anthropic (cloud) backends. It uses a structured prompt designed to
+  produce beginner-accessible + bleeding-edge content (2025-2026
+  tradecraft, modern EDR bypass, current cloud/AD chains).
+
+  **Why deferred:** qwen2.5-coder:32b on the x86 dev VM is CPU-bound at
+  ~6 hours per tool (proven by pre-warm benchmark). Full sweep of 49
+  tools would take weeks of wall time. The plan is to defer execution
+  until Pi 5 + Hailo-10H NPU hardware is online — that combination
+  runs qwen at orders-of-magnitude faster, making local generation
+  practical.
+
+  **Ready-to-run command on Pi 5:**
+  ```bash
+  python3 tools/generate_teach.py --all --backend ollama
+  ```
+  Generator emits to `src/tools/tool_registry.generated.json` (separate
+  file, NOT auto-merged into v2). After review, run
+  `tools/merge_generated.py --write` (built in Phase 3b) to fold
+  approved entries into the canonical registry.
+
+  **Anthropic fallback** for build-time hand-curation is available right
+  now via `--backend anthropic` if you set `ANTHROPIC_API_KEY` in `.env`.
+
+- **Phase 4** ⏳ — `professor_engine.explain()` — single front door for
+  "teach me X" queries. Can be built NOW against the existing 49-tool
+  v2 registry, which already has deep hand-curated flag-level teach
+  data + 7 concept entries (CIA, OWASP, MITRE, kill chain, etc.).
 - **Phase 5** ⏳ — intent routing + UI Teach button.
 - **Phase 6** ⏳ — verification + smoke tests.
+
+## Generator backends — quality vs. speed reality
+
+| Backend | Speed/tool | Quality | Cost | Locality |
+|---|---|---|---|---|
+| qwen2.5-coder:32b on Pi 5+Hailo | ~30-60s (projected) | excellent | $0 | fully local |
+| qwen2.5-coder:32b on x86 CPU (this VM) | ~6 hours | excellent | $0 | fully local |
+| llama3.2 (2GB) | ~30-60s | decent — needs retry on JSON | $0 | fully local |
+| Claude Haiku 4.5 (Anthropic) | ~3-5s | great | ~$0.25/sweep | cloud |
+| Claude Sonnet 4.6 (Anthropic) | ~10s | best | ~$2-3/sweep | cloud |
+
+Whatever backend generates the data, ERR0RS itself ships and runs
+fully offline at runtime — the JSON files are the deployable artifact.
 
 ## Schema authoring notes
 

@@ -1,0 +1,175 @@
+{
+  "version": "2.0.0",
+  "generated_at": "2026-05-13T13:40:50.727773+00:00",
+  "concepts": {
+    "cis": {
+      "display_name": "CIS Controls v8",
+      "aliases": [
+        "CIS",
+        "Cis",
+        "cis"
+      ],
+      "category": "framework",
+      "summary": "CIS Controls v8 — 18 controls that block 85% of common attacks",
+      "teach": "CIS Controls v8 — 18 controls that block 85% of common attacks",
+      "components": [
+        "CIS 1: Inventory of Enterprise Assets — know what's on your network",
+        "CIS 2: Inventory of Software Assets — know what's running",
+        "CIS 3: Data Protection — classify and protect sensitive data",
+        "CIS 4: Secure Config — harden everything to CIS Benchmarks",
+        "CIS 5: Account Management — control who has accounts and access",
+        "CIS 6: Access Control — enforce least privilege",
+        "CIS 7: Continuous Vulnerability Management — patch within 30 days",
+        "CIS 8: Audit Log Management — log everything, retain 90+ days",
+        "CIS 9: Email/Web Browser Protections — SPF/DKIM/DMARC, web filtering",
+        "CIS 10: Malware Defenses — AV/EDR with behavior detection",
+        "CIS 11: Data Recovery — encrypted backups, test restoration",
+        "CIS 12: Network Infrastructure Management — firewall rules, segmentation",
+        "CIS 13: Network Monitoring — IDS/IPS, NetFlow analysis",
+        "CIS 14: Security Awareness Training — phishing sims, annual training",
+        "CIS 15: Service Provider Management — vendor risk assessments",
+        "CIS 16: Application Security — SDLC, SAST/DAST, dependency scanning",
+        "CIS 17: Incident Response — IR plan, tabletop exercises",
+        "CIS 18: Penetration Testing — annual tests, remediation tracking"
+      ],
+      "related": [],
+      "references": []
+    },
+    "owasp": {
+      "display_name": "OWASP Top 10 2021",
+      "aliases": [
+        "OWASP",
+        "Owasp",
+        "owasp"
+      ],
+      "category": "standard",
+      "summary": "OWASP Top 10 2021 — the 10 most critical web application security risks",
+      "teach": "OWASP Top 10 2021 — the 10 most critical web application security risks",
+      "components": [
+        "A01 Broken Access Control: Most critical — users accessing other users' data",
+        "A02 Cryptographic Failures: Sensitive data in cleartext, weak ciphers, no TLS",
+        "A03 Injection: SQLi, OS command injection, LDAP injection, XPath",
+        "A04 Insecure Design: Missing threat models, no security requirements",
+        "A05 Security Misconfiguration: Default creds, cloud misconfigs, verbose errors",
+        "A06 Vulnerable Components: Outdated libraries with known CVEs",
+        "A07 Auth Failures: Weak passwords, no MFA, credential stuffing",
+        "A08 Software Integrity: Unsigned code, no SCA, supply chain attacks",
+        "A09 Logging Failures: No audit logs, not alerting on attacks",
+        "A10 SSRF: Server fetches attacker-controlled URLs"
+      ],
+      "related": [],
+      "references": []
+    },
+    "mitre": {
+      "display_name": "MITRE ATT&CK",
+      "aliases": [
+        "MITRE",
+        "Mitre",
+        "mitre"
+      ],
+      "category": "framework",
+      "summary": "MITRE ATT&CK — structured knowledge base of attacker TTPs (Tactics, Techniques, Procedures)",
+      "teach": "MITRE ATT&CK — structured knowledge base of attacker TTPs (Tactics, Techniques, Procedures)",
+      "components": [
+        "TA0043 Reconnaissance: OSINT, port scanning, phishing for info",
+        "TA0042 Resource Dev: Setting up infrastructure, malware, credentials",
+        "TA0001 Initial Access: Phishing, exploit public-facing app, valid accounts",
+        "TA0002 Execution: Running code: PowerShell, cmd, WMI, scripts",
+        "TA0003 Persistence: Maintaining access: registry run keys, scheduled tasks, backdoors",
+        "TA0004 Priv Escalation: Becoming SYSTEM/root: SUID, sudo, token impersonation",
+        "TA0005 Defense Evasion: Hiding: obfuscation, AMSI bypass, log clearing",
+        "TA0006 Credential Access: Dumping: Mimikatz, SAM, LSASS, Kerberoasting",
+        "TA0007 Discovery: Mapping the network: nmap, BloodHound, net commands",
+        "TA0008 Lateral Movement: Moving host to host: Pass-the-Hash, RDP, PsExec",
+        "TA0009 Collection: Staging data to exfiltrate",
+        "TA0010 Exfiltration: Getting data out: DNS, HTTPS, cloud storage",
+        "TA0011 C2: Command and Control: Cobalt Strike, Empire, Metasploit",
+        "TA0040 Impact: Ransomware, data destruction, defacement"
+      ],
+      "related": [],
+      "references": []
+    },
+    "kill-chain": {
+      "display_name": "Cyber Kill Chain",
+      "aliases": [
+        "KILL-CHAIN",
+        "Kill Chain",
+        "kill-chain"
+      ],
+      "category": "model",
+      "summary": "Cyber Kill Chain — 7 phases of every targeted attack (Lockheed Martin)",
+      "teach": "Cyber Kill Chain — 7 phases of every targeted attack (Lockheed Martin)",
+      "components": [
+        "1 Reconnaissance: OSINT, shodan, LinkedIn — learning about the target",
+        "2 Weaponization: Building payloads, exploits, phishing emails",
+        "3 Delivery: Getting the payload to the target: email, USB, exploit",
+        "4 Exploitation: Triggering the vulnerability — code runs on target",
+        "5 Installation: Persistence — making sure you stay after reboot",
+        "6 C2: Establishing command and control channel",
+        "7 Actions on Obj: The actual goal: data theft, ransomware, espionage"
+      ],
+      "related": [],
+      "references": []
+    },
+    "cia": {
+      "display_name": "CIA Triad",
+      "aliases": [
+        "CIA",
+        "Cia",
+        "cia"
+      ],
+      "category": "doctrine",
+      "summary": "CIA Triad — Confidentiality, Integrity, Availability — the foundation of security",
+      "teach": "CIA Triad — Confidentiality, Integrity, Availability — the foundation of security",
+      "components": [
+        "Confidentiality: Only authorized parties can access data (encryption, access controls)",
+        "Integrity: Data hasn't been tampered with (hashing, digital signatures, audit logs)",
+        "Availability: Systems are accessible when needed (redundancy, backups, DDoS mitigation)"
+      ],
+      "related": [],
+      "references": []
+    },
+    "incident-response": {
+      "display_name": "IR Phases (NIST SP 800-61)",
+      "aliases": [
+        "INCIDENT-RESPONSE",
+        "Incident Response",
+        "incident-response"
+      ],
+      "category": "phase",
+      "summary": "IR Phases (NIST SP 800-61) — Preparation, Detection, Containment, Eradication, Recovery, Lessons Learned",
+      "teach": "IR Phases (NIST SP 800-61) — Preparation, Detection, Containment, Eradication, Recovery, Lessons Learned",
+      "components": [
+        "Phase 1 Preparation: IR plan, contact lists, runbooks, SIEM configured, EDR deployed",
+        "Phase 2 Detection: Alert fires — is this a true positive? Triage and classify severity",
+        "Phase 3 Containment: Stop the bleeding — isolate affected systems without destroying evidence",
+        "Phase 4 Eradication: Remove the attacker — delete malware, close backdoors, patch the vuln",
+        "Phase 5 Recovery: Restore from clean backups, verify integrity, monitor closely",
+        "Phase 6 Lessons Learned: Post-incident report — what happened, timeline, gaps, improvements"
+      ],
+      "related": [],
+      "references": []
+    },
+    "threat-modeling": {
+      "display_name": "THREAT MODELING",
+      "aliases": [
+        "THREAT-MODELING",
+        "Threat Modeling",
+        "threat-modeling"
+      ],
+      "category": "doctrine",
+      "summary": "Structured process to identify what can go wrong before you build or test",
+      "teach": "Structured process to identify what can go wrong before you build or test",
+      "components": [
+        "Spoofing: Can an attacker fake identity? (phishing, ARP spoofing, JWT forgery)",
+        "Tampering: Can data be modified? (MITM, SQLi, file write)",
+        "Repudiation: Can actions be denied? (no logs, log deletion)",
+        "Information Disclosure: Can private data be exposed? (verbose errors, IDOR, SQLi)",
+        "Denial of Service: Can the system be made unavailable? (DDoS, resource exhaustion)",
+        "Elevation of Privilege: Can low-priv become high-priv? (SUID, sudo misconfig, token theft)"
+      ],
+      "related": [],
+      "references": []
+    }
+  }
+}

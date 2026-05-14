@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "generated_at": "2026-05-14T01:23:28.846304+00:00",
+  "source_registry_version": "2.0.0",
+  "tools": {
+    "nmap": {
+      "opsec_notes": [
+        "This scan generates a lot of DNS queries, which can be detected by network monitoring tools.",
+        "CrowdStrike Falcon detects Nmap scans based on process tree anomalies and command-line entropy scoring.",
+        "Sysmon EID 25 logs Nmap activity, making it easy to identify in security event logs.",
+        "Defender for Endpoint can detect Nmap scans through AMSI logs and parent-child process relationships."
+      ],
+      "sample_outputs": [
+        {
+          "scenario": "A beginner is scanning a single host (192.168.1.1) with default flags to find open ports.",
+          "command": "nmap 192.168.1.1",
+          "output": "[+] Scanning target hosts (1/1): 192.168.1.1\nPORT   STATE SERVICE VERSION\n22/tcp open  ssh     OpenSSH 7.4p1 Debian 10+deb9u7 (protocol 2.0)\n80/tcp open  http    Apache/2.4.x",
+          "explanation": "The output shows that port 22 is open and running SSH, while port 80 is open and running Apache HTTP Server. The operator should now try to exploit the open ports using appropriate tools like Metasploit or attempt to crack any weak passwords."
+        },
+        {
+          "scenario": "An advanced red-team is scanning a target network (192.168.1.0/24) with aggressive flags and custom scripts to discover all services and potential vulnerabilities.",
+          "command": "nmap -A -p- --script vuln 192.168.1.0/24",
+          "output": "[+] Scanning target hosts (1/254): 192.168.1.5\nPORT     STATE SERVICE VERSION\n22/tcp open  ssh     OpenSSH 7.4p1 Debian 10+deb9u7 (protocol 2.0)\n80/tcp open  http    Apache/2.4.x\n[+] Nmap scan report for 192.168.1.5\nHost is up (0.0003s latency).\nPORT   STATE SERVICE VERSION\n22/tcp open  ssh     OpenSSH 7.4p1 Debian 10+deb9u7 (protocol 2.0)\n80/tcp open  http    Apache/2.4.x\n[+] Nmap scan report for 192.168.1.10\nHost is up (0.0005s latency).\nPORT   STATE SERVICE VERSION\n22/tcp open  ssh     OpenSSH 7.4p1 Debian 10+deb9u7 (protocol 2.0)\n80/tcp open  http    Apache/2.4.x",
+          "explanation": "The output shows that multiple hosts have open ports and running services. The operator should now use tools like Nikto to scan the web servers for vulnerabilities, or attempt to exploit any known weaknesses in the SSH service."
+        }
+      ],
+      "legal_notes": [
+        "This tool is used for authorized penetration testing only.",
+        "Do not perform scans on systems without explicit permission.",
+        "Ensure compliance with all relevant laws and regulations."
+      ],
+      "false_positives": [
+        "Stateful firewalls can cause closed ports to appear filtered.",
+        "Network congestion can make some ports appear open but unresponsive.",
+        "Firewall rules or access controls can prevent Nmap from detecting certain services."
+      ],
+      "mitre_attack": [
+        {
+          "id": "T1046",
+          "name": "Network Service Discovery"
+        },
+        {
+          "id": "T1057.002",
+          "name": "Process Injection"
+        }
+      ]
+    }
+  }
+}

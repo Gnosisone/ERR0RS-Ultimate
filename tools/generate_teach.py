@@ -2,6 +2,22 @@
 """
 ERR0RS — Teach Generator (Phase 3)
 ══════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  ⚠  PHASE 3 IS GATED ON HAILO ACCELERATION ⚠                                 ║
+║                                                                              ║
+║  Reality-check (verified 2026-05-14 on Pi 5 + Hailo-10H + Kali ARM64):       ║
+║    • Ollama does NOT use the Hailo NPU. It runs on CPU only.                 ║
+║    • qwen2.5-coder:7b on Pi 5 ARM CPU = ~13+ min per tool.                   ║
+║    • Full 49-tool sweep = ~8-15 hours wall time.                             ║
+║                                                                              ║
+║  Recommended paths BEFORE running this script:                               ║
+║    1. docs/HAILO_PHASE3_STATUS.md — read first                               ║
+║    2. Use --backend anthropic with ANTHROPIC_API_KEY set (~5-10 min total)   ║
+║    3. Run on a GPU machine, ship the resulting JSON                          ║
+║    4. Wait for a real HailoBackend implementation                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
 Uses an LLM (Ollama by default, Anthropic API as fallback) to fill in
 the 5 stub fields that Phase 2 left empty in tool_registry.v2.json:
 

@@ -29,6 +29,7 @@ src/output/
 *.m4a
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 *.crt

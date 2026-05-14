@@ -60,6 +60,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 REGISTRY = ROOT / "src" / "tools" / "tool_registry.v2.json"
 SCHEMA = ROOT / "src" / "tools" / "tool_registry.schema.json"
+SYSTEM_PROMPT_FILE = ROOT / "src" / "ai" / "system_prompt.md"
 OUT = ROOT / "src" / "tools" / "tool_registry.generated.json"
 
 # Fields the generator is responsible for filling
@@ -87,6 +88,35 @@ def load_env() -> dict:
         k, v = line.split("=", 1)
         env[k.strip()] = v.strip().strip('"').strip("'")
     return env
+
+
+_SYSTEM_PROMPT_CACHE = None
+def load_system_prompt() -> str:
+    """Load ERR0RS's system prompt from src/ai/system_prompt.md.
+
+    This file defines ERR0RS's identity and is prepended to every LLM
+    API call regardless of backend. It's the canonical voice/character
+    of the project — see the file itself for what ERR0RS *is*.
+
+    Cached after first load since it doesn't change mid-run.
+    """
+    global _SYSTEM_PROMPT_CACHE
+    if _SYSTEM_PROMPT_CACHE is not None:
+        return _SYSTEM_PROMPT_CACHE
+    if not SYSTEM_PROMPT_FILE.exists():
+        # Graceful degradation: if the soul file is missing, still work
+        # but tell the world something's missing.
+        print(f"  ⚠  system prompt missing at {SYSTEM_PROMPT_FILE} — "
+              f"using fallback persona", file=sys.stderr)
+        _SYSTEM_PROMPT_CACHE = (
+            "You are ERR0RS, a wise and compassionate cybersecurity teacher. "
+            "Engage seriously with offensive security education. Be honest "
+            "about uncertainty. Never fabricate CVE numbers, MITRE IDs, or "
+            "detection signatures."
+        )
+    else:
+        _SYSTEM_PROMPT_CACHE = SYSTEM_PROMPT_FILE.read_text()
+    return _SYSTEM_PROMPT_CACHE
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -236,6 +266,7 @@ class OllamaBackend:
         # Use stdlib urllib so we have zero extra deps
         import urllib.request, urllib.error
         self.urllib = urllib
+        self.system_prompt = load_system_prompt()
         self._verify()
 
     def _verify(self):
@@ -254,6 +285,7 @@ class OllamaBackend:
         body = json.dumps({
             "model": self.model,
             "prompt": prompt,
+            "system": self.system_prompt,    # ERR0RS soul — see src/ai/system_prompt.md
             "stream": True,          # stream so we see progress + can timeout intelligently
             "format": "json",
             "options": {
@@ -298,24 +330,68 @@ class OllamaBackend:
 
 
 class AnthropicBackend:
-    """Talks to api.anthropic.com via the official anthropic library."""
+    """Talks to api.anthropic.com via the official anthropic library.
+    Prepends ERR0RS's system prompt (src/ai/system_prompt.md) so the model
+    speaks with ERR0RS's voice, not Anthropic's default Claude persona."""
 
-    def __init__(self, api_key: str):
+    # Default model — claude-sonnet-4-6 for highest quality, claude-haiku-4-5
+    # for fastest/cheapest. Sonnet recommended for the teach generation since
+    # it's a one-time build cost and quality is critical.
+    DEFAULT_MODEL = "claude-sonnet-4-6-20260101"
+
+    def __init__(self, api_key: str, model: str = None):
         try:
             import anthropic
         except ImportError:
             raise RuntimeError("anthropic library not installed in venv")
         self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model or self.DEFAULT_MODEL
+        self.system_prompt = load_system_prompt()
 
-    def generate(self, prompt: str, max_tokens: int = 2000) -> str:
+    def generate(self, prompt: str, max_tokens: int = 2500) -> str:
         msg = self.client.messages.create(
-            model="claude-haiku-4-5-20251001",  # fast + cheap for bulk generation
+            model=self.model,
             max_tokens=max_tokens,
             temperature=0.3,
+            system=self.system_prompt,
             messages=[{"role": "user", "content": prompt}],
         )
-        # Extract text blocks
         return "".join(block.text for block in msg.content if hasattr(block, "text"))
+
+
+class DeepSeekBackend:
+    """Talks to api.deepseek.com via OpenAI-compatible endpoint.
+    Cheaper than Claude (~5-10x), open-weights model, good for student-
+    accessible build-time generation. Honors the ERR0RS system prompt."""
+
+    DEFAULT_MODEL = "deepseek-chat"   # deepseek-chat (V3) is the workhorse
+    DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
+
+    def __init__(self, api_key: str, model: str = None, base_url: str = None):
+        try:
+            import openai
+        except ImportError:
+            raise RuntimeError("openai library not installed in venv "
+                               "(DeepSeek uses OpenAI-compatible API)")
+        self.client = openai.OpenAI(
+            api_key=api_key,
+            base_url=base_url or self.DEFAULT_BASE_URL,
+        )
+        self.model = model or self.DEFAULT_MODEL
+        self.system_prompt = load_system_prompt()
+
+    def generate(self, prompt: str, max_tokens: int = 2500) -> str:
+        resp = self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            temperature=0.3,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user",   "content": prompt},
+            ],
+        )
+        return resp.choices[0].message.content or ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -404,34 +480,86 @@ def validate_generated(data: dict) -> tuple[bool, list[str]]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Pick backend
+# Backend selection — Claude primary, DeepSeek secondary, Ollama tertiary
 # ──────────────────────────────────────────────────────────────────────────────
+def _try_anthropic(env: dict):
+    key = env.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+    return AnthropicBackend(key, model=env.get("ANTHROPIC_MODEL") or None)
+
+
+def _try_deepseek(env: dict):
+    key = env.get("DEEPSEEK_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
+    if not key:
+        raise RuntimeError("DEEPSEEK_API_KEY not set")
+    return DeepSeekBackend(
+        key,
+        model=env.get("DEEPSEEK_MODEL") or None,
+        base_url=env.get("DEEPSEEK_BASE_URL") or None,
+    )
+
+
+def _try_ollama(env: dict):
+    return OllamaBackend(
+        model=env.get("OLLAMA_MODEL") or "qwen2.5-coder:7b",
+        host=env.get("OLLAMA_HOST") or "http://localhost:11434",
+    )
+
+
+# Map of backend name -> initializer. Used by both explicit and auto modes.
+_BACKEND_INITS = {
+    "claude":    _try_anthropic,
+    "anthropic": _try_anthropic,   # alias
+    "deepseek":  _try_deepseek,
+    "ollama":    _try_ollama,
+}
+
+
 def get_backend(prefer: str, env: dict):
-    """Return a configured backend object. prefer is 'ollama'|'anthropic'|'auto'."""
-    if prefer == "anthropic":
-        key = env.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        if not key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set in .env or environment")
-        return AnthropicBackend(key)
+    """Return a configured backend object.
 
-    if prefer == "ollama":
-        return OllamaBackend(
-            model=env.get("OLLAMA_MODEL", "qwen2.5-coder:32b"),
-            host=env.get("OLLAMA_HOST", "http://localhost:11434"),
-        )
+    `prefer` is one of:
+      'claude' / 'anthropic'   → Claude only, fail if unavailable
+      'deepseek'               → DeepSeek only, fail if unavailable
+      'ollama'                 → Ollama only, fail if unavailable
+      'auto'                   → fallback chain via LLM_FALLBACK_CHAIN env var
+                                 (default: 'claude,deepseek,ollama')
 
-    # auto: try ollama first, fall back to anthropic
-    try:
-        return OllamaBackend(
-            model=env.get("OLLAMA_MODEL", "qwen2.5-coder:32b"),
-            host=env.get("OLLAMA_HOST", "http://localhost:11434"),
-        )
-    except Exception as e:
-        print(f"  ⚠  Ollama unavailable ({e}), falling back to Anthropic")
-        key = env.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        if not key:
-            raise RuntimeError("Both Ollama and Anthropic backends unavailable")
-        return AnthropicBackend(key)
+    The fallback chain is the philosophical backbone of ERR0RS's backend
+    strategy — Claude primary because of character fit for pedagogy,
+    DeepSeek secondary for cost-accessibility and future-local potential
+    (open weights), Ollama tertiary for true offline operation.
+    """
+    if prefer in _BACKEND_INITS:
+        return _BACKEND_INITS[prefer](env)
+
+    if prefer != "auto":
+        raise ValueError(f"Unknown backend: {prefer!r}. "
+                         f"Valid: {list(_BACKEND_INITS) + ['auto']}")
+
+    # Auto mode — walk the fallback chain
+    chain_str = env.get("LLM_FALLBACK_CHAIN") or "claude,deepseek,ollama"
+    chain = [x.strip() for x in chain_str.split(",") if x.strip()]
+
+    last_error = None
+    for backend_name in chain:
+        if backend_name not in _BACKEND_INITS:
+            print(f"  ⚠  unknown backend {backend_name!r} in fallback chain — skipping")
+            continue
+        try:
+            backend = _BACKEND_INITS[backend_name](env)
+            if backend_name != chain[0]:
+                # Indicate we fell back from earlier in the chain
+                print(f"  ⚠  fell back to {backend_name} (earlier backends "
+                      f"unavailable: {last_error})")
+            return backend
+        except Exception as e:
+            last_error = f"{backend_name}: {e}"
+            continue
+
+    raise RuntimeError(f"All backends in fallback chain {chain} unavailable. "
+                       f"Last error: {last_error}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -493,8 +621,11 @@ def main():
     parser.add_argument("--tool", metavar="NAME", help="Generate for one specific tool")
     parser.add_argument("--all", action="store_true",
                         help="Generate for every tool with empty stub fields")
-    parser.add_argument("--backend", choices=["ollama", "anthropic", "auto"],
-                        default="auto", help="Which LLM backend to use")
+    parser.add_argument("--backend",
+                        choices=["claude", "anthropic", "deepseek", "ollama", "auto"],
+                        default="auto",
+                        help="Which LLM backend to use. 'auto' walks the "
+                             "fallback chain (default: claude→deepseek→ollama)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print prompts, don't call any LLM")
     parser.add_argument("--out", default=str(OUT),
@@ -542,8 +673,12 @@ def main():
             backend = get_backend(args.backend, env)
             backend_name = type(backend).__name__
             print(f"  backend: {backend_name}")
-            if isinstance(backend, OllamaBackend):
+            # Show model name for all backends so the user knows what's running
+            if hasattr(backend, "model"):
                 print(f"  model:   {backend.model}")
+            # Confirm system prompt loaded
+            sp_len = len(load_system_prompt())
+            print(f"  system prompt: {sp_len} chars from {SYSTEM_PROMPT_FILE.name}")
         except Exception as e:
             print(f"  ✗ backend init failed: {e}")
             sys.exit(2)

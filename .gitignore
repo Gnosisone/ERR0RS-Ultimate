@@ -38,3 +38,6 @@ secrets/
 .vscode/
 .idea/
 *.swp
+test_results.json
+knowledge.json
+.gitmodules.bak.*

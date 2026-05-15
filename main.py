@@ -435,7 +435,7 @@ def start_api(ai, host="0.0.0.0", port=8000, ctx=None, pm=None,
         print("pip install fastapi uvicorn --break-system-packages")
         sys.exit(1)
 
-    app = FastAPI(title="ERR0RS ULTIMATE API", version="2.0.0")
+    app = FastAPI(title="ERR0RS ULTIMATE API", version="3.5.0")
 
     @app.get("/")
     def root():

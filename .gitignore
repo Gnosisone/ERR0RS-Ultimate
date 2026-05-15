@@ -41,3 +41,4 @@ secrets/
 test_results.json
 knowledge.json
 .gitmodules.bak.*
+.claude/

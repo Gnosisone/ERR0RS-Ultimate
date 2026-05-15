@@ -57,6 +57,89 @@ BANNER = r"""
 # BOOT HELPERS
 # ═════════════════════════════════════════════════════════════════════════════
 
+def _run_setup_wizard():
+    """Interactive first-run setup wizard — writes .env from template."""
+    env_path = os.path.join(ROOT, ".env")
+    tmpl_path = os.path.join(ROOT, "configs", "config.template.env")
+
+    print(BANNER)
+    print("  ╔═══════════════════════════════════════╗")
+    print("  ║    ERR0RS FIRST-RUN SETUP WIZARD      ║")
+    print("  ╚═══════════════════════════════════════╝\n")
+
+    if os.path.exists(env_path):
+        ans = input("  .env already exists. Overwrite? [y/N]: ").strip().lower()
+        if ans != "y":
+            print("  Keeping existing .env. Run with --setup again to reconfigure.\n")
+            return
+
+    config = {}
+
+    print("  Step 1 of 4 — LLM Backend")
+    print("    1) ollama  (local, fully offline — recommended)")
+    print("    2) anthropic (Claude API — requires ANTHROPIC_API_KEY)")
+    print("    3) openai    (GPT-4 — requires OPENAI_API_KEY)")
+    choice = input("  Choose [1]: ").strip() or "1"
+    config["LLM_BACKEND"] = {"1": "ollama", "2": "anthropic", "3": "openai"}.get(choice, "ollama")
+
+    if config["LLM_BACKEND"] == "ollama":
+        model = input("  Ollama model [qwen2.5-coder:7b]: ").strip() or "qwen2.5-coder:7b"
+        config["OLLAMA_MODEL"] = model
+        config["OLLAMA_HOST"]  = "http://localhost:11434"
+    elif config["LLM_BACKEND"] == "anthropic":
+        key = input("  ANTHROPIC_API_KEY: ").strip()
+        config["ANTHROPIC_API_KEY"] = key
+    else:
+        key = input("  OPENAI_API_KEY: ").strip()
+        config["OPENAI_API_KEY"] = key
+
+    print("\n  Step 2 of 4 — Web UI")
+    host = input("  Bind host [127.0.0.1]: ").strip() or "127.0.0.1"
+    port = input("  Port [8765]: ").strip() or "8765"
+    config["UI_HOST"] = host
+    config["UI_PORT"]  = port
+
+    print("\n  Step 3 of 4 — Security key")
+    import secrets as _sec
+    generated = _sec.token_hex(32)
+    config["SECRET_KEY"] = generated
+    print(f"  Generated: {generated[:16]}...")
+
+    print("\n  Step 4 of 4 — Engagement defaults")
+    scope = input("  Default scope (CIDR or domain, or blank): ").strip()
+    config["DEFAULT_SCOPE"] = scope
+    teach = input("  Teach mode on by default? [Y/n]: ").strip().lower()
+    config["TEACH_MODE"] = "false" if teach == "n" else "true"
+
+    # Read template and overlay our values
+    try:
+        with open(tmpl_path) as f:
+            lines = f.readlines()
+        out = []
+        for line in lines:
+            written = False
+            for k, v in config.items():
+                if line.startswith(f"{k}="):
+                    out.append(f"{k}={v}\n")
+                    written = True
+                    break
+            if not written:
+                out.append(line)
+        with open(env_path, "w") as f:
+            f.writelines(out)
+        print(f"\n  \033[92m✓\033[0m .env written to {env_path}")
+    except Exception as e:
+        print(f"\n  \033[91m✗\033[0m Could not write .env: {e}")
+        return
+
+    print("\n  All done! Start ERR0RS with:")
+    if config["LLM_BACKEND"] == "ollama":
+        print(f"    ollama pull {config.get('OLLAMA_MODEL','qwen2.5-coder:7b')}")
+        print("    ollama serve  (in a separate terminal)")
+    print("    python3 src/ui/errorz_launcher.py  (web UI)")
+    print("    python3 main.py                    (CLI)\n")
+
+
 def _boot_plugin_system(config: dict = None):
     """SharedContext + PluginManager. Returns (ctx, pm)."""
     try:
@@ -167,8 +250,11 @@ def interactive_mode(ai, agent_type="red_team", ctx=None, pm=None,
         print(f"  Hardware     : {len(devs)} device(s) registered")
     if learn_mode:
         print("  \033[94m📘 Learn mode ON\033[0m")
-    print("\n  Commands: target | run | workflow | autopilot | report | devices | deploy")
-    print("            explain | learn | agent | plugins | status | exit")
+    print("\n  Commands: target <ip>  | run <tool>  | workflow <name> <target>")
+    print("            autopilot <target>  | report <target>  | devices | deploy")
+    print("            explain <topic>     | learn <topic>     | agent <type>")
+    print("            plugins | status | exit")
+    print("  Tip: type 'autopilot' with no args for safety info before running.")
     print("  ─────────────────────────────────────────────────────────────\n")
 
     current_agent = agent_type
@@ -221,6 +307,10 @@ def interactive_mode(ai, agent_type="red_team", ctx=None, pm=None,
                 continue
             pcmd   = parts[1]
             target = parts[2] if len(parts) > 2 else (ctx.get_active_target() if ctx else None)
+            if not target:
+                print("  \033[93m⚠  No target set.\033[0m  Set one first: target <ip/hostname>")
+                print("  Example: target 192.168.1.10")
+                continue
             if ctx and target:
                 ctx.set_active_target(target)
             result = pm.execute(pcmd, {"target": target})
@@ -242,7 +332,11 @@ def interactive_mode(ai, agent_type="red_team", ctx=None, pm=None,
         # ── Autopilot ─────────────────────────────────────────────
         elif cmd == "autopilot":
             if len(parts) < 2:
-                print("  Usage: autopilot <target>")
+                print("  Usage: autopilot <target>  [--safe]")
+                print("  What it does: autonomous kill-chain — recon → scan → enumerate → report")
+                print("  Steps: up to 25. Asks before running exploit modules.")
+                print("  Add --safe (or launch with --safe) to skip exploitation entirely.")
+                print("  Example: autopilot 192.168.1.10")
                 continue
             target = parts[1]
             try:
@@ -289,6 +383,10 @@ def interactive_mode(ai, agent_type="red_team", ctx=None, pm=None,
         # ── Report ────────────────────────────────────────────────
         elif cmd == "report" and report_generator:
             target = parts[1] if len(parts) > 1 else (ctx.get_active_target() if ctx else "")
+            if not target:
+                print("  \033[93m⚠  No target set.\033[0m  Usage: report <ip>  or  target <ip> then report")
+                continue
+            print("  \033[96m⏳ Generating report…\033[0m")
             report = report_generator.generate(target=target, enhance_ai=False)
             base   = f"report_{target.replace('.','_') or 'latest'}"
             md     = report_generator.save_markdown(report, f"{base}.md")
@@ -451,28 +549,32 @@ if __name__ == "__main__":
     parser.add_argument("--learn",     action="store_true",help="Enable learn mode")
     parser.add_argument("--safe",      action="store_true",help="Safe mode (no hardware)")
     parser.add_argument("--debug",     action="store_true",help="Debug logging")
+    parser.add_argument("--no-preflight", action="store_true",
+                        help="Skip startup health checks (faster boot)")
+    parser.add_argument("--setup",     action="store_true",
+                        help="Interactive first-run setup wizard")
     args = parser.parse_args()
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    # ── Setup wizard ──────────────────────────────────────────────────────
+    if args.setup:
+        _run_setup_wizard()
+        sys.exit(0)
+
+    # ── Pre-flight checks ─────────────────────────────────────────────────
+    if not args.no_preflight:
+        try:
+            from src.core.preflight import run as _preflight
+            _preflight(check_ollama_flag=True, verbose=True)
+        except Exception as _pf_err:
+            _log.debug(f"Preflight skipped: {_pf_err}")
+
     # ── AI ────────────────────────────────────────────────────────────────
     from src.ai import ERR0RSAI
 
-    # Run Ollama health check in background — never blocks boot
-    try:
-        import threading
-        from src.ai.ollama_health import run_health_check, auto_fix_model
-        def _bg_health():
-            try:
-                health = run_health_check(verbose=True)
-                if not health["overall"]:
-                    _log.warning("Ollama health: issues detected (cold load is normal)")
-            except Exception as e:
-                _log.debug(f"Health check error: {e}")
-        threading.Thread(target=_bg_health, daemon=True).start()
-    except Exception as _he:
-        _log.debug(f"Health check skipped: {_he}")
+    # Ollama check already ran in preflight above — skip duplicate background thread
 
     ai = ERR0RSAI(backend=args.backend, model=args.model)
 

@@ -67,7 +67,8 @@ class OperatorState:
     last_suggestions: List[Suggestion] = field(default_factory=list)
     auto_step_count: int = 0
     auto_max_steps: int = 25
-
+    teach_mode: bool = True
+    tool_use_counts: Dict[str, int] = field(default_factory=dict)
 
     def summary(self) -> Dict[str, Any]:
         return {
@@ -78,6 +79,7 @@ class OperatorState:
             "findings":   len(self.findings),
             "waiting_on_user": self.pending_question is not None,
             "auto_step": self.auto_step_count,
+            "teach_mode": self.teach_mode,
         }
 
 
@@ -271,6 +273,26 @@ class Operator:
                          {"tool": s.tool, "args": s.args,
                           "confidence": s.confidence, "reason": s.reason})
 
+        # Seed conversation engine so follow-up questions about this run work in context
+        try:
+            from src.core.conversation_engine import get_engine
+            get_engine().inject_tool_context(
+                tool=tool, command=cmd_str, findings=findings,
+                session_id="operator_cli",
+            )
+        except Exception as _te:
+            log.debug(f"teach context inject skipped: {_te}")
+
+        # Teach mode — Socratic question or quiz depending on use count
+        self.state.tool_use_counts[tool] = self.state.tool_use_counts.get(tool, 0) + 1
+        if self.state.teach_mode and self._broadcast:
+            use_count = self.state.tool_use_counts[tool]
+            if use_count == 3:
+                threading.Thread(target=self._quiz, args=(tool,), daemon=True).start()
+            else:
+                threading.Thread(target=self._socratic_question,
+                                 args=(tool, findings), daemon=True).start()
+
         return {
             "status": "ok",
             "reply": f"{tool} done — {len(findings)} findings",
@@ -430,21 +452,83 @@ class Operator:
         return {"status":"error","reply":"Usage: solve juice-shop [all|<id>] or juice-shop list/status"}
 
     def _chat(self, msg):
-        """LLM fallback — routes through conversation engine for full responses."""
+        """Routes question through conversation engine, streaming tokens as chat bubbles."""
         try:
             from src.core.conversation_engine import get_engine
             engine = get_engine()
-            reply = engine.chat_blocking(
-                user_msg       = msg,
-                session_id     = "operator_cli",
-                operator_state = self.state,
-            )
-            if not reply:
-                reply = "Ready. Ask me about any security topic, CIS control, or type 'help'."
+            if self._broadcast:
+                def _tok(t):  self._broadcast("chat_token", t, {})
+                def _done(_): self._broadcast("chat_done",  "", {})
+                engine.chat_stream(msg, "operator_cli", self.state,
+                                   on_token=_tok, on_done=_done)
+                return {"status": "streaming"}
+            else:
+                reply = engine.chat_blocking(msg, "operator_cli", self.state)
+                if not reply:
+                    reply = "Ready. Ask me about any security topic, CIS control, or type 'help'."
+                return {"status": "ok", "reply": reply}
         except Exception as _e:
-            reply = f"LLM unavailable ({_e}). Make sure Ollama is running: ollama serve"
-        self.say(reply, "narrator")
-        return {"status": "ok", "reply": reply}
+            err = f"LLM unavailable ({_e}). Make sure Ollama is running: ollama serve"
+            if self._broadcast:
+                self._broadcast("chat_token", err, {})
+                self._broadcast("chat_done",  "", {})
+                return {"status": "streaming"}
+            return {"status": "error", "reply": err}
+
+    def _socratic_question(self, tool: str, findings: list):
+        """After a tool run in teach mode, broadcast one probing question via WS."""
+        if not self._broadcast:
+            return
+        try:
+            from src.core import teach_engine
+            from src.core.conversation_engine import get_engine
+            lesson = teach_engine.lookup(tool) or {}
+            sev_icons = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵", "info": "⚪"}
+            findings_txt = (
+                "Findings: " + ", ".join(
+                    f"{sev_icons.get(f.severity,'•')}{f.kind}:{f.value}" for f in findings[:3]
+                ) if findings else "no notable findings"
+            )
+            prompt = (
+                f"The operator just ran `{tool}` against `{self.state.target or 'the target'}`. "
+                f"{findings_txt}. "
+                "You are in teach mode. Ask ONE concise probing question that tests their understanding "
+                "of what was found or what this tool reveals. Make it thought-provoking, not trivial. "
+                "Start your response with '🎓 ' then the question only — no preamble, no answer."
+            )
+            engine = get_engine()
+            def _tok(t): self._broadcast("chat_token", t, {})
+            def _done(_): self._broadcast("chat_done", "", {})
+            engine.chat_stream(prompt, "teach_session", self.state, on_token=_tok, on_done=_done)
+        except Exception as e:
+            log.debug(f"Socratic question failed: {e}")
+
+    def _quiz(self, tool: str):
+        """After a tool is used 3 times, broadcast a 3-question knowledge quiz."""
+        if not self._broadcast:
+            return
+        try:
+            from src.core import teach_engine
+            from src.core.conversation_engine import get_engine
+            lesson = teach_engine.lookup(tool) or {}
+            flags_str = "; ".join(
+                f"{k} ({v[:50]})" for k, v in list(lesson.get("flags", {}).items())[:4]
+            )
+            read_tips = "; ".join(lesson.get("read", [])[:2])
+            prompt = (
+                f"The operator has now run {tool} 3 times — time for a checkpoint quiz! "
+                f"Generate exactly 3 numbered questions testing their knowledge of {tool}. "
+                f"Base questions on: summary='{lesson.get('summary','')}'; "
+                f"key flags='{flags_str}'; reading output='{read_tips}'. "
+                f"After each question include the correct answer on a new line starting with 'Answer:'. "
+                f"Start with: '🧪 {tool.upper()} CHECKPOINT — you've run this 3 times, let's see what stuck:\n'"
+            )
+            engine = get_engine()
+            def _tok(t): self._broadcast("chat_token", t, {})
+            def _done(_): self._broadcast("chat_done", "", {})
+            engine.chat_stream(prompt, f"quiz_{tool}", None, on_token=_tok, on_done=_done)
+        except Exception as e:
+            log.debug(f"Quiz failed: {e}")
 
     def _generate_report(self):
         """Generate HTML pentest report from current state."""

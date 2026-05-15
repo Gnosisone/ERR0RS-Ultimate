@@ -281,24 +281,132 @@ class ConversationEngine:
             if session_id in self._sessions:
                 self._sessions[session_id].clear()
 
-    def build_system_prompt(self, operator_state=None) -> str:
-        """Build system prompt with current operator context injected."""
+    def build_system_prompt(self, operator_state=None, user_msg: str = "") -> str:
+        """Build system prompt with current operator context and teach engine data injected."""
         ctx_lines = []
         if operator_state:
             try:
                 if hasattr(operator_state, 'target') and operator_state.target:
                     ctx_lines.append(f"- Active target: {operator_state.target}")
-                if hasattr(operator_state, 'findings') and operator_state.findings:
-                    ctx_lines.append(f"- Findings so far: {len(operator_state.findings)} items")
-                    for f in list(operator_state.findings)[-3:]:
-                        ctx_lines.append(f"  • {f}")
                 if hasattr(operator_state, 'mode') and operator_state.mode:
-                    ctx_lines.append(f"- Operator mode: {operator_state.mode}")
+                    mode_val = operator_state.mode.value if hasattr(operator_state.mode, 'value') else str(operator_state.mode)
+                    ctx_lines.append(f"- Operator mode: {mode_val}")
+
+                # Recent tool runs
+                if hasattr(operator_state, 'history') and operator_state.history:
+                    recent = list(operator_state.history)[-3:]
+                    ctx_lines.append(f"- Tools run this session: {', '.join(r.tool for r in recent)}")
+
+                    last = recent[-1]
+                    ctx_lines.append(f"\n### Most Recent Tool Run")
+                    ctx_lines.append(f"Command: `{last.command}`")
+                    ctx_lines.append(f"Target: {last.target}  |  Exit: {last.returncode}  |  Duration: {last.duration:.1f}s")
+                    if last.findings:
+                        sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵", "info": "⚪"}
+                        ctx_lines.append(f"Findings ({len(last.findings)}):")
+                        for f in last.findings[:6]:
+                            icon = sev_icon.get(f.severity, "•")
+                            ctx_lines.append(f"  {icon} [{f.severity}/{f.kind}] {f.value}")
+                    else:
+                        ctx_lines.append("Findings: none detected")
+
+                    # Pull lesson for the last tool so you can teach about it
+                    try:
+                        from src.core import teach_engine
+                        lesson = teach_engine.lookup(last.tool)
+                        if lesson:
+                            ctx_lines.append(f"\n### Teach Engine — {last.tool.upper()}")
+                            ctx_lines.append(f"Summary: {lesson['summary']}")
+                            ctx_lines.append(f"Typical use: {lesson['typical']}")
+                            read_tips = lesson.get('read', [])
+                            if read_tips:
+                                ctx_lines.append("How to read output:")
+                                for tip in read_tips[:4]:
+                                    ctx_lines.append(f"  • {tip}")
+                            next_steps = lesson.get('next', [])
+                            if next_steps:
+                                ctx_lines.append(f"Logical next tools: {', '.join(next_steps)}")
+                            if lesson.get('caution'):
+                                ctx_lines.append(f"Caution: {lesson['caution']}")
+                    except Exception:
+                        pass
+
+                # All session findings summary
+                if hasattr(operator_state, 'findings') and operator_state.findings:
+                    ctx_lines.append(f"\n- Total session findings: {len(operator_state.findings)}")
+                    crit = [f for f in operator_state.findings if f.severity in ("critical", "high")]
+                    if crit:
+                        ctx_lines.append(f"- Critical/High: {len(crit)} — these need immediate follow-up")
+
+            except Exception:
+                pass
+
+        # On-demand lesson: if the user mentions a tool not recently run, inject its lesson
+        if user_msg:
+            try:
+                from src.core import teach_engine
+                last_tool = ""
+                if operator_state and hasattr(operator_state, 'history') and operator_state.history:
+                    last_tool = list(operator_state.history)[-1].tool
+                for word in re.findall(r'\b\w[\w-]*\b', user_msg.lower()):
+                    if word == last_tool:
+                        continue  # already covered in tool run section above
+                    lesson = teach_engine.lookup(word)
+                    if lesson:
+                        ctx_lines.append(f"\n### On-Demand Reference — {word.upper()}")
+                        ctx_lines.append(f"Summary: {lesson['summary']}")
+                        ctx_lines.append(f"Typical: {lesson['typical']}")
+                        for tip in lesson.get('read', [])[:3]:
+                            ctx_lines.append(f"  • {tip}")
+                        next_tools = lesson.get('next', [])
+                        if next_tools:
+                            ctx_lines.append(f"Next tools: {', '.join(next_tools)}")
+                        break  # one lesson per message keeps token count manageable
             except Exception:
                 pass
 
         ctx = "\n".join(ctx_lines) if ctx_lines else "No active engagement — ready to start."
         return SYSTEM_PROMPT.replace("{operator_context}", ctx)
+
+    def inject_tool_context(self, tool: str, command: str, findings: list,
+                            session_id: str = "operator_cli"):
+        """
+        Seed the conversation history after a tool runs so follow-up questions
+        ("what does that mean?", "what should I do next?") work naturally.
+        Injects as an assistant turn — ERR0RS 'already knows' what happened.
+        """
+        try:
+            from src.core import teach_engine
+            lesson = teach_engine.lookup(tool)
+        except Exception:
+            lesson = None
+
+        sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵", "info": "⚪"}
+        parts = [f"I just ran `{command}`."]
+
+        if findings:
+            parts.append(f"\nFindings ({len(findings)}):")
+            for f in findings[:6]:
+                icon = sev_icon.get(f.severity, "•")
+                parts.append(f"  {icon} [{f.severity}] {f.kind}: {f.value}")
+        else:
+            parts.append("No notable findings from this run.")
+
+        if lesson:
+            parts.append(f"\n**{tool.upper()} — what this tells us:**")
+            parts.append(lesson['summary'])
+            read_tips = lesson.get('read', [])
+            if read_tips:
+                parts.append("Key things to understand from this output:")
+                for tip in read_tips[:3]:
+                    parts.append(f"  • {tip}")
+            next_steps = lesson.get('next', [])
+            if next_steps:
+                parts.append(f"Logical next tools from here: {', '.join(next_steps[:3])}")
+
+        parts.append("\nAsk me anything about what I found, what it means, or what to do next.")
+
+        self.get_session(session_id).add("assistant", "\n".join(parts))
 
     def chat_stream(self,
                     user_msg:       str,
@@ -315,7 +423,7 @@ class ConversationEngine:
         history = self.get_session(session_id)
         history.add("user", user_msg)
 
-        system = self.build_system_prompt(operator_state)
+        system = self.build_system_prompt(operator_state, user_msg=user_msg)
         messages = [{"role": "system", "content": system}]
         messages.extend(history.last_n(18))  # last 9 turns
 

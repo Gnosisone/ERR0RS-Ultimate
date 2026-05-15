@@ -1274,7 +1274,8 @@ async def ws_terminal_handler(websocket):
                                 _asyncio_recon.run_coroutine_threadsafe(
                                     websocket.send(json.dumps(evt)), _recon_loop
                                 )
-                            except Exception: pass
+                            except Exception as _bcast_err:
+                                log.debug(f"recon broadcast failed: {_bcast_err}")
                         _active_recon = ReconEngine(broadcast_fn=_recon_broadcast)
                         _active_recon.start(
                             target=_recon_match.group("target"),
@@ -1292,7 +1293,8 @@ async def ws_terminal_handler(websocket):
                                     _asyncio_td.run_coroutine_threadsafe(
                                         websocket.send(json.dumps(evt)), _td_loop
                                     )
-                                except Exception: pass
+                                except Exception as _bcast_err:
+                                    log.debug(f"threat broadcast failed: {_bcast_err}")
                             _threat_detector = ThreatDetector(broadcast_fn=_td_broadcast, poll_interval=30)
                             _threat_detector.start()
                         else:
@@ -1341,7 +1343,8 @@ async def ws_terminal_handler(websocket):
                                 _asyncio_zd.run_coroutine_threadsafe(
                                     websocket.send(json.dumps(evt)), _zd_loop
                                 )
-                            except Exception: pass
+                            except Exception as _bcast_err:
+                                log.debug(f"zeroday broadcast failed: {_bcast_err}")
                         result = handle_zeroday_command(clean_cmd, _zd_broadcast)
                         await websocket.send(json.dumps({"type":"output","data":result}))
                         continue
@@ -2032,6 +2035,54 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as _opErr:
                     self._json({"status":"error","error": str(_opErr)})
 
+            elif self.path == "/api/operator/teach_mode":
+                # Toggle or set teach mode: POST {"enabled": true|false} or POST {} to toggle
+                try:
+                    from src.core.operator import get_operator
+                    op = get_operator()
+                    if "enabled" in payload:
+                        op.state.teach_mode = bool(payload["enabled"])
+                    else:
+                        op.state.teach_mode = not op.state.teach_mode
+                    self._json({"teach_mode": op.state.teach_mode})
+                except Exception as _tmErr:
+                    self._json({"status": "error", "error": str(_tmErr)})
+
+            elif self.path == "/api/explain/suggestion":
+                # Stream WHY explanation for a suggestion card
+                # POST {"tool": "enum4linux", "reason": "...", "args": [...]}
+                try:
+                    from src.core.operator import get_operator
+                    from src.core.conversation_engine import get_engine
+                    tool_name = payload.get("tool", "unknown")
+                    reason    = payload.get("reason", "")
+                    args_list = payload.get("args", [])
+                    state     = get_operator().state
+                    findings_ctx = (
+                        ", ".join(f.value for f in state.findings[-3:])
+                        if state.findings else "no findings yet"
+                    )
+                    prompt = (
+                        f"In 2-3 sentences, explain WHY `{tool_name}` is the logical next step "
+                        f"in this pentest right now. "
+                        f"Reason given: {reason}. "
+                        f"Target: {state.target or 'unknown'}. "
+                        f"Recent findings: {findings_ctx}. "
+                        f"Connect it to the attack chain — what does {tool_name} reveal that we need?"
+                    )
+                    def _tok(t): ws_broadcast("chat_token", t, {})
+                    def _done(_): ws_broadcast("chat_done", "", {})
+                    import threading as _th2
+                    _th2.Thread(
+                        target=get_engine().chat_stream,
+                        kwargs={"user_msg": prompt, "session_id": "operator_cli",
+                                "operator_state": state, "on_token": _tok, "on_done": _done},
+                        daemon=True,
+                    ).start()
+                    self._json({"status": "streaming"})
+                except Exception as _esErr:
+                    self._json({"status": "error", "error": str(_esErr)})
+
             elif self.path == "/api/ollama":
                 self._json(query_ollama(payload.get("prompt","").strip()))
 
@@ -2378,9 +2429,11 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
             else:
                 self.send_response(404); self.end_headers()
 
-        except (BrokenPipeError, ConnectionResetError): pass
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client disconnected mid-response — normal
         except Exception as e:
-            try: self._json({"error":str(e)}, code=500)
+            log.warning(f"POST handler error: {e}", exc_info=True)
+            try: self._json({"error": str(e)}, code=500)
             except Exception: pass
 
     def _json(self, data: dict, code: int = 200):
@@ -2983,7 +3036,8 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 data = json.loads(r.read())
                 ollama_models = [m["name"] for m in data.get("models",[])]
                 ollama_ok = bool(ollama_models)
-        except Exception: pass
+        except Exception as _ollama_err:
+            log.debug(f"Ollama status check failed: {_ollama_err}")
         mcp_ok = subprocess.run(["which","mcp-server"],capture_output=True).returncode == 0
         return {"version":"3.0","framework":FRAMEWORK_LOADED,"ollama":ollama_ok,
                 "ollama_models":ollama_models,"mcp":mcp_ok,"shell_access":True,
@@ -3052,7 +3106,8 @@ def _platform() -> str:
             except Exception:
                 gb = 8
             return f"Raspberry Pi 5 {gb}GB"
-    except Exception: pass
+    except Exception as _plat_err:
+        log.debug(f"Platform detection failed: {_plat_err}")
     return "Kali Linux"
 
 def check_ollama():

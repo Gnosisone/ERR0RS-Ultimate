@@ -822,6 +822,26 @@
     .ltp-line.teach-block { color: var(--cyan);   border-left: 3px solid var(--cyan); padding: 6px 10px; margin: 6px 0; background: rgba(0,245,255,.04); }
     .ltp-line.error    { color: var(--red); }
     .ltp-line.finding  { color: var(--green); font-weight: bold; }
+    /* Explain-this button — appears on hover over explainable output lines */
+    .ltp-line          { display: flex; align-items: baseline; gap: 0; }
+    .ltp-line-text     { flex: 1; white-space: pre-wrap; word-break: break-all; }
+    .ltp-explain-btn {
+      opacity: 0; transition: opacity .15s;
+      background: rgba(168,85,247,.12); border: 1px solid #7b2fbe44;
+      color: #a855f7; cursor: pointer; padding: 0 5px; font-size: 9px;
+      border-radius: 3px; margin-left: 6px; flex-shrink: 0; line-height: 1.6;
+      font-family: 'Share Tech Mono', monospace; letter-spacing: .05em;
+    }
+    .ltp-line:hover .ltp-explain-btn { opacity: 1; }
+    /* WHY? button on suggestion cards */
+    .suggestion-why-btn {
+      background: rgba(168,85,247,.15); border: 1px solid #7b2fbe55;
+      color: #c084fc; cursor: pointer; padding: 2px 8px; font-size: .6rem;
+      border-radius: 3px; font-family: 'Share Tech Mono', monospace;
+      letter-spacing: .05em; transition: background .15s, color .15s;
+    }
+    .suggestion-why-btn:hover { background: rgba(168,85,247,.3); color: #e9d5ff; }
+    .suggestion-why-btn:disabled { opacity: .5; cursor: default; }
 
     /* Input row */
     #ltp-input-row {
@@ -1632,12 +1652,37 @@ function addSuggestionCard(msg) {
   });
 
   // Click = fire the suggestion
-  card.addEventListener('click', async () => {
+  card.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('suggestion-why-btn')) return;
     card.style.borderLeftColor = 'var(--amber)';
     card.style.opacity = '.6';
     card.querySelector('.ic-ttl').innerHTML = `⏳ ${tool.toUpperCase()} <span style="float:right;color:var(--amber);font-size:.55rem;">RUNNING...</span>`;
     await runSuggestion(tool, msg.args || []);
   });
+
+  // WHY? button — ask ERR0RS to explain the attack-chain reasoning
+  const whyRow = document.createElement('div');
+  whyRow.style.cssText = 'margin-top:5px;display:flex;gap:6px;';
+  const whyBtn = document.createElement('button');
+  whyBtn.className = 'suggestion-why-btn';
+  whyBtn.textContent = '❓ WHY THIS?';
+  whyBtn.onclick = async (e) => {
+    e.stopPropagation();
+    whyBtn.textContent = '⏳ ...';
+    whyBtn.disabled = true;
+    if (!ltpPanel.classList.contains('active')) openLiveTerm();
+    try {
+      await fetch('/api/explain/suggestion', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tool, reason, args: msg.args || []})
+      });
+    } catch(_) {}
+    whyBtn.textContent = '❓ WHY THIS?';
+    whyBtn.disabled = false;
+  };
+  whyRow.appendChild(whyBtn);
+  card.appendChild(whyRow);
 
   feed.insertBefore(card, feed.firstChild);
   while(feed.children.length > 12) feed.removeChild(feed.lastChild);
@@ -2146,12 +2191,32 @@ function handleWSMessage(msg) {
   ltpScrollBottom();
 }
 
+const _EXPLAINABLE_CLS = new Set(['output', 'finding', 'teach', 'teach-block', 'narrator']);
 function ltpWrite(text, cls = 'output') {
   const lines = String(text).split('\n');
   lines.forEach(line => {
     const div = document.createElement('div');
     div.className = `ltp-line ${cls}`;
-    div.textContent = line;
+    const explainable = _EXPLAINABLE_CLS.has(cls) && line.trim().length > 12;
+    if (explainable) {
+      const span = document.createElement('span');
+      span.className = 'ltp-line-text';
+      span.textContent = line;
+      const btn = document.createElement('button');
+      btn.className = 'ltp-explain-btn';
+      btn.textContent = '?';
+      btn.title = 'Ask ERR0RS to explain this';
+      const captured = line.trim();
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const inp = document.getElementById('op-chat-input');
+        if (inp) { inp.value = 'explain: ' + captured; sendToOperator(); }
+      };
+      div.appendChild(span);
+      div.appendChild(btn);
+    } else {
+      div.textContent = line;
+    }
     ltpOutput.appendChild(div);
   });
   // Keep output trimmed to 500 lines for performance
@@ -2259,8 +2324,8 @@ async function sendToOperator(msg) {
                         : 'var(--text-dim)';
     }
 
-    // Reply is usually already broadcast via WS, but show a short echo
-    if (data.reply && !data.findings) {
+    // Only show reply in fallback (non-streaming) mode; streaming arrives via chat_token WS events
+    if (data.reply && !data.findings && data.status !== 'streaming') {
       ltpWrite(`[ERR0RS] ${data.reply}`, 'narrator');
     }
   } catch(e) {
@@ -2310,6 +2375,11 @@ window.addEventListener('DOMContentLoaded', () => {
           pauseBtn.style.display = 'none';
         }
       }
+      // Sync teach mode toggle with backend state
+      if (typeof s.teach_mode === 'boolean' && s.teach_mode !== teachMode) {
+        teachMode = s.teach_mode;
+        _applyTeachModeUI(teachMode);
+      }
     } catch {}
   }, 3000);
 });
@@ -2321,20 +2391,28 @@ function closeLiveTerm() {
   document.getElementById('bottom-bar').style.marginBottom = '0';
 }
 
-function toggleTeachMode() {
+async function toggleTeachMode() {
   teachMode = !teachMode;
+  _applyTeachModeUI(teachMode);
+  ltpWrite(teachMode
+    ? '[ERR0RS] TEACH MODE ON — I will ask questions and explain findings as we work.'
+    : '[ERR0RS] TEACH MODE OFF — raw output only.',
+    'system');
+  try {
+    await fetch('/api/operator/teach_mode', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: teachMode})
+    });
+  } catch(_) {}
+}
+
+function _applyTeachModeUI(on) {
   const btn = document.getElementById('btn-teach-toggle');
-  if (teachMode) {
-    btn.textContent = '📚 TEACH ON';
-    btn.classList.add('on');
-    ltpTeachInd.style.display = 'block';
-    ltpWrite('[ERR0RS] TEACH MODE ON — I will explain results as they come in.', 'system');
-  } else {
-    btn.textContent = '📚 TEACH OFF';
-    btn.classList.remove('on');
-    ltpTeachInd.style.display = 'none';
-    ltpWrite('[ERR0RS] TEACH MODE OFF — raw output only.', 'system');
-  }
+  if (!btn) return;
+  btn.textContent = on ? '📚 TEACH ON' : '📚 TEACH OFF';
+  on ? btn.classList.add('on') : btn.classList.remove('on');
+  if (ltpTeachInd) ltpTeachInd.style.display = on ? 'inline-block' : 'none';
 }
 
 function sendCtrlC() {

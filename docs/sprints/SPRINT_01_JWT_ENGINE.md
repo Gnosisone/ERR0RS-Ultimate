@@ -230,7 +230,7 @@ When the sprint ends, update `juice-shop-portfolio/PORTFOLIO.md`:
 
 The sprint hasn't started until:
 
-- [ ] This document is committed to ERR0RS-clean
+- [ ] This document is committed to the canonical repo (Gnosisone/ERR0RS-Ultimate)
 - [ ] An issue is created on GitHub: "Sprint 01 — JWT Manipulation Engine"
 - [ ] A feature branch exists: `git checkout -b sprint-01-jwt-engine`
 - [ ] Week 1 first task is in progress (`__init__.py` scaffolded)

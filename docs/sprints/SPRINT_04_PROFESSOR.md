@@ -492,7 +492,7 @@ After that audit, the Sprint 04 spec gets refined (this doc) — specifically: w
 ## Definition of "started"
 
 Sprint 04 hasn't started until:
-- [ ] This document is committed to ERR0RS-clean
+- [ ] This document is committed to the canonical repo (Gnosisone/ERR0RS-Ultimate)
 - [ ] SPRINT_04_AUDIT.md is written from the read-only audit above
 - [ ] Sprint 04 spec is refined based on audit findings
 - [ ] An issue is created on GitHub: "Sprint 04 — Professor Mode"

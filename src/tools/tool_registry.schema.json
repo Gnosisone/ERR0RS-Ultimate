@@ -18,7 +18,7 @@
       "type": "object",
       "description": "Tool entries keyed by canonical lowercase name.",
       "patternProperties": {
-        "^[a-z][a-z0-9_-]*$": { "$ref": "#/$defs/tool" }
+        "^[a-z0-9][a-z0-9_-]*$": { "$ref": "#/$defs/tool" }
       },
       "additionalProperties": false
     },
@@ -26,7 +26,7 @@
       "type": "object",
       "description": "Non-tool concept entries: CIA triad, OWASP Top 10, MITRE ATT&CK, kill chain phases, etc.",
       "patternProperties": {
-        "^[a-z][a-z0-9_-]*$": { "$ref": "#/$defs/concept" }
+        "^[a-z0-9][a-z0-9_-]*$": { "$ref": "#/$defs/concept" }
       },
       "additionalProperties": false
     }
@@ -54,7 +54,7 @@
           ]
         },
         "phases":        { "type": "array", "items": { "type": "string" }, "description": "Kill-chain phases this tool fits (e.g., reconnaissance, weaponization, delivery, exploitation, installation, c2, actions)" },
-        "tier":          { "type": "integer", "enum": [1, 2, 3], "description": "1 = hand-curated, 2 = LLM-generated, 3 = man-page/help fallback" },
+        "tier":          { "type": "integer", "enum": [1, 2, 3, 4], "description": "1 = curated canon, 2 = popular (sec keywords match), 3 = esoteric well-formed, 4 = long-tail BlackArch catalog" },
         "risk":          { "type": "string", "enum": ["stealthy", "moderate", "noisy", "loud", "safe", "quiet", "very_noisy", "requires_root", "slow", "depends_on_script", "destructive"], "description": "Default-invocation noise level on a wire/log" },
         "authorization_required": { "type": "boolean", "description": "Does this need explicit written consent before use?" },
 

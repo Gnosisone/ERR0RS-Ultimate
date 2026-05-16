@@ -21,7 +21,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA   = ROOT / "src" / "tools" / "tool_registry.schema.json"
-REGISTRY = ROOT / "src" / "tools" / "tool_registry.v2.json"
+
+# Default to v3 (full arsenal) if present, fall back to v2.
+# Override with: --registry path/to/file.json
+if "--registry" in sys.argv:
+    idx = sys.argv.index("--registry")
+    REGISTRY = Path(sys.argv[idx + 1])
+    del sys.argv[idx:idx + 2]
+elif (ROOT / "src" / "tools" / "tool_registry.v3.json").exists():
+    REGISTRY = ROOT / "src" / "tools" / "tool_registry.v3.json"
+else:
+    REGISTRY = ROOT / "src" / "tools" / "tool_registry.v2.json"
 CONCEPTS = ROOT / "src" / "tools" / "concepts.v2.json"
 
 QUIET = "--quiet" in sys.argv
@@ -63,7 +73,7 @@ VALID_RISK = {"stealthy", "moderate", "noisy", "loud", "safe", "quiet",
               "very_noisy", "requires_root", "slow", "depends_on_script",
               "destructive"}
 MITRE_PATTERN = re.compile(r"^T[0-9]{4}(\.[0-9]{3})?$")
-KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 def hand_rolled_validate(registry: dict) -> list:
@@ -90,8 +100,8 @@ def hand_rolled_validate(registry: dict) -> list:
         if tool.get("category") and tool["category"] not in VALID_CATEGORIES:
             errors.append(f"{prefix}.category: '{tool['category']}' not in valid set")
 
-        if tool.get("tier") not in (1, 2, 3):
-            errors.append(f"{prefix}.tier: must be 1, 2, or 3 (got {tool.get('tier')!r})")
+        if tool.get("tier") not in (1, 2, 3, 4):
+            errors.append(f"{prefix}.tier: must be 1, 2, 3, or 4 (got {tool.get('tier')!r})")
 
         if tool.get("risk") and tool["risk"] not in VALID_RISK:
             errors.append(f"{prefix}.risk: '{tool['risk']}' not in valid set")

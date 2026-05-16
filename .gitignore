@@ -42,3 +42,4 @@ test_results.json
 knowledge.json
 .gitmodules.bak.*
 .claude/
+src/tools/tool_registry.generated.json

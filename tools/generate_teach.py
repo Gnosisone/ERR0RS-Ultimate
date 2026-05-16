@@ -58,10 +58,25 @@ from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
-REGISTRY = ROOT / "src" / "tools" / "tool_registry.v2.json"
+
+# Default to v3 (full 5007-tool arsenal) if present; otherwise v2 (49 tools)
+_V3 = ROOT / "src" / "tools" / "tool_registry.v3.json"
+_V2 = ROOT / "src" / "tools" / "tool_registry.v2.json"
+REGISTRY = _V3 if _V3.exists() else _V2
+
 SCHEMA = ROOT / "src" / "tools" / "tool_registry.schema.json"
 SYSTEM_PROMPT_FILE = ROOT / "src" / "ai" / "system_prompt.md"
+RANKED = ROOT / "tools" / "arsenal_ranked.json"  # popularity ordering for batches
 OUT = ROOT / "src" / "tools" / "tool_registry.generated.json"
+
+# Approx token-based cost estimates (USD per call), used for --limit-cost
+# Numbers: assume ~1500 input + ~2500 output tokens per tool
+_BACKEND_COST_PER_CALL = {
+    "anthropic": 0.042,   # Claude Sonnet 4.6: $3/M input + $15/M output
+    "claude":    0.042,
+    "deepseek":  0.001,   # DeepSeek V3: ~$0.27/M input + $1.10/M output
+    "ollama":    0.0,
+}
 
 # Fields the generator is responsible for filling
 TARGET_FIELDS = (
@@ -614,6 +629,18 @@ def generate_for_tool(tool_key: str, tool: dict, backend, dry_run: bool = False)
     return data
 
 
+def _select_targets_by_tier(tools, tier, ranked_list):
+    """Return tool keys for a given tier, ordered by popularity rank."""
+    in_tier = {k for k, t in tools.items() if t.get("tier") == tier}
+    # Order by the ranking (popularity) — most-popular first
+    ordered = [r["name"].lower() for r in ranked_list if r["name"].lower() in in_tier]
+    # Any tier members not in the ranked list (shouldn't happen for tier 1-4
+    # but safety) get appended alphabetically
+    ranked_set = set(ordered)
+    tail = sorted(in_tier - ranked_set)
+    return ordered + tail
+
+
 def main():
     parser = argparse.ArgumentParser(description="ERR0RS teach generator (Phase 3)")
     parser.add_argument("--sample", nargs="+", metavar="TOOL",
@@ -621,6 +648,17 @@ def main():
     parser.add_argument("--tool", metavar="NAME", help="Generate for one specific tool")
     parser.add_argument("--all", action="store_true",
                         help="Generate for every tool with empty stub fields")
+    parser.add_argument("--tier", type=int, choices=[1, 2, 3, 4], metavar="N",
+                        help="Generate only tier-N tools, ordered by popularity "
+                             "(use with --batch-size + --start-rank)")
+    parser.add_argument("--batch-size", type=int, default=0, metavar="N",
+                        help="Process at most N tools then stop (0 = no limit)")
+    parser.add_argument("--start-rank", type=int, default=0, metavar="N",
+                        help="Skip the first N target tools (resume support)")
+    parser.add_argument("--limit-cost", type=float, default=0.0, metavar="USD",
+                        help="Hard cap on estimated spend in USD. Aborts the run "
+                             "before exceeding (0.0 = no limit). Honored only for "
+                             "paid backends (anthropic, deepseek).")
     parser.add_argument("--backend",
                         choices=["claude", "anthropic", "deepseek", "ollama", "auto"],
                         default="auto",
@@ -632,8 +670,8 @@ def main():
                         help="Output file (default: tool_registry.generated.json)")
     args = parser.parse_args()
 
-    if not any([args.sample, args.tool, args.all, args.dry_run]):
-        parser.error("Specify one of --sample, --tool, --all, or --dry-run")
+    if not any([args.sample, args.tool, args.all, args.tier, args.dry_run]):
+        parser.error("Specify one of --sample, --tool, --all, --tier, or --dry-run")
 
     env = load_env()
     print("=" * 70)
@@ -643,17 +681,39 @@ def main():
     # Load registry
     registry_data = json.load(open(REGISTRY))
     tools = registry_data["tools"]
-    print(f"\n  registry: {len(tools)} tools loaded")
+    print(f"\n  registry: {REGISTRY.name}  ({len(tools)} tools)")
+
+    # Load popularity ranking if available
+    ranked_list = []
+    if RANKED.exists():
+        ranked_list = json.load(open(RANKED))
 
     # Decide which tools to process
     if args.tool:
         targets = [args.tool.lower()]
     elif args.sample:
         targets = [t.lower() for t in args.sample]
+    elif args.tier:
+        targets = _select_targets_by_tier(tools, args.tier, ranked_list)
+        # Filter to ones that actually need generation
+        targets = [t for t in targets if needs_generation(tools[t])]
+        print(f"  tier {args.tier}: {len(targets)} tools need generation "
+              f"(ordered by popularity rank)")
     elif args.all:
         targets = [k for k, t in tools.items() if needs_generation(t)]
     else:
         targets = list(tools.keys())[:1]  # dry-run: just one for demo
+
+    # Apply --start-rank (resume support)
+    if args.start_rank > 0:
+        skipped = args.start_rank
+        targets = targets[args.start_rank:]
+        print(f"  skipping first {skipped} targets (--start-rank)")
+
+    # Apply --batch-size cap
+    if args.batch_size > 0:
+        targets = targets[:args.batch_size]
+        print(f"  batch capped at {args.batch_size} tools (--batch-size)")
 
     # Validate target tools exist
     missing = [t for t in targets if t not in tools]
@@ -692,19 +752,56 @@ def main():
     else:
         generated = {}
 
+    # Cost tracking — used by --limit-cost
+    backend_key = args.backend if args.backend != "auto" else "ollama"
+    if not args.dry_run and "backend" in dir() and backend is not None:
+        # Detect which backend actually loaded (in auto-mode, fallback may apply)
+        bn = type(backend).__name__.lower()
+        if "anthropic" in bn:
+            backend_key = "anthropic"
+        elif "deepseek" in bn:
+            backend_key = "deepseek"
+        else:
+            backend_key = "ollama"
+    cost_per_call = _BACKEND_COST_PER_CALL.get(backend_key, 0.0)
+    estimated_spend = 0.0
+
+    if cost_per_call > 0:
+        projected = cost_per_call * len(targets)
+        print(f"\n  cost projection: ~${projected:.2f} for {len(targets)} tools "
+              f"(~${cost_per_call:.3f}/tool with {backend_key})")
+        if args.limit_cost > 0 and projected > args.limit_cost:
+            print(f"  ⚠  projected spend ${projected:.2f} exceeds "
+                  f"--limit-cost ${args.limit_cost:.2f}")
+            print(f"  ⚠  will abort BEFORE the call that would exceed the cap")
+
     # Generate
     print("\n  starting generation...\n")
+    successes = 0
     for i, tool_key in enumerate(targets, 1):
         if tool_key in generated and not args.dry_run:
             print(f"  ~ skipping {tool_key} (already in {out_path.name})")
             continue
+
+        # Pre-flight cost check — bail BEFORE the call, not after
+        if not args.dry_run and args.limit_cost > 0 and cost_per_call > 0:
+            if estimated_spend + cost_per_call > args.limit_cost:
+                print(f"\n  ⚠  ABORTING: next call would push spend to "
+                      f"${estimated_spend + cost_per_call:.2f}, exceeding "
+                      f"--limit-cost ${args.limit_cost:.2f}")
+                print(f"  ⚠  {successes} tools completed at "
+                      f"~${estimated_spend:.2f} actual estimated spend")
+                break
+
         print(f"  [{i}/{len(targets)}]", end=" ")
         result = generate_for_tool(tool_key, tools[tool_key], backend, args.dry_run)
         if result is not None:
             generated[tool_key] = result
+            successes += 1
+            estimated_spend += cost_per_call
             # Save after EVERY successful generation — protects against crashes
             out_data = {
-                "version": "2.0.0",
+                "version": "3.0.0",
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "source_registry_version": registry_data.get("version", "unknown"),
                 "tools": generated,
@@ -713,7 +810,10 @@ def main():
 
     if not args.dry_run:
         print(f"\n  ✓ wrote {out_path}")
-        print(f"  ✓ {len(generated)} tools have generated teach data")
+        print(f"  ✓ {len(generated)} tools total in generated file "
+              f"({successes} new this run)")
+        if cost_per_call > 0:
+            print(f"  ≈ estimated spend this run: ${estimated_spend:.2f}")
         print(f"\n  Next: review with `python3 tools/inspect_generated.py`,")
         print(f"        then merge with `python3 tools/merge_generated.py --write`")
 

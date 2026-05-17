@@ -1,6 +1,6 @@
 {
   "version": "3.0.0",
-  "generated_at": "2026-05-16T02:27:15.083962+00:00",
+  "generated_at": "2026-05-17T03:34:04.300993+00:00",
   "source_registry_version": "2.0.0",
   "tools": {
     "nmap": {
@@ -184660,6 +184660,1056 @@
         {
           "type": "official",
           "url": "https://github.com/Jguer/yay"
+        }
+      ]
+    },
+    "msfconsole": {
+      "display_name": "msfconsole",
+      "aliases": [
+        "msfconsole"
+      ],
+      "binary": "msfconsole",
+      "category": "exploitation",
+      "phases": [],
+      "tier": 1,
+      "risk": "loud",
+      "authorization_required": true,
+      "description": "Interactive console for the Metasploit Framework. Primary interface for module selection, payload generation, exploit execution, and session management. Every r",
+      "teach_intro": "msfconsole is the cockpit of Metasploit. From a single prompt you load exploits (use exploit/multi/handler), generate payloads (msfvenom), open Meterpreter sessions, run post-exploitation modules, and pivot. Most students learn it by typing 'search ms17_010' and chasing EternalBlue against a vulnerable Windows 7 box, then graduate to building custom modules in Ruby. Mastery means knowing the Metasploit module taxonomy cold (exploits, auxiliaries, post, encoders, nops, payloads) and treating it as a Ruby framework you can extend, not a button-press kit.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://docs.metasploit.com"
+        }
+      ]
+    },
+    "msfpc": {
+      "display_name": "MSFPC (Metasploit Payload Creator)",
+      "aliases": [
+        "msfpc"
+      ],
+      "binary": "msfpc",
+      "category": "evasion",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Wrapper around msfvenom that auto-generates payloads for multiple platforms/architectures with one command. Useful for engagements where you need 10 payload var",
+      "teach_intro": "MSFPC asks five questions (target OS, payload type, LHOST, LPORT, output format) and emits the msfvenom command + handler resource script. Good for beginners learning the payload taxonomy. Real red teamers eventually drop it for direct msfvenom one-liners or custom builders (Donut, Sliver implant generators) because MSFPC's output is signature-rich and AV-flagged everywhere.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/g0tmi1k/msfpc"
+        }
+      ]
+    },
+    "medusa": {
+      "display_name": "Medusa",
+      "aliases": [
+        "medusa"
+      ],
+      "binary": "medusa",
+      "category": "credentials",
+      "phases": [],
+      "tier": 1,
+      "risk": "noisy",
+      "authorization_required": true,
+      "description": "Parallel network login brute-forcer. Competes with hydra for credential-spraying workloads. Module support for SSH, FTP, SMB, RDP, HTTP-AUTH, MySQL, PostgreSQL,",
+      "teach_intro": "Medusa runs many concurrent host/service threads (default 16) where hydra goes serial per host. For a /24 sweep with one user/password combo, medusa often finishes 3-5x faster. Syntax differs from hydra: medusa -h target -u user -P pass.txt -M ssh. Both noisy: every failed attempt is a Windows EID 4625 or syslog auth.log entry. Use only on engagements where account lockout policy is known and you've throttled below the threshold.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/jmk-foofus/medusa"
+        }
+      ]
+    },
+    "wifite": {
+      "display_name": "Wifite",
+      "aliases": [
+        "wifite"
+      ],
+      "binary": "wifite",
+      "category": "wireless",
+      "phases": [],
+      "tier": 1,
+      "risk": "loud",
+      "authorization_required": true,
+      "description": "Automated wireless auditor. Wraps airodump-ng, aircrack-ng, reaver, bully, hcxdumptool, and pyrit into a 'press one button, attack every nearby AP' workflow. Ta",
+      "teach_intro": "Wifite is what a junior student runs while learning what each underlying tool does. After 30 minutes with wifite the same student should know: how to put a card in monitor mode (airmon-ng), how to capture a 4-way handshake (airodump-ng + aireplay-ng deauth), and how to crack the handshake (aircrack-ng with rockyou). Wifite automates ALL of that; understanding each layer means you can debug when the automation fails (driver issues, channel hopping, PMKID-capable APs vs handshake-only).",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/derv82/wifite2"
+        }
+      ]
+    },
+    "tshark": {
+      "display_name": "TShark",
+      "aliases": [
+        "tshark"
+      ],
+      "binary": "tshark",
+      "category": "network",
+      "phases": [],
+      "tier": 1,
+      "risk": "stealthy",
+      "authorization_required": true,
+      "description": "Command-line version of Wireshark. Same dissectors, same display filter syntax, but scriptable. Essential for headless captures, scripted analysis, and live IDS",
+      "teach_intro": "Wireshark is for staring at packets; tshark is for grepping them. Capture for an hour, then 'tshark -r capture.pcap -Y http.request.method==POST -T fields -e http.host -e http.request.uri' to find every POST request in the capture. Useful in engagements where the on-disk pcap is too large to open in Wireshark, or when you're scripting credential extraction from cleartext protocols (HTTP-AUTH, FTP, telnet, SMTP). Pairs with capinfos for capture metadata and editcap for splitting/filtering captures.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://www.wireshark.org/docs/man-pages/tshark.html"
+        }
+      ]
+    },
+    "ettercap": {
+      "display_name": "Ettercap",
+      "aliases": [
+        "ettercap"
+      ],
+      "binary": "ettercap",
+      "category": "network",
+      "phases": [],
+      "tier": 1,
+      "risk": "loud",
+      "authorization_required": true,
+      "description": "Network sniffer/interceptor for MITM attacks on LANs. ARP poisoning, ICMP redirects, DHCP spoofing, DNS spoofing, plus SSL/TLS interception with installed CA. O",
+      "teach_intro": "Ettercap teaches MITM fundamentals because it makes the attack surface visible: you see the ARP tables update, the victims' traffic flow through your machine, and the filter modules let you watch credentials, cookies, and session tokens stream past in real-time. Modern engagements increasingly prefer bettercap (Go, scriptable, better UI) for the same job. Ettercap's plugin/filter language is still uniquely powerful for old-school protocol manipulation: write an etterfilter rule that swaps a binary in transit during an HTTP download.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://www.ettercap-project.org"
+        }
+      ]
+    },
+    "sslscan": {
+      "display_name": "sslscan",
+      "aliases": [
+        "sslscan"
+      ],
+      "binary": "sslscan",
+      "category": "recon",
+      "phases": [],
+      "tier": 1,
+      "risk": "stealthy",
+      "authorization_required": true,
+      "description": "TLS/SSL configuration scanner. Identifies supported ciphers, protocol versions (SSLv2/3, TLS 1.0/1.1/1.2/1.3), heartbleed, BEAST, POODLE, certificate weakness, ",
+      "teach_intro": "Run sslscan against every TLS-bearing target on day 1 of an engagement. The output tells you which crypto attacks might still work (TLS 1.0 means BEAST might be on the table, SSLv3 means POODLE) and which certs are expired, self-signed, or use weak signatures (MD5, SHA1). Modern engagements rarely find pre-2014 protocols outside of forgotten IoT appliances, but compliance teams pay for the audit anyway. testssl.sh is the spiritual successor — more thorough but slower.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/rbsec/sslscan"
+        }
+      ]
+    },
+    "snmpwalk": {
+      "display_name": "snmpwalk",
+      "aliases": [
+        "snmpwalk"
+      ],
+      "binary": "snmpwalk",
+      "category": "recon",
+      "phases": [],
+      "tier": 1,
+      "risk": "stealthy",
+      "authorization_required": true,
+      "description": "Walks an SNMP MIB tree from a starting OID. Foundational tool for enumerating network devices that expose SNMP with default community strings (public, private).",
+      "teach_intro": "snmpwalk -v2c -c public 10.10.10.5 dumps the entire MIB tree of a target. On unhardened devices that's interface names, ARP tables, routing tables, even SSH/Telnet credentials (Cisco IOS sometimes stores them in MIBs reachable with the 'private' community). Try public/private/cisco/community first; for SNMPv3, use snmpwalk -v3 with auth. Often paired with onesixtyone for fast community-string discovery across a subnet.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "http://www.net-snmp.org/docs/man/snmpwalk.html"
+        }
+      ]
+    },
+    "volatility": {
+      "display_name": "Volatility (legacy v2)",
+      "aliases": [
+        "volatility"
+      ],
+      "binary": "volatility",
+      "category": "forensics",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Original Python 2 memory forensics framework. Many older incident-response runbooks still call vol.py directly. Volatility 3 (volatility3 in the registry) is th",
+      "teach_intro": "Memory forensics is the answer to 'attacker used in-memory payloads, no disk artifacts'. Volatility parses a RAM image (acquired via WinPMem, LiME, AVML, or VMware snapshot) and reconstructs process lists, network connections, registry hives, loaded DLLs, and injected code. Key plugins: pslist, psscan (for hidden processes), netscan, malfind (heuristics for unpacked code), mimikatz (extract credentials from lsass). Volatility 2 vs 3: v2 has wider profile coverage for old Windows versions; v3 is faster and Python 3.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/volatilityfoundation/volatility"
+        }
+      ]
+    },
+    "rizin": {
+      "display_name": "Rizin",
+      "aliases": [
+        "rizin"
+      ],
+      "binary": "rizin",
+      "category": "reverse",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Fork of radare2 focused on stability and clearer UX. Same core capabilities (disassembly, decompilation via Ghidra plugin, ROP gadget search, binary patching) w",
+      "teach_intro": "Rizin's commands mostly match radare2 (aaa for analyze, pdf for disassembly, V for visual mode) but the project has aggressively de-cruftified the CLI. Cutter is the GUI for Rizin (sister project). The pf (print format) and Ghidra decompiler plugin make Rizin viable as a primary RE workstation for malware analysis or CTF binary challenges.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://rizin.re"
+        }
+      ]
+    },
+    "cutter": {
+      "display_name": "Cutter",
+      "aliases": [
+        "cutter"
+      ],
+      "binary": "cutter",
+      "category": "reverse",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Qt-based GUI for Rizin. Free, open-source alternative to IDA Pro for reverse engineering. Native Ghidra decompiler integration, graph view, hex view, debugger i",
+      "teach_intro": "Cutter is what students reach for when Ghidra feels too heavy and r2's curses UI feels too austere. Open a binary, hit Ctrl+R to refresh analysis, navigate to main, F5 for Ghidra decompiler output. Native plugin system supports YARA scanning, signature matching, and custom analysis scripts in Python. Pairs cleanly with rizin command-line for automation.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://cutter.re"
+        }
+      ]
+    },
+    "frida": {
+      "display_name": "Frida",
+      "aliases": [
+        "frida"
+      ],
+      "binary": "frida",
+      "category": "mobile",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Dynamic instrumentation toolkit for native apps on Windows, macOS, Linux, iOS, Android, QNX. Inject JavaScript snippets into a running process to hook functions",
+      "teach_intro": "Frida is the universal hook-everything tool for runtime analysis. On Android: connect to a jailbroken/rooted device, frida-ps -U to list processes, frida-trace to log every API call, or write a JS script that overrides Java.use('javax.net.ssl.X509TrustManager') to bypass SSL pinning. On iOS: same workflow, requires jailbreak or repackaged IPA. Foundational for mobile pentesting and DRM/anti-cheat bypass research. Objection is a turnkey CLI built on top of frida for common mobile-pentest tasks.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://frida.re"
+        }
+      ]
+    },
+    "jadx": {
+      "display_name": "JADX",
+      "aliases": [
+        "jadx"
+      ],
+      "binary": "jadx",
+      "category": "mobile",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Dex-to-Java decompiler with GUI (jadx-gui) and CLI (jadx). Industry-standard for Android APK reverse engineering — pull APK from device, decompile to readable J",
+      "teach_intro": "Most Android pentests start with 'pull the APK, jadx-gui, read the source'. jadx ships a clean Java decompilation that's far more readable than dex2jar's output. Searchable, navigable, with goto-definition. For hardened/obfuscated apps (ProGuard, DexGuard, R8), you'll see renamed classes (a.b.c) and need to cross-reference behavior dynamically with Frida. For dev-build APKs, you'll find AWS access keys, Firebase API keys, hardcoded JWT secrets in plain text.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/skylot/jadx"
+        }
+      ]
+    },
+    "apktool": {
+      "display_name": "apktool",
+      "aliases": [
+        "apktool"
+      ],
+      "binary": "apktool",
+      "category": "mobile",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Reverse engineering tool for Android APKs. Decompiles to smali assembly (not Java), edits resources, rebuilds and re-signs. Different use case than jadx: apktoo",
+      "teach_intro": "apktool d app.apk decompiles into smali (Dalvik bytecode assembly), AndroidManifest.xml in readable form, and all resources. Edit the smali (e.g., patch out a license check or a SSL-pin check), apktool b rebuilds, jarsigner re-signs, install — modified app runs. Smali is harder to read than decompiled Java but easier to patch precisely. Workflow: jadx to understand what to change, apktool + smali editor to actually change it.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://apktool.org"
+        }
+      ]
+    },
+    "kubehunter": {
+      "display_name": "kube-hunter",
+      "aliases": [
+        "kubehunter",
+        "kube-hunter"
+      ],
+      "binary": "kube-hunter",
+      "category": "container",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Kubernetes-specific vulnerability scanner. Probes for exposed kubelet endpoints, dashboard auth bypasses, etcd exposure, anonymous API server access. Aquasec pr",
+      "teach_intro": "Kubernetes attack surface is huge: kubelet (port 10250) often anonymous, etcd (2379) sometimes unauthenticated, kubernetes-dashboard (8001) sometimes proxied without auth, kube-apiserver (6443) with permissive RBAC. kube-hunter probes all of these with --remote target_ip or --cidr 10.0.0.0/24. Outputs a vulnerability list with CVE references and remediation pointers. Followup with peirates or kubeletctl for actual exploitation; kube-hunter is recon only.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/aquasecurity/kube-hunter"
+        }
+      ]
+    },
+    "peirates": {
+      "display_name": "peirates",
+      "aliases": [
+        "peirates"
+      ],
+      "binary": "peirates",
+      "category": "container",
+      "phases": [],
+      "tier": 1,
+      "risk": "noisy",
+      "authorization_required": true,
+      "description": "Kubernetes penetration tool. Post-compromise: when you have shell on a container in a K8s pod, peirates exfiltrates service account tokens, enumerates cluster p",
+      "teach_intro": "Once you've popped a container (SSRF to localhost:80, RCE in a webapp), peirates becomes the post-exploitation Swiss army knife. Reads /var/run/secrets/kubernetes.io/serviceaccount/token, queries the apiserver with that token to enumerate what the SA can do, then offers menu options: dump all secrets, create privileged pod for breakout, run kube-exec on other pods. Loud — every API call is logged in K8s audit logs if enabled.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/inguardians/peirates"
+        }
+      ]
+    },
+    "pypykatz": {
+      "display_name": "pypykatz",
+      "aliases": [
+        "pypykatz"
+      ],
+      "binary": "pypykatz",
+      "category": "credentials",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Pure Python re-implementation of mimikatz. Parses lsass.exe memory dumps to extract credentials (NTLM hashes, plaintext passwords, Kerberos tickets, DPAPI maste",
+      "teach_intro": "Modern EDR catches mimikatz.exe on disk and in memory via signature and behavioral detection. pypykatz's killer feature: you grab the lsass dump however you want (procdump.exe, comsvcs.dll MiniDump export via rundll32, Task Manager right-click) and parse it offline on the operator box. No malicious binary ever touches the target. SkelSec's project — same author wrote impacket-friendly equivalents (kerberoast-py, msldap, aiosmb).",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/skelsec/pypykatz"
+        }
+      ]
+    },
+    "pwntools": {
+      "display_name": "pwntools",
+      "aliases": [
+        "pwntools",
+        "pwn"
+      ],
+      "binary": "pwn",
+      "category": "exploitation",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Python CTF/exploit framework. Wraps socket setup, packing primitives (p32/p64), ROP gadget chains, ELF/PE parsing, shellcode generation, and process interaction",
+      "teach_intro": "Every binary CTF challenge starts with 'from pwn import *'. Build a process or socket, send crafted bytes, get a shell. context.binary tells pwntools the architecture so p64(0xdeadbeef) does the right packing. ROP chains: rop = ROP(elf); rop.system('/bin/sh'). Shellcode: shellcraft.amd64.linux.sh(). The library is what makes 'spending 4 hours writing a buffer overflow exploit' feasible. Not a tool you run; a library you build with.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/Gallopsled/pwntools"
+        }
+      ]
+    },
+    "pwndbg": {
+      "display_name": "pwndbg",
+      "aliases": [
+        "pwndbg"
+      ],
+      "binary": "pwndbg",
+      "category": "reverse",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "GDB plugin for exploit development and reverse engineering. Adds disassembly views, stack/heap visualizations, ROP search, GOT/PLT inspection, heap analysis (fo",
+      "teach_intro": "Bare GDB is hostile to exploit developers. pwndbg makes the stack readable, highlights the current instruction in color, shows GOT entries, finds gadgets with 'rop', and analyzes heap chunks with 'heap'. Competes with GEF (similar idea, different feature set) and PEDA (older, less maintained). Most exploit-dev courses default to pwndbg. Pairs with pwntools — develop the exploit logic in Python, debug crashes interactively in pwndbg.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/pwndbg/pwndbg"
+        }
+      ]
+    },
+    "gef": {
+      "display_name": "GEF (GDB Enhanced Features)",
+      "aliases": [
+        "gef"
+      ],
+      "binary": "gef",
+      "category": "reverse",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Alternative to pwndbg — same goal (make GDB usable for exploit dev), different feature set. Strong heap analysis, ARM/MIPS/SPARC support, integration with capst",
+      "teach_intro": "GEF vs pwndbg is religious-debate territory among exploit devs. GEF's strengths: better non-x86 architecture support (ARM Cortex-M, MIPS), built-in capstone for arbitrary-architecture disassembly. pwndbg's strengths: heap visualization, faster Python startup, integration with pwntools. Try both, pick one. Switching mid-engagement breaks muscle memory.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/hugsy/gef"
+        }
+      ]
+    },
+    "ropper": {
+      "display_name": "Ropper",
+      "aliases": [
+        "ropper"
+      ],
+      "binary": "ropper",
+      "category": "exploitation",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Searches binaries for ROP gadgets and JOP/COP chains. Faster and more thorough than ROPgadget for x86/x64; supports ARM, MIPS, PowerPC, SPARC. Outputs gadgets, ",
+      "teach_intro": "ROP (Return-Oriented Programming) bypasses NX/DEP by chaining existing code snippets ('gadgets' ending in ret) instead of injecting shellcode. ropper /path/to/binary lists every gadget. ropper --chain execve /bin/sh asks the tool to find a complete chain that executes a shell. Pairs with pwntools to assemble the chain bytes into an exploit. ROPgadget is the older, slower alternative; ropper is the modern default for serious exploit dev.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/sashs/Ropper"
+        }
+      ]
+    },
+    "mythic": {
+      "display_name": "Mythic C2",
+      "aliases": [
+        "mythic",
+        "mythic-cli"
+      ],
+      "binary": "mythic-cli",
+      "category": "c2",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Multi-agent, multi-platform C2 framework. Docker-based, web UI. Hosts multiple agent types simultaneously (Apollo for Windows .NET, Apfell for macOS, Atlas for ",
+      "teach_intro": "Mythic's architecture is the key — agents and the server are decoupled, so the same Mythic instance can run Apollo (C# Windows beacon) and Apfell (macOS JXA) and Medusa (Python) concurrently in one engagement. Web UI shows callbacks, browser-renders task output, supports operator handoff. Standard go-to when teams need a free open-source alternative to Cobalt Strike with comparable usability.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/its-a-feature/Mythic"
+        }
+      ]
+    },
+    "covenant": {
+      "display_name": "Covenant C2",
+      "aliases": [
+        "covenant"
+      ],
+      "binary": "Covenant",
+      "category": "c2",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": ".NET C2 framework with Blazor web UI. Older now (development slowed); replaced in active use by Sliver and Mythic for most teams. Still encountered in older lab",
+      "teach_intro": "Covenant runs the C2 server in ASP.NET Core, agent 'Grunts' in .NET 4.0/4.5. Targets primarily Windows. Web UI is slick — task issuance, output rendering, operator chat. Has fallen out of favor mostly due to: (1) .NET implant signatures well-known to AV/EDR, (2) original maintainer's slower release cadence vs Sliver/Mythic. Worth knowing because legacy engagements still use it, and the architecture is a good case study in C2 design.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/cobbr/Covenant"
+        }
+      ]
+    },
+    "starkiller": {
+      "display_name": "Starkiller",
+      "aliases": [
+        "starkiller"
+      ],
+      "binary": "starkiller",
+      "category": "c2",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Modern Vue/Electron GUI front-end for Empire C2. Replaces Empire's CLI with a web interface — see all agents, queue modules, browse output, run listeners visual",
+      "teach_intro": "Empire's original CLI was clunky; Starkiller is the response. Same C2 backend (BC Security's Empire 4/5), Vue UI. Browse modules by tactic (recon, exfil, lateral), select target agent, fire. Pairs with the empire CLI for power-user workflows (custom modules, scripted automation), Starkiller for general operator use. If a class is teaching Empire today, they're showing Starkiller most of the time.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/BC-SECURITY/Starkiller"
+        }
+      ]
+    },
+    "sharphound": {
+      "display_name": "SharpHound",
+      "aliases": [
+        "sharphound",
+        "sharphound.exe"
+      ],
+      "binary": "SharpHound.exe",
+      "category": "ad",
+      "phases": [],
+      "tier": 1,
+      "risk": "noisy",
+      "authorization_required": true,
+      "description": "BloodHound's data collector. C# binary that runs on a domain-joined Windows host, queries AD via LDAP, collects user/group/computer/GPO/ACL relationships, outpu",
+      "teach_intro": "BloodHound is half the story; SharpHound is how you get the data INTO BloodHound. SharpHound.exe --CollectionMethods All on a low-priv domain user account, wait 10 minutes, get back zip of JSON files, drag into BloodHound — full graph of who can compromise whom. Modern EDR catches signed SharpHound binaries (Microsoft Defender has a signature), so red teamers often use SharpHound.ps1 (PowerShell port), AzureHound for Azure AD, or BloodHound.py for Linux operator boxes attacking via SOCKS proxy.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/BloodHoundAD/SharpHound"
+        }
+      ]
+    },
+    "rubeus": {
+      "display_name": "Rubeus",
+      "aliases": [
+        "rubeus",
+        "rubeus.exe"
+      ],
+      "binary": "Rubeus.exe",
+      "category": "ad",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "C# toolset for raw Kerberos interaction. Ticket extraction (klist on steroids), kerberoasting, AS-REP roasting, S4U2Self/S4U2Proxy abuse, ticket forging (golden",
+      "teach_intro": "Rubeus is the Active Directory red teamer's Swiss army knife for Kerberos. kerberoast: Rubeus.exe kerberoast — gets every service account's TGS, crack offline with hashcat. asreproast: targets accounts with 'Do not require Kerberos preauth' set. ptt (pass the ticket): inject extracted ticket into current logon session. Pairs with mimikatz lsadump::dcsync for full domain compromise chain. Written by HarmJ0y (Will Schroeder); essentially defines the modern Kerberos attack surface.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/GhostPack/Rubeus"
+        }
+      ]
+    },
+    "hcxdumptool": {
+      "display_name": "hcxdumptool",
+      "aliases": [
+        "hcxdumptool"
+      ],
+      "binary": "hcxdumptool",
+      "category": "wireless",
+      "phases": [],
+      "tier": 1,
+      "risk": "loud",
+      "authorization_required": true,
+      "description": "Modern WiFi attack tool focused on PMKID and EAPOL capture. Replaces airodump for handshake capture in many workflows — particularly for WPA2 PMKID attacks (no ",
+      "teach_intro": "PMKID attack: WPA2 APs sometimes include the PMKID in the first message of the 4-way handshake; capture it once, crack offline. No need to deauth clients (faster, stealthier). hcxdumptool is the canonical capture tool: hcxdumptool -i wlan0mon -o capture.pcapng --enable_status=1. Then hcxpcapngtool to convert to hashcat format, hashcat -m 22000 to crack. Compared to airodump+aireplay: hcxdumptool is faster, doesn't disconnect users, supports PMKID. Compared to wifite: wifite wraps hcxdumptool for the PMKID path.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://github.com/ZerBea/hcxdumptool"
+        }
+      ]
+    },
+    "zaproxy": {
+      "display_name": "OWASP ZAP",
+      "aliases": [
+        "zaproxy"
+      ],
+      "binary": "zaproxy",
+      "category": "web",
+      "phases": [],
+      "tier": 1,
+      "risk": "moderate",
+      "authorization_required": true,
+      "description": "Free, open-source web application security scanner. OWASP project. Burp Suite competitor — intercepting proxy, automated scanner, fuzzer, AJAX spider, scriptabl",
+      "teach_intro": "ZAP and Burp are the two web pentesting heavyweights. Burp's strengths: extensions ecosystem, polish, professional-mode features. ZAP's strengths: free forever, scriptable (Python/Groovy/JS), great CI/CD integration (ZAP Docker for automated scans on PR builds), OWASP-funded development. Workflow is similar: configure browser to proxy through ZAP (127.0.0.1:8080), browse the app, review proxy history, send interesting requests to manual fuzzer or active scanner. Start with ZAP if budget is zero; switch to Burp Pro when you outgrow it.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://www.zaproxy.org"
+        }
+      ]
+    },
+    "exploitdb": {
+      "display_name": "ExploitDB / searchsploit",
+      "aliases": [
+        "exploitdb",
+        "searchsploit"
+      ],
+      "binary": "searchsploit",
+      "category": "exploitation",
+      "phases": [],
+      "tier": 1,
+      "risk": "safe",
+      "authorization_required": true,
+      "description": "Offline-searchable archive of public exploits and shellcode maintained by Offensive Security. The /usr/share/exploitdb/ directory ships with Kali; searchsploit ",
+      "teach_intro": "After nmap fingerprints a service version (vsftpd 2.3.4, ProFTPD 1.3.5), searchsploit vsftpd 2.3.4 returns any matching exploits in the archive — often with paths to PoC code in /usr/share/exploitdb/exploits/. Many older exploits assume Python 2 and old library versions; modernizing them is its own skill. Cross-reference results with NVD/MITRE CVE entries for vulnerability context. Modern engagements increasingly use nuclei templates and exploit-developer searches on GitHub instead, but searchsploit remains the offline-capable baseline.",
+      "default_flags": [],
+      "default_command": "",
+      "flags": {},
+      "output_read": [],
+      "opsec_notes": [],
+      "sample_outputs": [],
+      "legal_notes": [],
+      "false_positives": [],
+      "mitre_attack": [],
+      "learning_path": {
+        "prerequisites": [],
+        "leads_to": []
+      },
+      "common_pitfalls": [],
+      "related_tools": [],
+      "next_steps": [],
+      "references": [
+        {
+          "type": "official",
+          "url": "https://www.exploit-db.com"
         }
       ]
     }

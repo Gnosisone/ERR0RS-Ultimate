@@ -72,8 +72,8 @@ OUT = ROOT / "src" / "tools" / "tool_registry.generated.json"
 # Approx token-based cost estimates (USD per call), used for --limit-cost
 # Numbers: assume ~1500 input + ~2500 output tokens per tool
 _BACKEND_COST_PER_CALL = {
-    "anthropic": 0.042,   # Claude Sonnet 4.6: $3/M input + $15/M output
-    "claude":    0.042,
+    "anthropic": 0.050,   # Claude Sonnet 4.6: ~$3/M input + ~$15/M output (~1500 in + ~2800 out)
+    "claude":    0.050,
     "deepseek":  0.001,   # DeepSeek V3: ~$0.27/M input + $1.10/M output
     "ollama":    0.0,
 }
@@ -156,16 +156,16 @@ But you ALSO ground each entry in WHY the technique exists — the legacy
 context that produced it. A student should leave a teach card knowing
 both the current best practice AND the historical evolution.
 
-THE TOOL: {display_name} ({binary})
-CATEGORY: {category}
-DEFAULT RISK: {risk}
-DESCRIPTION: {description}
+THE TOOL: <<DISPLAY_NAME>> (<<BINARY>>)
+CATEGORY: <<CATEGORY>>
+DEFAULT RISK: <<RISK>>
+DESCRIPTION: <<DESCRIPTION>>
 
 CURRENT TEACH INTRO (for context — do not repeat):
-{teach_intro}
+<<TEACH_INTRO>>
 
 FLAGS THE TOOL SUPPORTS (for context):
-{flag_list}
+<<FLAG_LIST>>
 
 OUTPUT FORMAT
 ═════════════
@@ -242,29 +242,51 @@ QUALITY RULES
    version string — say so or use a placeholder. Fabricated specifics
    teach students wrong things and get them hurt on live engagements.
 
-7. NO MARKDOWN. NO ```json fences. NO "Here is the JSON:". Just the JSON.
+7. JSON FORMATTING RULES (your output WILL be parsed by json.loads):
+   * NO markdown fences (no ```json, no ``` anywhere). NO preamble text.
+     NO "Here is the JSON:". NO trailing commentary. Just the JSON object.
+   * Inside strings, backslashes are SPECIAL. Only these escapes are valid:
+     \\"   for a literal double quote
+     \\\\  for a literal backslash
+     \\n   for a newline
+     \\t   for a tab
+     \\r   for a carriage return
+     \\/   for a forward slash (optional)
+   * For Windows paths, AD usernames, regex, or shell escape sequences:
+     write the literal backslash as \\\\ (two backslashes in JSON source).
+     Example: "command": "smbclient //10.10.10.5/share -U CORP\\\\jsmith"
+              "output": "C:\\\\Users\\\\Admin\\\\Documents"
+   * For quotes inside command strings, prefer escaping over single quotes:
+     "command": "powershell -c \\"Get-Process | Where {{ $_.CPU -gt 5 }}\\""
+   * Do NOT include trailing commas before } or ].
+   * Do NOT use Python-style triple quotes or template strings.
+   * Output must round-trip through json.loads() WITHOUT errors.
 
-Begin JSON output now:
+Begin JSON output now (start with `{` and end with `}` — nothing else):
 """
 
 
 def build_prompt(tool_key: str, tool: dict) -> str:
-    """Construct the prompt for one tool."""
+    """Construct the prompt for one tool.
+
+    Uses str.replace() instead of str.format() so curly braces inside the
+    prompt template (example JSON, PowerShell scriptblocks) don't need to
+    be escaped. Placeholders are <<NAME>> sentinels."""
     flag_lines = []
     for flag_name, flag_data in list(tool.get("flags", {}).items())[:15]:
         label = flag_data.get("label", flag_name)
         flag_lines.append(f"  {flag_name:20s} — {label}")
     flag_list = "\n".join(flag_lines) if flag_lines else "  (no flags documented)"
 
-    return PROMPT_TEMPLATE.format(
-        display_name=tool.get("display_name", tool_key),
-        binary=tool.get("binary", tool_key),
-        category=tool.get("category", "utility"),
-        risk=tool.get("risk", "moderate"),
-        description=tool.get("description", "")[:300],
-        teach_intro=tool.get("teach_intro", "")[:500],
-        flag_list=flag_list,
-    )
+    out = PROMPT_TEMPLATE
+    out = out.replace("<<DISPLAY_NAME>>", tool.get("display_name", tool_key))
+    out = out.replace("<<BINARY>>", tool.get("binary", tool_key))
+    out = out.replace("<<CATEGORY>>", tool.get("category", "utility"))
+    out = out.replace("<<RISK>>", tool.get("risk", "moderate"))
+    out = out.replace("<<DESCRIPTION>>", tool.get("description", "")[:300])
+    out = out.replace("<<TEACH_INTRO>>", tool.get("teach_intro", "")[:500])
+    out = out.replace("<<FLAG_LIST>>", flag_list)
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -296,7 +318,7 @@ class OllamaBackend:
         except Exception as e:
             raise RuntimeError(f"Ollama at {self.host} unreachable: {e}")
 
-    def generate(self, prompt: str, max_tokens: int = 2500) -> str:
+    def generate(self, prompt: str, max_tokens: int = 4000) -> str:
         body = json.dumps({
             "model": self.model,
             "prompt": prompt,
@@ -352,7 +374,7 @@ class AnthropicBackend:
     # Default model — claude-sonnet-4-6 for highest quality, claude-haiku-4-5
     # for fastest/cheapest. Sonnet recommended for the teach generation since
     # it's a one-time build cost and quality is critical.
-    DEFAULT_MODEL = "claude-sonnet-4-6-20260101"
+    DEFAULT_MODEL = "claude-sonnet-4-6"
 
     def __init__(self, api_key: str, model: str = None):
         try:
@@ -363,7 +385,7 @@ class AnthropicBackend:
         self.model = model or self.DEFAULT_MODEL
         self.system_prompt = load_system_prompt()
 
-    def generate(self, prompt: str, max_tokens: int = 2500) -> str:
+    def generate(self, prompt: str, max_tokens: int = 4000) -> str:
         msg = self.client.messages.create(
             model=self.model,
             max_tokens=max_tokens,
@@ -371,6 +393,13 @@ class AnthropicBackend:
             system=self.system_prompt,
             messages=[{"role": "user", "content": prompt}],
         )
+        # stop_reason "max_tokens" means truncation — output will be incomplete
+        # JSON. Surface as a hard failure so the loop doesn't save garbage.
+        if getattr(msg, "stop_reason", None) == "max_tokens":
+            raise RuntimeError(
+                f"response truncated at max_tokens={max_tokens}; "
+                f"consider raising the cap or simplifying the prompt"
+            )
         return "".join(block.text for block in msg.content if hasattr(block, "text"))
 
 
@@ -395,7 +424,7 @@ class DeepSeekBackend:
         self.model = model or self.DEFAULT_MODEL
         self.system_prompt = load_system_prompt()
 
-    def generate(self, prompt: str, max_tokens: int = 2500) -> str:
+    def generate(self, prompt: str, max_tokens: int = 4000) -> str:
         resp = self.client.chat.completions.create(
             model=self.model,
             max_tokens=max_tokens,
@@ -412,16 +441,77 @@ class DeepSeekBackend:
 # ──────────────────────────────────────────────────────────────────────────────
 # Response parsing — robust against LLMs that leak prose despite instructions
 # ──────────────────────────────────────────────────────────────────────────────
+# Valid JSON escape characters (RFC 8259 §7)
+_JSON_VALID_ESCAPES = set('"\\/bfnrtu')
+
+
+def _repair_json(text: str) -> str:
+    r"""Best-effort repair of LLM JSON output that's almost-valid.
+
+    Common LLM mistakes this fixes:
+      1. \X where X is not a valid JSON escape — e.g. \j, \W, \' in
+         strings containing AD usernames (CORP\jsmith), Windows paths,
+         shell-escaped quotes. Fixes by changing \X to \\X.
+      2. Smart quotes/em-dashes — replaces curly typography with straight
+         ASCII so the JSON parser doesn't see "string" as raw Unicode.
+      3. Trailing commas before } or ] — strips them.
+
+    These are safe transformations: any well-formed JSON passes through
+    unchanged. Only malformed input gets repaired."""
+    # 1. Smart quotes → straight quotes (must come before escape fix)
+    text = text.replace('\u201c', '"').replace('\u201d', '"')
+    text = text.replace('\u2018', "'").replace('\u2019', "'")
+    # Note: em-dashes (— —) and ellipsis (…) are valid inside JSON strings,
+    # don't touch them — they're authentic ERR0RS voice.
+
+    # 2. Fix invalid \X escape sequences.
+    # State machine: walk through the string, tracking whether we're inside
+    # a JSON string (between unescaped " marks). Only repair escapes inside strings.
+    out = []
+    i = 0
+    in_string = False
+    while i < len(text):
+        c = text[i]
+        if c == '"' and (i == 0 or text[i-1] != '\\'):
+            in_string = not in_string
+            out.append(c)
+            i += 1
+            continue
+        if in_string and c == '\\' and i + 1 < len(text):
+            nxt = text[i+1]
+            if nxt in _JSON_VALID_ESCAPES:
+                # Valid escape — pass through
+                out.append(c)
+                out.append(nxt)
+                i += 2
+                continue
+            else:
+                # Invalid escape — fix by doubling the backslash so the literal
+                # backslash + character are preserved in the parsed string.
+                out.append('\\\\')   # \\ in JSON = single backslash in output
+                out.append(nxt)
+                i += 2
+                continue
+        out.append(c)
+        i += 1
+    text = ''.join(out)
+
+    # 3. Strip trailing commas before } or ]
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+    return text
+
+
 def parse_response(text: str) -> Optional[dict]:
     """Pull a JSON object out of the LLM response, even if it's wrapped in
-    markdown fences or has leading/trailing prose."""
+    markdown fences or has leading/trailing prose, or has the common LLM
+    JSON-escape mistakes (backslash-j, backslash-W, backslash-quote, smart quotes, trailing commas)."""
     text = text.strip()
 
     # Strip code fences if present
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
 
-    # Try direct parse
+    # Try direct parse — fast path for well-formed responses
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -431,10 +521,28 @@ def parse_response(text: str) -> Optional[dict]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         return None
+    candidate = match.group(0)
+
+    # Try parsing the extracted block
     try:
-        return json.loads(match.group(0))
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+
+    # JSON-repair pass — fix common LLM escape mistakes and retry
+    repaired = _repair_json(candidate)
+    try:
+        return json.loads(repaired)
     except json.JSONDecodeError as e:
-        print(f"     parse error after extraction: {e}", file=sys.stderr)
+        print(f"     parse error even after repair: {e}", file=sys.stderr)
+        # Save the failed attempt to debug dir for inspection
+        try:
+            from pathlib import Path
+            dbg = Path(__file__).resolve().parent / "_debug"
+            dbg.mkdir(exist_ok=True)
+            (dbg / "last_unparseable.json").write_text(repaired)
+        except Exception:
+            pass
         return None
 
 
@@ -602,7 +710,7 @@ def generate_for_tool(tool_key: str, tool: dict, backend, dry_run: bool = False)
     print(f"  → generating: {tool_key} ... ", end="", flush=True)
     t0 = time.time()
     try:
-        raw = backend.generate(prompt, max_tokens=2000)
+        raw = backend.generate(prompt, max_tokens=4000)
     except Exception as e:
         print(f"FAIL ({e})")
         return None
@@ -630,15 +738,25 @@ def generate_for_tool(tool_key: str, tool: dict, backend, dry_run: bool = False)
 
 
 def _select_targets_by_tier(tools, tier, ranked_list):
-    """Return tool keys for a given tier, ordered by popularity rank."""
+    """Return tool keys for a given tier — hand-curated v2 tools FIRST,
+    then popularity-ranked BlackArch tools after.
+
+    Why this order: hand-curated v2 tools (nmap, aircrack-ng, hashcat,
+    metasploit, hydra, wireshark, etc.) are THE canon. They have rich
+    flag metadata, real teach_intros, and are the tools every student
+    will hit in their first 100 hours of training. They take priority
+    over BlackArch tools regardless of how high a BlackArch tool scored,
+    because BlackArch tools start with empty teach data while v2 tools
+    only need the bleeding-edge 5-field stub filled in.
+    """
     in_tier = {k for k, t in tools.items() if t.get("tier") == tier}
-    # Order by the ranking (popularity) — most-popular first
-    ordered = [r["name"].lower() for r in ranked_list if r["name"].lower() in in_tier]
-    # Any tier members not in the ranked list (shouldn't happen for tier 1-4
-    # but safety) get appended alphabetically
-    ranked_set = set(ordered)
-    tail = sorted(in_tier - ranked_set)
-    return ordered + tail
+    # Tools that came from v2 (don't appear in ranked_list, which only
+    # lists BlackArch tools): canonical, go FIRST alphabetically
+    ranked_names = {r["name"].lower() for r in ranked_list}
+    v2_first = sorted(in_tier - ranked_names)
+    # Then BlackArch tools by popularity rank
+    blackarch_by_rank = [r["name"].lower() for r in ranked_list if r["name"].lower() in in_tier]
+    return v2_first + blackarch_by_rank
 
 
 def main():

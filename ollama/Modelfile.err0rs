@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# ERR0RS-Qwen — Local cybersecurity teacher model
+# ──────────────────────────────────────────────────────────────────────────────
+# Wraps qwen2.5-coder:7b with the canonical ERR0RS soul (src/ai/system_prompt.md)
+# and runtime parameters tuned for offline pentesting / teaching workflows on
+# Raspberry Pi 5.
+#
+# Build:
+#   ollama create err0rs-qwen -f ollama/Modelfile.err0rs
+#
+# Use:
+#   ollama run err0rs-qwen "explain Kerberoasting"
+#
+# Update after editing system_prompt.md:
+#   bash ollama/rebuild_err0rs_qwen.sh
+# ──────────────────────────────────────────────────────────────────────────────
+
+FROM qwen2.5-coder:7b
+
+# Increased context window — 2048 was tight when injecting teach data + history.
+# qwen2.5 supports up to 32k. 8192 is the Pi 5 sweet spot: room for full
+# system_prompt.md (~2800 tok) + recent tool runs + RAG examples + user query
+# + response, without RAM thrashing.
+PARAMETER num_ctx 8192
+
+# Output length — enough room for a complete teach card or a thorough chat reply
+PARAMETER num_predict 2048
+
+# Inference threads — Pi 5 has 4 cores. 4 = max. Lower if running alongside
+# other heavy workloads.
+PARAMETER num_thread 4
+
+# Sampling tuned for teaching:
+#   temperature 0.3 → less hallucination than 0.7, more variety than 0.0
+#   top_k 40        → standard
+#   top_p 0.9       → standard
+#   repeat_penalty 1.1 → prevent the loops qwen-7B falls into on long answers
+PARAMETER temperature 0.3
+PARAMETER top_k 40
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.1
+
+# Stop sequences — don't let qwen loop into a fake "user:" turn
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>user"
+
+# The ERR0RS soul. Verbatim from src/ai/system_prompt.md. Re-baked any time
+# system_prompt.md changes (the rebuild_err0rs_qwen.sh script automates it).
+SYSTEM """SYSTEM_PROMPT_PLACEHOLDER"""

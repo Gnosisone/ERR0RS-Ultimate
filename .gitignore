@@ -44,3 +44,9 @@ knowledge.json
 .claude/
 src/tools/tool_registry.generated.json
 tools/_debug/
+
+# v3.6.0 — teach pipeline artifacts (regeneratable)
+src/tools/tool_registry.v3.json.bak.*
+ollama/Modelfile.err0rs.built
+tools/_quality_gates.json
+tools/_debug/

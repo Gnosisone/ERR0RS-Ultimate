@@ -15,17 +15,18 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Kali%20%7C%20Parrot%20%7C%20Pi5-557C94?style=flat-square&logo=linux&logoColor=white)](https://kali.org)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v3.5.0-7c3aed?style=flat-square)](CHANGELOG.md)
-[![Tool Registry](https://img.shields.io/badge/Tool%20Registry-49%20schema--validated-0ea5e9?style=flat-square)](src/tools/tool_registry.v2.json)
+[![Version](https://img.shields.io/badge/Version-v3.6.0-7c3aed?style=flat-square)](CHANGELOG.md)
+[![Tool Registry](https://img.shields.io/badge/Tool%20Registry-5036%20tools%20%7C%2067%20fully%20taught-0ea5e9?style=flat-square)](src/tools/tool_registry.v3.json)
 [![Arsenal](https://img.shields.io/badge/Phoenix%20Arsenal-2172%20Tools-ff6b00?style=flat-square)]()
 [![Backends](https://img.shields.io/badge/LLM-Claude%20%E2%86%92%20DeepSeek%20%E2%86%92%20Ollama-f97316?style=flat-square)](docs/BACKEND_STRATEGY.md)
 [![Pi5](https://img.shields.io/badge/Hardware-Pi%205%20%2B%20Hailo--10H-c51a4a?style=flat-square&logo=raspberry-pi&logoColor=white)]()
 [![Stars](https://img.shields.io/github/stars/Gnosisone/ERR0RS-Ultimate?style=flat-square&color=7c3aed)](https://github.com/Gnosisone/ERR0RS-Ultimate/stargazers)
 [![Juice Shop Coverage](https://img.shields.io/badge/Juice%20Shop-54%2F111%20(48.6%25)-22c55e?style=flat-square)](https://github.com/Gnosisone/juice-shop-portfolio)
+[![Contributors Welcome](https://img.shields.io/badge/Contributors-Welcome-ec4899?style=flat-square)](#-help-build-this-call-for-contributors)
 
 *Runtime is 100% local · zero data leaves the machine · built for red teams, blue teams, and students who are becoming both*
 
-**[Install](#-installation) · [Quick Start](#-quick-start) · [Backends](#-llm-backends) · [Architecture](docs/ARCHITECTURE.md) · [Philosophy](#-philosophy) · [Research](RESEARCH.md) · [Portfolio](https://github.com/Gnosisone/juice-shop-portfolio) · [Contribute](CONTRIBUTING.md)**
+**[Install](#-installation) · [Quick Start](#-quick-start) · [Backends](#-llm-backends) · [Architecture](docs/ARCHITECTURE.md) · [Philosophy](#-philosophy) · [Research](RESEARCH.md) · [Portfolio](https://github.com/Gnosisone/juice-shop-portfolio) · [Contribute](#-help-build-this-call-for-contributors)**
 
 </div>
 
@@ -33,7 +34,7 @@
 
 ## What is ERR0RS?
 
-ERR0RS-Ultimate is an AI-powered security platform that wraps 49 schema-validated security tools in a conversational teaching interface, coaches operators from their first nmap scan to full kill-chain engagements, and integrates with a 2,172-tool offensive arsenal — all while keeping runtime fully local.
+ERR0RS-Ultimate is an AI-powered security platform that wraps a 5,036-tool registry — with 67 tools fully taught at operator depth — in a conversational teaching interface, coaches operators from their first nmap scan to full kill-chain engagements, and integrates with a 2,172-tool offensive arsenal — all while keeping runtime fully local.
 
 **It's not another wrapper script.** It's a senior red teamer who happens to be a wise and patient teacher. It sits next to you: running the tools, explaining every decision, analyzing every output, asking the clarifying questions a good mentor asks, and writing the report at the end.
 
@@ -55,21 +56,34 @@ Every technique in ERR0RS is paired with its defensive countermeasure. Every com
 
 ---
 
-## What's New in v3.5.0
+## What's New in v3.6.0 — "Teach Knowledge Drop"
 
-This release reshapes ERR0RS around a teacher-first identity and lays the infrastructure for that voice to speak through any LLM backend.
+This release lands the first major payload of operator-grade teach content into the canonical registry and ships the infrastructure that made it sustainable to produce.
 
-- **The ERR0RS soul** — `src/ai/system_prompt.md` is now the canonical statement of who ERR0RS *is* when it speaks to a student. Loaded by every LLM backend, on every call. Switch backends and the voice stays the same.
-- **Multi-backend strategy** — Claude (primary) → DeepSeek (secondary) → Ollama (tertiary). Strategy doc at [docs/BACKEND_STRATEGY.md](docs/BACKEND_STRATEGY.md).
-- **Socratic teach mode** — after every tool run, ERR0RS asks the student a probing question or fires a short quiz. Wired into the `Operator` (`_socratic_question`, `_quiz`).
-- **"WHY THIS?" buttons** — every suggestion card now has a button that streams ERR0RS's reasoning for *why* that's the right next move in the attack chain.
-- **Schema-validated tool registry** — 49 tools in `src/tools/tool_registry.v2.json` with 8.6 average flags per tool, full output-reading patterns, and stub fields ready for LLM-generated bleeding-edge content.
-- **Phase 3 teach generator** — `tools/generate_teach.py` produces opsec notes, sample outputs, legal notes, false positives, and MITRE ATT&CK technique IDs for every tool. Build-time, runtime stays offline.
-- **Preflight checks** — startup health checks for Python deps, Ollama, security tools on PATH. `python3 main.py --no-preflight` skips them for faster boot.
-- **First-run setup wizard** — `python3 main.py --setup` walks new users through `.env` config (backend, model, web UI, security key, engagement defaults).
-- **Install.sh full tool universe** — 35+ net new tools across apt, Go, pip, and GitHub paths. `--with-c2`, `--with-knowledge-repos`, `--with-submodules` flags for optional heavy installs.
+- **67 tools fully taught at operator depth** — every one now carries 6 opsec notes (current to 2025–2026 EDR/AMSI/ETW-TI tradecraft), 2 sample command outputs (beginner + advanced operator scenario), 3 legal notes (CFAA / ROE / cloud automated-response considerations), 5 false-positive traps, and full MITRE ATT&CK technique mappings. Total: **1,328 distinct pieces of red-team teach content** across the registry.
+- **RAG knowledge base online** — `tools/ingest_teach_to_rag.py` embeds all 67 teach cards into a local ChromaDB collection (`err0rs_teach_v1`) using `all-MiniLM-L6-v2`. Semantic queries like "kerberoasting active directory" surface the right card (Rubeus) every time. Pi 5 CPU-resident, no GPU needed.
+- **`err0rs-qwen` model baked** — the ERR0RS soul (`src/ai/system_prompt.md`) is now embedded directly into a customized `qwen2.5-coder:7b` via Modelfile. Tertiary-tier offline inference inherits the teacher voice without prompt-injection.
+- **Build-time teach generator hardened** — `tools/generate_teach.py` cost-tracking rewrite: real per-million-token billing from `msg.usage` (not flat per-call guesses), per-model rate overrides (Sonnet vs Opus vs Haiku), and a cap loop that fires on actual spend. Projection accuracy improved from −56% to −7%.
+- **Human-in-the-loop merge tool** — `tools/merge_generated.py` with interactive per-card review (approve/skip/edit/diff/quit), atomic writes, git tags + backup files + session logs, and a non-interactive `--from-decisions` batch path for trusted bulk merges.
+- **Quality gates** — `tools/quality_gates.py` runs 12 categorical checks (schema completeness, character ranges, MITRE format, duplicate detection, JSON safety, command-binary cross-references) before merge to catch generator misfires.
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete changelist.
+
+---
+
+## Previously in v3.5.0
+
+This release reshaped ERR0RS around a teacher-first identity and laid the infrastructure for that voice to speak through any LLM backend.
+
+- **The ERR0RS soul** — `src/ai/system_prompt.md` is the canonical statement of who ERR0RS *is* when it speaks to a student. Loaded by every LLM backend, on every call. Switch backends and the voice stays the same.
+- **Multi-backend strategy** — Claude (primary) → DeepSeek (secondary) → Ollama (tertiary). Strategy doc at [docs/BACKEND_STRATEGY.md](docs/BACKEND_STRATEGY.md).
+- **Socratic teach mode** — after every tool run, ERR0RS asks the student a probing question or fires a short quiz. Wired into the `Operator` (`_socratic_question`, `_quiz`).
+- **"WHY THIS?" buttons** — every suggestion card has a button that streams ERR0RS's reasoning for *why* that's the right next move in the attack chain.
+- **Schema-validated tool registry** — tools live in `src/tools/tool_registry.v3.json` with 8.6 average flags per tool, full output-reading patterns, and the teach fields v3.6.0 has now begun to fill.
+- **Phase 3 teach generator** — `tools/generate_teach.py` produces opsec notes, sample outputs, legal notes, false positives, and MITRE ATT&CK technique IDs for every tool. Build-time, runtime stays offline.
+- **Preflight checks** — startup health checks for Python deps, Ollama, security tools on PATH. `python3 main.py --no-preflight` skips them for faster boot.
+- **First-run setup wizard** — `python3 main.py --setup` walks new users through `.env` config.
+- **Install.sh full tool universe** — 35+ net new tools across apt, Go, pip, and GitHub paths. `--with-c2`, `--with-knowledge-repos`, `--with-submodules` flags for optional heavy installs.
 
 ---
 
@@ -134,7 +148,7 @@ When [Phoenix-OS](https://github.com/Gnosisone/Phoenix-OS) is installed, ERR0RS 
 
 ### 📚 Schema-Validated Tool Registry
 
-[`src/tools/tool_registry.v2.json`](src/tools/tool_registry.v2.json) is the canonical knowledge base — 49 tools with full flag-level teach data, output-reading patterns, related tools, and stub fields for bleeding-edge content (opsec notes, sample outputs, legal notes, false positives, MITRE ATT&CK technique IDs). Validated against [`tool_registry.schema.json`](src/tools/tool_registry.schema.json).
+[`src/tools/tool_registry.v3.json`](src/tools/tool_registry.v3.json) is the canonical knowledge base — **5,036 tools** indexed, with **67 currently taught at operator depth** (full opsec notes, sample outputs, legal notes, false positives, and MITRE ATT&CK mappings). Every tool carries flag-level teach data, output-reading patterns, and related-tool cross-references. Validated against [`tool_registry.schema.json`](src/tools/tool_registry.schema.json).
 
 ```
 teach me nmap        → flags, reading output, next steps, MITRE mappings
@@ -145,7 +159,7 @@ what is CIS          → all 18 controls with implementation groups
 teach me responder   → LLMNR poisoning start to finish
 ```
 
-Works offline. No internet. No API keys at runtime.
+Works offline. No internet. No API keys at runtime. RAG retrieval is local ChromaDB on CPU — no GPU required.
 
 ### 🔌 Hardware Integration
 
@@ -367,38 +381,49 @@ Toggle teach mode in the UI with the **📚 TEACH ON/OFF** button. Click **WHY T
 
 ## Tool Registry & Teach Generator
 
-The repo ships with a schema-validated tool registry and a build-time teach data generator.
+The repo ships with a schema-validated tool registry, a build-time teach data generator, a human-in-the-loop merge tool, and automated quality gates.
 
 ```
 src/tools/
 ├── tool_registry.schema.json       # JSON Schema (draft-2020-12)
-├── tool_registry.v2.json           # 49 tools — canonical knowledge base
+├── tool_registry.v3.json           # 5,036 tools — canonical knowledge base
+├── tool_registry.generated.json    # Sonnet-generated teach drafts (review before merge)
 ├── concepts.v2.json                # 7 frameworks (CIA, OWASP, MITRE, etc.)
 └── tool_registry.json              # Legacy registry (preserved for compat)
 
 tools/
 ├── README.md                       # Maintenance scripts guide
-├── migrate_registry.py             # legacy → v2 migration (idempotent)
+├── migrate_registry.py             # legacy → v3 migration (idempotent)
 ├── validate_registry.py            # CI-grade schema validation
-└── generate_teach.py               # LLM teach generator (Claude/DeepSeek/Ollama)
+├── generate_teach.py               # LLM teach generator (Claude/DeepSeek/Ollama)
+├── quality_gates.py                # 12 categorical checks on generated cards
+├── merge_generated.py              # Interactive review + batch apply
+└── ingest_teach_to_rag.py          # Embed teach cards into local ChromaDB
 ```
+
+**The full pipeline** (build-time; runtime stays offline):
+
+```bash
+# 1. Generate teach drafts (Sonnet/DeepSeek/local)
+python3 tools/generate_teach.py --all --limit-cost 5.00
+
+# 2. Pre-merge quality gates — flag any cards that need review
+python3 tools/quality_gates.py
+
+# 3. Review + merge (interactive per-card, or batched via decisions file)
+python3 tools/merge_generated.py --resume
+python3 tools/merge_generated.py --from-decisions /tmp/decisions.json
+
+# 4. Embed merged cards into local RAG for runtime retrieval
+python3 tools/ingest_teach_to_rag.py
+```
+
+Every merge creates a `pre-merge-*` git tag and a timestamped backup file so any merge can be rolled back instantly. Session logs land in `docs/MERGE_SESSIONS/` for auditability.
 
 **Validate registry integrity:**
 ```bash
-python3 tools/validate_registry.py        # 49 tools, schema-clean
+python3 tools/validate_registry.py
 ```
-
-**Generate teach data** (build-time, fills opsec_notes, sample_outputs, legal_notes, false_positives, mitre_attack stub fields):
-
-```bash
-# Sample 3 tools to gauge quality
-python3 tools/generate_teach.py --sample nmap sqlmap hydra
-
-# Full sweep (requires ANTHROPIC_API_KEY or DEEPSEEK_API_KEY in .env)
-python3 tools/generate_teach.py --all
-```
-
-Output goes to `src/tools/tool_registry.generated.json` (separate from canonical v2 — human review before merge). See [`tools/README.md`](tools/README.md) for the full workflow.
 
 ---
 
@@ -498,7 +523,7 @@ ERR0RS-Ultimate began as a semester research project at Oklahoma State Universit
   year      = {2026},
   publisher = {GitHub},
   url       = {https://github.com/Gnosisone/ERR0RS-Ultimate},
-  version   = {3.5.0}
+  version   = {3.6.0}
 }
 ```
 
@@ -506,27 +531,65 @@ Full abstract: [RESEARCH.md](RESEARCH.md)
 
 ---
 
-## Contributing
+## 🤝 Help Build This — Call for Contributors
 
-We welcome contributions at every skill level. See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+**ERR0RS is built by one person right now. It shouldn't be.**
 
-**Quick paths to contribute:**
-- Add a tool to `src/tools/tool_registry.v2.json` (validate with `python3 tools/validate_registry.py`)
-- Add a lesson to the teach engine (`src/core/teach_engine.py`)
-- Add an auto-coach rule (`src/core/auto_coach.py` — COACHING_RULES list)
-- Write tests (`tests/test_errors.py`)
-- Improve ERR0RS's voice — edit `src/ai/system_prompt.md` (treat like edits to a person you respect)
-- Improve documentation or translate lessons
+This project exists because the security industry has an access problem — and no single student can solve that alone. The codebase, the curriculum, the tool coverage, the language support, the hardware integrations — all of it gets better when more people care. If you read this far and any part of the mission resonated, there's a contribution shape for you.
 
-**Current priorities:**
-- Phase 3b — `tools/merge_generated.py` for human-reviewed merging of LLM teach output into v2 registry
-- Phase 4b — wire v2 registry teach data into Professor Engine runtime
-- Phase 5 — UI Teach button + intent routing
-- HailoBackend — direct HailoRT inference path so Pi 5 NPU can run the teach generator natively (currently blocked by Ollama lacking a Hailo backend)
-- Burp Suite automation integration
-- Windows/AD lab environment setup scripts
-- Mobile platform support (NetHunter)
-- ARM64 performance optimizations
+### Where help is most needed
+
+**1. Teach the next 4,969 tools.** The canonical registry has 5,036 tools indexed. 67 are taught at operator depth. That leaves nearly 5,000 tools that have flag schemas but no opsec notes, no sample outputs, no false-positive traps. The `generate_teach.py` → `quality_gates.py` → `merge_generated.py` pipeline is built and proven — adding tools is now a matter of running it, reviewing the output, and merging. Tier 2 BlackArch tools are the next priority.
+
+**2. Command breakdowns** *(new in the roadmap, planned for v3.7.0)*. Right now `sample_outputs` shows what to run and what it does. We want a `command_breakdown` field that decomposes every command flag-by-flag — what each switch does, what happens if you change it, when to use the alternative. This is the missing layer for visual learners and self-taught operators. Schema design and Sonnet prompt-engineering both welcome.
+
+**3. ARM64 / Raspberry Pi optimization.** The reference cyberdeck is a Pi 5 with a Hailo-10H NPU. Ollama doesn't yet use the Hailo for inference — fixing that path (or building a direct HailoRT backend) would let a $400 cyberdeck run local LLM teach without thermal throttling. Details in [docs/HAILO_PHASE3_STATUS.md](docs/HAILO_PHASE3_STATUS.md).
+
+**4. OWASP Juice Shop autonomous coverage.** We're at 18/111 autonomously solved. The roadmap target is 111/111 by Q4 2026. The unsolved 93 are documented with attack plans in the [portfolio repo](https://github.com/Gnosisone/juice-shop-portfolio). Pick one, write a solver, send the PR.
+
+**5. UI for the teach mode.** The teach engine is wired into the conversation engine. The "WHY THIS?" buttons exist. What we don't have yet is a polished UI for browsing the 67 teach cards as a study reference — students should be able to flip through opsec notes like flashcards before an engagement. Vanilla JS, no framework. Designers very welcome.
+
+**6. Lessons for adjacent disciplines.** ERR0RS is currently red-team-heavy. Blue team workflows (SOC analyst Day 1, incident response playbooks, threat hunting with Sysmon/Splunk/ELK), DFIR (memory forensics with Volatility, disk imaging with FTK), cloud security (AWS/Azure/GCP misconfigurations), and AppSec (secure code review, SAST/DAST integration) all have stubs in the registry but no taught content. If your strength is one of these, the schema is ready.
+
+**7. Translation.** Most security education content in the world is in English. ERR0RS's mission to democratize access means translating the soul, the lessons, and the curriculum into other languages. Spanish and Portuguese are highest priority based on contributor interest signals so far.
+
+**8. Documentation, testing, and accessibility.** The README is long, the architecture doc is a stub, the test suite has gaps, and the UI hasn't been audited for screen-reader compatibility. None of these are glamorous. All of them matter.
+
+### What we're not looking for
+
+- "Add ChatGPT support" — the backend strategy is intentional, documented in [docs/BACKEND_STRATEGY.md](docs/BACKEND_STRATEGY.md), and not up for debate via PR
+- Features that require runtime cloud calls by default — runtime stays local, period
+- Anything that softens or strips the ethical guardrails in `src/ai/system_prompt.md`
+- Adversarial / criminal use case enablement (ransomware kits, stalkerware, anything targeting infrastructure without authorization)
+
+### How to start
+
+| If you have... | Start here |
+|---|---|
+| 30 minutes | Add a tool to `src/tools/tool_registry.v3.json`, validate with `python3 tools/validate_registry.py`, send the PR |
+| An afternoon | Write an autonomous Juice Shop solver for one of the 93 unsolved challenges in the [portfolio repo](https://github.com/Gnosisone/juice-shop-portfolio) |
+| A weekend | Pick a category in the registry (say, `forensics` or `cloud`) and run the teach pipeline against its tools, review the cards, send the merge |
+| Strong feelings about voice | Edit `src/ai/system_prompt.md` — treat it like editing the words of a person you respect. PRs welcome, especially ones that improve calibration on uncertainty |
+| Hardware in the loop | Try the Pi 5 + Hailo build, document what breaks, send issues with reproduction steps |
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Read [`src/ai/system_prompt.md`](src/ai/system_prompt.md) before touching the soul. Read [SECURITY.md](SECURITY.md) before reporting anything sensitive.
+
+**Open an issue and say hi if you want to talk through what to take on. Solo development is fine. Solo development is also lonely.**
+
+> *"We learn from our errors. The name isn't ironic. It's a statement of belief. We learn from each other's errors too."*
+
+---
+
+## Roadmap
+
+| Phase | Status | What ships |
+|---|---|---|
+| v3.5.0 — Teacher Identity | ✅ Released | ERR0RS soul, multi-backend strategy, socratic mode, "WHY THIS?" buttons |
+| v3.6.0 — Teach Knowledge Drop | ✅ **Released** | 67 tools fully taught, RAG online, merge pipeline, cost-accurate generator |
+| v3.7.0 — Command Breakdowns | 🔨 Planning | `command_breakdown` schema field, flag-by-flag explanations, visual-learner UI |
+| v3.8.0 — Tier-2 Expansion | 📋 Queued | Teach pipeline run across next 200 BlackArch tools |
+| v3.9.0 — Hailo Native | 🔬 Research | Direct HailoRT inference backend so Pi 5 NPU runs the teach generator natively |
+| v4.0.0 — Juice Shop 111/111 | 🎯 Q4 2026 | Autonomous full-coverage on OWASP Juice Shop |
 
 ---
 

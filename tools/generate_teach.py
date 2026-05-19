@@ -69,14 +69,57 @@ SYSTEM_PROMPT_FILE = ROOT / "src" / "ai" / "system_prompt.md"
 RANKED = ROOT / "tools" / "arsenal_ranked.json"  # popularity ordering for batches
 OUT = ROOT / "src" / "tools" / "tool_registry.generated.json"
 
-# Approx token-based cost estimates (USD per call), used for --limit-cost
-# Numbers: assume ~1500 input + ~2500 output tokens per tool
-_BACKEND_COST_PER_CALL = {
-    "anthropic": 0.050,   # Claude Sonnet 4.6: ~$3/M input + ~$15/M output (~1500 in + ~2800 out)
-    "claude":    0.050,
-    "deepseek":  0.001,   # DeepSeek V3: ~$0.27/M input + $1.10/M output
-    "ollama":    0.0,
+# Per-million-token pricing for --limit-cost real-spend accounting.
+# Backend.generate() returns (text, usage) so the cost loop can bill against
+# msg.usage.input_tokens / output_tokens instead of a flat per-call guess.
+# Verified against Anthropic / DeepSeek public pricing 2026-05-19.
+#
+# Why the old _BACKEND_COST_PER_CALL = 0.050 flat-rate scheme had to go:
+#   On the 2026-05-17 Sonnet 4.6 run we projected $0.050/tool and actually
+#   burned $0.078/tool (+36%). The cap fired ~28 tools late and Anthropic
+#   credits exhausted before our counter said we'd hit the limit.
+# Fix: bill real usage. Sonnet teach cards run ~1000 in + ~4500 out tokens
+# (the 12k-char output is the dominant cost), which yields ~$0.075/tool —
+# within 5% of observed.
+#
+# Format: (input_$_per_MTok, output_$_per_MTok). 0.0 = free.
+_BACKEND_COST_PER_MTOK = {
+    "anthropic": (3.00, 15.00),   # Claude Sonnet 4.6 (default model)
+    "claude":    (3.00, 15.00),   # alias
+    "deepseek":  (0.27,  1.10),   # DeepSeek V3 (deepseek-chat)
+    "ollama":    (0.0,   0.0),    # local, no API charge
 }
+
+# Per-model overrides for `anthropic` backend when --model is used. Falls back
+# to _BACKEND_COST_PER_MTOK["anthropic"] (Sonnet) if the model isn't listed.
+_ANTHROPIC_MODEL_PRICING = {
+    "claude-opus-4-7":    (5.00, 25.00),
+    "claude-opus-4-6":    (5.00, 25.00),
+    "claude-sonnet-4-6":  (3.00, 15.00),
+    "claude-sonnet-4-5":  (3.00, 15.00),
+    "claude-haiku-4-5":   (1.00,  5.00),
+}
+
+
+def _cost_for_usage(backend_key: str, in_tok: int, out_tok: int,
+                    model: str = None) -> float:
+    """Compute real USD cost for a single call given token counts.
+
+    Backend-aware: anthropic respects --model so Haiku/Opus get the right rate.
+    Returns 0.0 for free backends (ollama)."""
+    if backend_key == "anthropic" and model and model in _ANTHROPIC_MODEL_PRICING:
+        in_rate, out_rate = _ANTHROPIC_MODEL_PRICING[model]
+    else:
+        in_rate, out_rate = _BACKEND_COST_PER_MTOK.get(backend_key, (0.0, 0.0))
+    return (in_tok * in_rate + out_tok * out_rate) / 1_000_000.0
+
+
+def _avg_cost_per_call(backend_key: str, model: str = None,
+                       in_est: int = 1000, out_est: int = 4500) -> float:
+    """Pre-flight projection cost using empirical defaults (1000 in / 4500 out
+    for a typical Sonnet teach card). Used only for the up-front projection
+    line — real spend tracking uses actual usage from each response."""
+    return _cost_for_usage(backend_key, in_est, out_est, model)
 
 # Fields the generator is responsible for filling
 TARGET_FIELDS = (
@@ -318,7 +361,7 @@ class OllamaBackend:
         except Exception as e:
             raise RuntimeError(f"Ollama at {self.host} unreachable: {e}")
 
-    def generate(self, prompt: str, max_tokens: int = 4000) -> str:
+    def generate(self, prompt: str, max_tokens: int = 4000) -> tuple[str, dict]:
         body = json.dumps({
             "model": self.model,
             "prompt": prompt,
@@ -343,6 +386,8 @@ class OllamaBackend:
         # if generation stalls (vs blind socket-timeout wait)
         chunks = []
         last_token_time = time.time()
+        in_tok = 0
+        out_tok = 0
         with self.urllib.request.urlopen(req, timeout=self.timeout) as r:
             for raw_line in r:
                 if not raw_line.strip():
@@ -358,12 +403,16 @@ class OllamaBackend:
                     if len(chunks) % 50 == 0:
                         print(".", end="", flush=True)
                 if obj.get("done"):
+                    # Final chunk carries token counts (when supported)
+                    in_tok  = obj.get("prompt_eval_count", 0) or 0
+                    out_tok = obj.get("eval_count",         0) or 0
                     break
                 # Stall guard: if no tokens for 120s mid-stream, abort
                 if time.time() - last_token_time > 120:
                     raise TimeoutError("generation stalled for 120s")
 
-        return "".join(chunks)
+        usage = {"input_tokens": in_tok, "output_tokens": out_tok, "model": self.model}
+        return "".join(chunks), usage
 
 
 class AnthropicBackend:
@@ -385,7 +434,7 @@ class AnthropicBackend:
         self.model = model or self.DEFAULT_MODEL
         self.system_prompt = load_system_prompt()
 
-    def generate(self, prompt: str, max_tokens: int = 4000) -> str:
+    def generate(self, prompt: str, max_tokens: int = 4000) -> tuple[str, dict]:
         msg = self.client.messages.create(
             model=self.model,
             max_tokens=max_tokens,
@@ -400,7 +449,14 @@ class AnthropicBackend:
                 f"response truncated at max_tokens={max_tokens}; "
                 f"consider raising the cap or simplifying the prompt"
             )
-        return "".join(block.text for block in msg.content if hasattr(block, "text"))
+        text = "".join(block.text for block in msg.content if hasattr(block, "text"))
+        # Real token counts from the API response — what the cost loop bills against
+        usage = {
+            "input_tokens":  getattr(msg.usage, "input_tokens",  0),
+            "output_tokens": getattr(msg.usage, "output_tokens", 0),
+            "model":         self.model,
+        }
+        return text, usage
 
 
 class DeepSeekBackend:
@@ -424,7 +480,7 @@ class DeepSeekBackend:
         self.model = model or self.DEFAULT_MODEL
         self.system_prompt = load_system_prompt()
 
-    def generate(self, prompt: str, max_tokens: int = 4000) -> str:
+    def generate(self, prompt: str, max_tokens: int = 4000) -> tuple[str, dict]:
         resp = self.client.chat.completions.create(
             model=self.model,
             max_tokens=max_tokens,
@@ -435,7 +491,14 @@ class DeepSeekBackend:
                 {"role": "user",   "content": prompt},
             ],
         )
-        return resp.choices[0].message.content or ""
+        text = resp.choices[0].message.content or ""
+        u = getattr(resp, "usage", None)
+        usage = {
+            "input_tokens":  getattr(u, "prompt_tokens", 0)     if u else 0,
+            "output_tokens": getattr(u, "completion_tokens", 0) if u else 0,
+            "model":         self.model,
+        }
+        return text, usage
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -698,22 +761,25 @@ def needs_generation(tool: dict) -> bool:
 
 
 def generate_for_tool(tool_key: str, tool: dict, backend, dry_run: bool = False) -> Optional[dict]:
-    """Generate teach data for one tool. Returns parsed+validated dict or None."""
+    """Generate teach data for one tool. Returns (parsed_dict, usage_dict)
+    on success, or (None, usage_dict) on failure. usage_dict carries real
+    input/output token counts the cost loop bills against."""
     prompt = build_prompt(tool_key, tool)
 
     if dry_run:
         print(f"\n──── DRY RUN: prompt for {tool_key} ────")
         print(prompt)
         print(f"──── END {tool_key} ────\n")
-        return None
+        return None, {"input_tokens": 0, "output_tokens": 0, "model": None}
 
     print(f"  → generating: {tool_key} ... ", end="", flush=True)
     t0 = time.time()
+    usage = {"input_tokens": 0, "output_tokens": 0, "model": None}
     try:
-        raw = backend.generate(prompt, max_tokens=4000)
+        raw, usage = backend.generate(prompt, max_tokens=4000)
     except Exception as e:
         print(f"FAIL ({e})")
-        return None
+        return None, usage
     elapsed = time.time() - t0
 
     data = parse_response(raw)
@@ -723,7 +789,9 @@ def generate_for_tool(tool_key: str, tool: dict, backend, dry_run: bool = False)
         debug_dir = ROOT / "tools" / "_debug"
         debug_dir.mkdir(exist_ok=True)
         (debug_dir / f"{tool_key}.raw.txt").write_text(raw)
-        return None
+        # NOTE: parse failure still spent the tokens — return usage so the
+        # cost loop counts it (you got billed whether it parsed or not).
+        return None, usage
 
     valid, errors = validate_generated(data)
     if not valid:
@@ -731,10 +799,10 @@ def generate_for_tool(tool_key: str, tool: dict, backend, dry_run: bool = False)
         debug_dir = ROOT / "tools" / "_debug"
         debug_dir.mkdir(exist_ok=True)
         (debug_dir / f"{tool_key}.invalid.json").write_text(json.dumps(data, indent=2))
-        return None
+        return None, usage
 
     print(f"✓ ({elapsed:.1f}s)")
-    return data
+    return data, usage
 
 
 def _select_targets_by_tier(tools, tier, ranked_list):
@@ -870,10 +938,11 @@ def main():
     else:
         generated = {}
 
-    # Cost tracking — used by --limit-cost
+    # Cost tracking — uses REAL token counts from each response.
+    # The 2026-05-17 bug: we projected $0.050/tool and actually burned $0.078.
+    # Now: project from empirical defaults, bill from msg.usage, cap on real spend.
     backend_key = args.backend if args.backend != "auto" else "ollama"
     if not args.dry_run and "backend" in dir() and backend is not None:
-        # Detect which backend actually loaded (in auto-mode, fallback may apply)
         bn = type(backend).__name__.lower()
         if "anthropic" in bn:
             backend_key = "anthropic"
@@ -881,17 +950,25 @@ def main():
             backend_key = "deepseek"
         else:
             backend_key = "ollama"
-    cost_per_call = _BACKEND_COST_PER_CALL.get(backend_key, 0.0)
-    estimated_spend = 0.0
 
-    if cost_per_call > 0:
-        projected = cost_per_call * len(targets)
+    # The model the user actually selected, if --model was passed. Used so
+    # Haiku/Opus get the right per-MTok rate when --backend anthropic.
+    backend_model = getattr(backend, "model", None) if backend is not None else None
+    avg_cost = _avg_cost_per_call(backend_key, backend_model)
+    real_spend = 0.0          # billed against actual usage tokens
+    real_in_tok = 0
+    real_out_tok = 0
+
+    if avg_cost > 0:
+        projected = avg_cost * len(targets)
         print(f"\n  cost projection: ~${projected:.2f} for {len(targets)} tools "
-              f"(~${cost_per_call:.3f}/tool with {backend_key})")
+              f"(empirical avg ~${avg_cost:.4f}/tool with {backend_key}"
+              f"{f'/{backend_model}' if backend_model else ''})")
+        print(f"  NOTE: real spend is billed from msg.usage per call, not this projection")
         if args.limit_cost > 0 and projected > args.limit_cost:
             print(f"  ⚠  projected spend ${projected:.2f} exceeds "
                   f"--limit-cost ${args.limit_cost:.2f}")
-            print(f"  ⚠  will abort BEFORE the call that would exceed the cap")
+            print(f"  ⚠  cap will fire on real spend mid-run if it ramps faster than projection")
 
     # Generate
     print("\n  starting generation...\n")
@@ -901,22 +978,36 @@ def main():
             print(f"  ~ skipping {tool_key} (already in {out_path.name})")
             continue
 
-        # Pre-flight cost check — bail BEFORE the call, not after
-        if not args.dry_run and args.limit_cost > 0 and cost_per_call > 0:
-            if estimated_spend + cost_per_call > args.limit_cost:
-                print(f"\n  ⚠  ABORTING: next call would push spend to "
-                      f"${estimated_spend + cost_per_call:.2f}, exceeding "
+        # Pre-flight cost check — bail BEFORE the call if a typical call
+        # would push real spend over the cap. Worst case overshoots by one
+        # avg_cost; without this we could overshoot by an entire batch.
+        if not args.dry_run and args.limit_cost > 0 and avg_cost > 0:
+            if real_spend + avg_cost > args.limit_cost:
+                print(f"\n  ⚠  ABORTING: next call would push real spend to "
+                      f"~${real_spend + avg_cost:.2f}, exceeding "
                       f"--limit-cost ${args.limit_cost:.2f}")
                 print(f"  ⚠  {successes} tools completed at "
-                      f"~${estimated_spend:.2f} actual estimated spend")
+                      f"${real_spend:.4f} real spend "
+                      f"({real_in_tok} in / {real_out_tok} out tokens)")
                 break
 
         print(f"  [{i}/{len(targets)}]", end=" ")
-        result = generate_for_tool(tool_key, tools[tool_key], backend, args.dry_run)
+        result, usage = generate_for_tool(tool_key, tools[tool_key], backend, args.dry_run)
+
+        # Bill regardless of result — failed parses still cost real tokens
+        call_cost = _cost_for_usage(
+            backend_key,
+            usage.get("input_tokens", 0),
+            usage.get("output_tokens", 0),
+            usage.get("model"),
+        )
+        real_spend  += call_cost
+        real_in_tok  += usage.get("input_tokens", 0)
+        real_out_tok += usage.get("output_tokens", 0)
+
         if result is not None:
             generated[tool_key] = result
             successes += 1
-            estimated_spend += cost_per_call
             # Save after EVERY successful generation — protects against crashes
             out_data = {
                 "version": "3.0.0",
@@ -930,8 +1021,12 @@ def main():
         print(f"\n  ✓ wrote {out_path}")
         print(f"  ✓ {len(generated)} tools total in generated file "
               f"({successes} new this run)")
-        if cost_per_call > 0:
-            print(f"  ≈ estimated spend this run: ${estimated_spend:.2f}")
+        if avg_cost > 0:
+            print(f"  ≈ real spend this run: ${real_spend:.4f} "
+                  f"({real_in_tok} input + {real_out_tok} output tokens)")
+            if successes > 0:
+                print(f"    actual avg: ${real_spend/successes:.4f}/tool "
+                      f"(empirical projection was ${avg_cost:.4f}/tool)")
         print(f"\n  Next: review with `python3 tools/inspect_generated.py`,")
         print(f"        then merge with `python3 tools/merge_generated.py --write`")
 

@@ -4,11 +4,101 @@
 import json
 import os
 import shutil
+import sys
+import threading
 
 
 def _divider(char="─"):
     w = shutil.get_terminal_size((80, 20)).columns
     return char * min(w, 80)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Live event-bus → terminal bridge
+# ─────────────────────────────────────────────────────────────────────────────
+# Tool subprocesses emit "tool.output" events on the shared EventBus.
+# These handlers print each line immediately so the operator sees tool
+# activity as it happens, exactly like watching nmap/ffuf run directly.
+#
+# A lock + ANSI "clear line + carriage return" keeps the prompt readable
+# when output arrives while the user is mid-keystroke.
+
+_io_lock = threading.Lock()
+
+
+def _stream_print(text: str) -> None:
+    """Thread-safe print that clears the current input line before writing."""
+    with _io_lock:
+        # \r → start of line, \033[2K → clear entire line
+        sys.stdout.write("\r\033[2K" + text + "\n")
+        sys.stdout.flush()
+
+
+def _on_tool_start(_evt, data):
+    tool   = (data or {}).get("tool", "?")
+    cmd    = (data or {}).get("command", "")
+    target = (data or {}).get("target") or ""
+    head   = f"\033[96m▸ {tool}\033[0m"
+    if target:
+        head += f" \033[90m→ {target}\033[0m"
+    _stream_print(head)
+    if cmd:
+        _stream_print(f"   \033[90m$ {cmd}\033[0m")
+
+
+def _on_tool_output(_evt, data):
+    tool = (data or {}).get("tool", "?")
+    line = (data or {}).get("line", "")
+    _stream_print(f"   │ \033[90m[{tool}]\033[0m {line}")
+
+
+def _on_tool_stderr(_evt, data):
+    tool = (data or {}).get("tool", "?")
+    line = (data or {}).get("line", "")
+    _stream_print(f"   │ \033[91m[{tool} stderr]\033[0m {line}")
+
+
+def _on_tool_end(_evt, data):
+    tool   = (data or {}).get("tool", "?")
+    status = (data or {}).get("status", "?")
+    rc     = (data or {}).get("exit_code", "?")
+    dur    = (data or {}).get("execution_time", 0) or 0
+    finds  = (data or {}).get("findings_count", 0)
+    color  = "\033[92m" if status in ("completed", "success") else "\033[91m"
+    try:
+        dur_str = f"{float(dur):.1f}s"
+    except Exception:
+        dur_str = f"{dur}s"
+    _stream_print(
+        f"   └─ {color}{tool} {status}\033[0m "
+        f"(rc={rc}, {dur_str}, {finds} findings)"
+    )
+
+
+def _on_workflow_step(_evt, data):
+    step = (data or {}).get("step") or (data or {}).get("description", "")
+    if step:
+        _stream_print(f"\033[95m⚡ workflow:\033[0m {step}")
+
+
+def _on_finding(_evt, data):
+    plugin = (data or {}).get("plugin", "?")
+    kind   = (data or {}).get("type", "finding")
+    target = (data or {}).get("target", "")
+    _stream_print(
+        f"\033[93m✦ finding\033[0m [{plugin}] {kind}"
+        + (f" → {target}" if target else "")
+    )
+
+
+def _attach_cli_to_bus(bus) -> None:
+    """Register every CLI stream handler on the supplied EventBus."""
+    bus.on("tool.start",     _on_tool_start)
+    bus.on("tool.output",    _on_tool_output)
+    bus.on("tool.stderr",    _on_tool_stderr)
+    bus.on("tool.end",       _on_tool_end)
+    bus.on("workflow_step",  _on_workflow_step)
+    bus.on("finding.added",  _on_finding)
 
 
 BANNER = """
@@ -52,6 +142,22 @@ def start_cli(router, ctx=None, pm=None, agent: str = "red_team"):
     current_agent = agent
     print(BANNER)
     print(_divider())
+
+    # ── Wire live tool-output streaming ────────────────────────────────
+    # 1. Subscribe CLI render handlers to the shared EventBus.
+    # 2. Register the bus as the default for BaseTool instances so every
+    #    legacy tool wrapper automatically publishes its stdout/stderr.
+    if ctx is not None and getattr(ctx, "event_bus", None) is not None:
+        try:
+            _attach_cli_to_bus(ctx.event_bus)
+        except Exception as e:
+            print(f"  \033[93m[warn]\033[0m CLI bus subscription failed: {e}")
+        try:
+            from src.core.base_tool import set_default_event_bus
+            set_default_event_bus(ctx.event_bus)
+        except Exception as e:
+            print(f"  \033[93m[warn]\033[0m BaseTool bus binding failed: {e}")
+        print(f"  \033[92m●\033[0m Live tool streaming \033[92mENABLED\033[0m\n")
 
     while True:
         try:

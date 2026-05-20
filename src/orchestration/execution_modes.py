@@ -70,19 +70,35 @@ class ExecutionEngine:
     which delegates to the real ToolExecutor subprocess runner.
     """
 
-    def __init__(self):
+    def __init__(self, event_bus=None):
+        """
+        event_bus – optional SharedContext.event_bus.  When provided,
+        every tool stdout line is republished as a "tool.output" event,
+        which the CLI subscriber and the dashboard SocketIO relay both
+        consume.  When absent, lines fall back to direct stdout (legacy
+        stand-alone behaviour preserved).
+        """
         self.current_mode   = ExecutionMode.INTERACTIVE
         self.current_plan   : Optional[ExecutionPlan] = None
         self.executed_steps : List[ExecutionStep]     = []
+        self.event_bus      = event_bus
         self.executor       = ToolExecutor(on_line=self._on_tool_line)
         self.paused         = False
 
     # ------------------------------------------------------------------
-    # Live-output callback  (prints each line as it arrives)
+    # Live-output callback — publish to bus if wired, else stdout
     # ------------------------------------------------------------------
 
-    @staticmethod
-    async def _on_tool_line(tool_name: str, line: str):
+    async def _on_tool_line(self, tool_name: str, line: str):
+        if self.event_bus is not None:
+            try:
+                self.event_bus.emit("tool.output", {
+                    "tool": tool_name,
+                    "line": line,
+                })
+                return
+            except Exception:
+                pass    # fall through to stdout if the bus chokes
         print(f"   │ [{tool_name}] {line}")
 
     # ------------------------------------------------------------------

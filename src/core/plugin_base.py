@@ -201,36 +201,139 @@ class BasePlugin:
     def log_error(self, msg: str):
         self.log(msg, "error")
 
+    # ── Streaming command execution ────────────────────────────────────────
+
+    def stream(
+        self,
+        cmd,
+        tool_name: Optional[str] = None,
+        timeout:   int = 300,
+        target:    Optional[str] = None,
+    ) -> PluginResult:
+        """
+        Run a command and stream its output **line-by-line** onto the
+        shared event bus as it arrives.  Subscribers (the CLI renderer
+        and the dashboard SocketIO relay) see live activity instead of
+        waiting for the process to finish.
+
+        Events emitted:
+            tool.start   {tool, command, target}
+            tool.output  {tool, line}        — one per stdout line
+            tool.stderr  {tool, line}        — one per stderr line
+            tool.end     {tool, status, exit_code, execution_time}
+
+        Args:
+            cmd       : list[str]  → executed without a shell (preferred,
+                        safe from injection)
+                        str        → executed via the shell
+            tool_name : label used in events (defaults to argv[0])
+            timeout   : hard deadline in seconds (watchdog kills the PID)
+            target    : optional target string for the tool.start event
+
+        Returns a PluginResult — same shape as shell(), so existing
+        callers keep working.
+        """
+        import subprocess
+        import threading
+        import time as _time
+
+        if isinstance(cmd, (list, tuple)):
+            cmd_list, cmd_str, use_shell = list(cmd), " ".join(cmd), False
+            default_name = cmd_list[0] if cmd_list else "cmd"
+        else:
+            cmd_list, cmd_str, use_shell = cmd, str(cmd), True
+            default_name = str(cmd).split()[0] if str(cmd).strip() else "cmd"
+        tool_name = tool_name or default_name
+
+        self.emit("tool.start", {
+            "tool": tool_name, "command": cmd_str, "target": target,
+        })
+
+        stdout_lines: List[str] = []
+        stderr_lines: List[str] = []
+        rc          : int       = -1
+        status                  = "completed"
+        proc                    = None
+        start                   = _time.time()
+
+        try:
+            proc = subprocess.Popen(
+                cmd_list, shell=use_shell,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, bufsize=1,
+            )
+
+            def _kill_on_timeout():
+                if proc.poll() is None:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+
+            watchdog = threading.Timer(timeout, _kill_on_timeout)
+            watchdog.daemon = True
+            watchdog.start()
+            try:
+                for raw in iter(proc.stdout.readline, ""):
+                    line = raw.rstrip("\n")
+                    stdout_lines.append(line)
+                    self.emit("tool.output", {"tool": tool_name, "line": line})
+
+                err = proc.stderr.read() or ""
+                if err:
+                    stderr_lines.append(err)
+                    for el in err.splitlines():
+                        self.emit("tool.stderr", {"tool": tool_name, "line": el})
+
+                proc.wait(timeout=2)
+            finally:
+                watchdog.cancel()
+
+            rc = proc.returncode if proc.returncode is not None else -1
+            if rc in (-9, 137):
+                status = "timeout"
+            elif rc != 0:
+                status = "failed"
+
+        except FileNotFoundError:
+            status = "failed"
+            stderr_lines.append(f"{tool_name} not found in PATH")
+        except Exception as e:
+            status = "failed"
+            stderr_lines.append(str(e))
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+        output  = "\n".join(stdout_lines)
+        errout  = "\n".join(stderr_lines)
+        elapsed = round(_time.time() - start, 2)
+
+        self.emit("tool.end", {
+            "tool": tool_name, "status": status,
+            "exit_code": rc, "execution_time": elapsed,
+        })
+
+        return PluginResult(
+            output   = output if output else errout,
+            success  = (status == "completed"),
+            command  = cmd_str,
+            metadata = {"returncode": rc, "status": status,
+                        "stderr": errout, "execution_time": elapsed},
+        )
+
     # ── Safe shell execution helper ────────────────────────────────────────
 
     def shell(self, cmd: str, timeout: int = 60) -> PluginResult:
         """
-        Run a shell command safely and return a PluginResult.
-        Prefer this over raw subprocess calls in plugin implementations.
+        Run a shell command and return a PluginResult.
+        Now streams output live via stream() — every plugin using this
+        helper gets real-time CLI/dashboard output for free.
+        Prefer this (or stream() with a list) over raw subprocess calls.
         """
-        import subprocess
-        try:
-            proc = subprocess.run(
-                cmd, shell=True, capture_output=True,
-                text=True, timeout=timeout
-            )
-            output = proc.stdout + (proc.stderr if proc.returncode != 0 else "")
-            return PluginResult(
-                output=output.strip(),
-                success=proc.returncode == 0,
-                command=cmd,
-                metadata={"returncode": proc.returncode},
-            )
-        except subprocess.TimeoutExpired:
-            return PluginResult(
-                output=f"[TIMEOUT] Command timed out after {timeout}s: {cmd}",
-                success=False, command=cmd,
-            )
-        except Exception as e:
-            return PluginResult(
-                output=f"[ERROR] Shell execution failed: {e}",
-                success=False, command=cmd,
-            )
+        return self.stream(cmd, timeout=timeout)
 
     # ── Introspection ──────────────────────────────────────────────────────
 

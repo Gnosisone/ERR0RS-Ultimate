@@ -97,6 +97,8 @@ def _wire_event_bus(event_bus, socketio):
         "command_result", "ai_decision", "device.action",
         "device.success", "device.error", "finding.added",
         "analysis_complete", "scan.complete",
+        # ── Live tool execution stream (CLI + dashboard parity) ─────
+        "tool.start", "tool.output", "tool.stderr", "tool.end",
     ]
     for evt in RELAY_EVENTS:
         # Closure capture

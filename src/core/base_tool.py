@@ -9,12 +9,57 @@ import subprocess
 import logging
 import time
 import json
-from typing import Dict, List, Optional, Any
+import threading
+import re
+from typing import Dict, List, Optional, Any, Callable
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Module-level event-bus binding
+# ---------------------------------------------------------------------------
+# Any subsystem that has a SharedContext can call
+#   set_default_event_bus(ctx.event_bus)
+# once at startup.  Every BaseTool instance that hasn't been individually
+# bound will then publish "tool.output" / "tool.start" / "tool.end" events
+# through that bus, which feeds both the CLI subscriber and the dashboard
+# SocketIO relay.
+_default_event_bus = None
+
+
+def set_default_event_bus(bus) -> None:
+    """Register the global EventBus used by all BaseTool instances."""
+    global _default_event_bus
+    _default_event_bus = bus
+
+
+def _get_bus(tool):
+    """Resolve the bus for a tool instance (instance override → global)."""
+    return getattr(tool, "_event_bus", None) or _default_event_bus
+
+
+# ---------------------------------------------------------------------------
+# Command-line redaction (avoid leaking creds / API keys into logs + events)
+# ---------------------------------------------------------------------------
+_REDACT_PATTERNS = [
+    re.compile(r"(--password[= ])(\S+)", re.IGNORECASE),
+    re.compile(r"(-p[= ])(\S+)"),
+    re.compile(r"(--token[= ])(\S+)", re.IGNORECASE),
+    re.compile(r"(--api[-_]?key[= ])(\S+)", re.IGNORECASE),
+    re.compile(r"(Authorization:\s*Bearer\s+)(\S+)", re.IGNORECASE),
+]
+
+
+def _redact(command: str) -> str:
+    """Mask common credential flags before logging."""
+    out = command
+    for pat in _REDACT_PATTERNS:
+        out = pat.sub(lambda m: m.group(1) + "***REDACTED***", out)
+    return out
 
 
 class ToolCategory(Enum):
@@ -95,19 +140,33 @@ class BaseTool(ABC):
     def parse_output(self, output: str) -> List[Dict[str, Any]]:
         """Parse tool output into structured findings"""
         pass    
+    # ------------------------------------------------------------------
+    # Bus binding (per-instance override; falls back to module default)
+    # ------------------------------------------------------------------
+    def bind_bus(self, bus) -> None:
+        """Attach an EventBus to this specific tool instance."""
+        self._event_bus = bus
+
     def execute(self, params: Dict[str, Any]) -> ToolResult:
         """
-        Execute the tool with given parameters
-        
-        Features:
-        - Parameter validation
-        - Timeout protection
-        - Error handling
-        - Output parsing
-        - Audit logging
+        Execute the tool with given parameters.
+
+        Streaming model:
+        - Spawn subprocess with line-buffered pipes.
+        - Iterate stdout line-by-line so every line is emitted as
+          a ``tool.output`` event on the shared EventBus the instant
+          it arrives — CLI and dashboard subscribers both see live
+          output.
+        - Hard deadline enforced by a watchdog thread (Popen.kill on
+          timeout) so even a tool that hangs without producing output
+          still gets killed.
+
+        Backwards-compatible: returns the same ToolResult shape as
+        the previous blocking implementation.
         """
         start_time = time.time()
-        
+        bus        = _get_bus(self)
+
         # Validate parameters
         if not self.validate_params(params):
             return ToolResult(
@@ -120,44 +179,111 @@ class BaseTool(ABC):
                 findings=[],
                 metadata={}
             )
-        
+
         # Build command
-        command = self.build_command(params)
-        logger.info(f"Executing {self.tool_name}: {command}")
-        
-        # Execute with timeout protection
+        command       = self.build_command(params)
+        safe_command  = _redact(command)
+        logger.info(f"Executing {self.tool_name}: {safe_command}")
+
+        if bus:
+            bus.emit("tool.start", {
+                "tool":    self.tool_name,
+                "command": safe_command,
+                "target":  params.get("target"),
+            })
+
+        stdout_buf : List[str] = []
+        stderr_buf : List[str] = []
+        exit_code  : int       = -1
+        status                  = ToolStatus.RUNNING
+        watchdog   : Optional[threading.Timer] = None
+        process    : Optional[subprocess.Popen] = None
+
         try:
             self.status = ToolStatus.RUNNING
-            
+
             process = subprocess.Popen(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                bufsize=1,           # line-buffered
             )
-            
+
+            # Watchdog: kill the process if it overruns the timeout,
+            # even if it's silent on stdout.
+            def _kill_on_timeout():
+                if process.poll() is None:
+                    logger.warning(
+                        f"{self.tool_name} timed out after {self.timeout}s — killing PID {process.pid}"
+                    )
+                    try:
+                        process.kill()
+                    except Exception:
+                        pass
+
+            watchdog = threading.Timer(self.timeout, _kill_on_timeout)
+            watchdog.daemon = True
+            watchdog.start()
+
+            # Live stdout iteration — every line becomes an event.
+            for raw_line in iter(process.stdout.readline, ""):
+                line = raw_line.rstrip("\n")
+                stdout_buf.append(line)
+                if bus:
+                    bus.emit("tool.output", {
+                        "tool": self.tool_name,
+                        "line": line,
+                    })
+
+            # stdout EOF — drain stderr (it's usually small)
             try:
-                stdout, stderr = process.communicate(timeout=self.timeout)
-                exit_code = process.returncode
-                status = ToolStatus.COMPLETED if exit_code == 0 else ToolStatus.FAILED
-                
-            except subprocess.TimeoutExpired:
-                process.kill()
-                stdout, stderr = process.communicate()
-                exit_code = -1
+                err = process.stderr.read() or ""
+            except Exception:
+                err = ""
+            if err:
+                stderr_buf.append(err)
+                if bus:
+                    for eline in err.splitlines():
+                        bus.emit("tool.stderr", {
+                            "tool": self.tool_name,
+                            "line": eline,
+                        })
+
+            process.wait(timeout=2)
+            exit_code = process.returncode if process.returncode is not None else -1
+
+            # Distinguish timeout-kill from clean failure.
+            # If the watchdog fired, process.returncode is typically -9 on Linux.
+            killed_by_watchdog = (
+                watchdog is not None
+                and not watchdog.is_alive()
+                and exit_code in (-9, 137)
+            )
+            if killed_by_watchdog:
                 status = ToolStatus.TIMEOUT
-                logger.warning(f"{self.tool_name} timed out after {self.timeout}s")
-                
+            else:
+                status = ToolStatus.COMPLETED if exit_code == 0 else ToolStatus.FAILED
+
         except Exception as e:
-            stdout = ""
-            stderr = str(e)
-            exit_code = -1
+            stderr_buf.append(str(e))
             status = ToolStatus.FAILED
             logger.error(f"{self.tool_name} execution failed: {e}")
-        
+            if process is not None and process.poll() is None:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+        finally:
+            if watchdog is not None:
+                watchdog.cancel()
+
+        stdout = "\n".join(stdout_buf)
+        stderr = "\n".join(stderr_buf)
+
         execution_time = time.time() - start_time
-        
+
         # Parse output into findings
         findings = []
         if stdout and status == ToolStatus.COMPLETED:
@@ -177,11 +303,20 @@ class BaseTool(ABC):
             findings=findings,
             metadata={
                 "category": self.category.value,
-                "command": command,
+                "command": safe_command,
                 "params": params
             }
         )
-        
+
+        if bus:
+            bus.emit("tool.end", {
+                "tool":           self.tool_name,
+                "status":         status.value,
+                "exit_code":      exit_code,
+                "execution_time": execution_time,
+                "findings_count": len(findings),
+            })
+
         self.status = status
         return result
     

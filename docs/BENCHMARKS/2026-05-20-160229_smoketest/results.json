@@ -1,0 +1,53 @@
+{
+  "state": {
+    "timestamp": "2026-05-20T16:02:29",
+    "cpu_governor": "ondemand",
+    "cpu_freq_mhz": 2400,
+    "cpu_temp_c": 38.05,
+    "throttle_state": "throttled=0x0",
+    "kernel": "6.12.75+rpt-rpi-2712",
+    "free_output": "Mem:     17006788608  5860048896  2701148160   888389632  9961848832 11146739712"
+  },
+  "matrix": [
+    {
+      "config": {
+        "model": "gemma3:1b",
+        "size": "small",
+        "options": {}
+      },
+      "runs": [
+        {
+          "model": "gemma3:1b",
+          "prompt_chars": 3853,
+          "options": {},
+          "aborted": false,
+          "abort_reason": null,
+          "time_to_first_token_s": 86.51722121238708,
+          "total_elapsed_s": 974.1826786994934,
+          "input_tokens": 955,
+          "output_tokens": 500,
+          "prompt_eval_s": 69.611043644,
+          "generation_s": 886.297233533,
+          "prompt_eval_tok_per_s": 13.71908751841152,
+          "generation_tok_per_s": 0.5641448275843943,
+          "response_chars": 2152,
+          "peak_temp_c": 50.15,
+          "peak_throttle": "none",
+          "thermal_killed": false,
+          "temp_at_start_c": 50.15
+        }
+      ],
+      "aggregate": {
+        "runs_completed": 1,
+        "runs_attempted": 1,
+        "ttft_median_s": 86.51722121238708,
+        "ttft_min_s": 86.51722121238708,
+        "ttft_max_s": 86.51722121238708,
+        "prompt_eval_tok_per_s_median": 13.71908751841152,
+        "generation_tok_per_s_median": 0.5641448275843943,
+        "total_elapsed_median_s": 974.1826786994934,
+        "peak_temp_observed_c": 50.15
+      }
+    }
+  ]
+}

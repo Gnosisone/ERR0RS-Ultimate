@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-05-20T16:48:38",
+  "cpu_governor": "ondemand",
+  "cpu_freq_mhz": 2400,
+  "cpu_temp_c": 33.1,
+  "throttle_state": "throttled=0x0",
+  "kernel": "6.12.75+rpt-rpi-2712",
+  "free_output": "Mem:     17006788608  5476827136  2892513280   294731776  9694511104 11529961472"
+}

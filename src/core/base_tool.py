@@ -16,6 +16,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 
+# Pre-execution safety gate. Every tool execution passes through
+# check_tool_execution() before any subprocess work. See
+# src/security/gate.py for the policy logic.
+from src.security.gate import check_tool_execution
+
 logger = logging.getLogger(__name__)
 
 
@@ -184,6 +189,38 @@ class BaseTool(ABC):
         command       = self.build_command(params)
         safe_command  = _redact(command)
         logger.info(f"Executing {self.tool_name}: {safe_command}")
+
+        # ── Pre-execution safety gate ─────────────────────────────────────
+        # Refuses execution if:
+        #   • target not covered by an active authorization AND
+        #   • lab mode is off OR target is outside permitted lab ranges
+        #   • OR command matches a blocked pattern (rm -rf, mkfs, dd if=, …)
+        # On refusal, emits a tool.blocked event so UI sees clear feedback.
+        # See src/security/gate.py for the full policy.
+        gate = check_tool_execution(
+            tool_name=self.tool_name,
+            target=params.get("target", ""),
+            command=safe_command,
+        )
+        if not gate.allowed:
+            logger.warning(f"BLOCKED {self.tool_name}: {gate.source}")
+            if bus:
+                bus.emit("tool.blocked", {
+                    "tool":   self.tool_name,
+                    "target": params.get("target"),
+                    "reason": gate.reason,
+                    "source": gate.source,
+                })
+            return ToolResult(
+                tool_name=self.tool_name,
+                status=ToolStatus.FAILED,
+                output="",
+                errors=gate.reason,
+                execution_time=time.time() - start_time,
+                exit_code=-1,
+                findings=[],
+                metadata={"blocked": True, "block_source": gate.source},
+            )
 
         if bus:
             bus.emit("tool.start", {

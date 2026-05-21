@@ -10,6 +10,11 @@ from typing import Any, Dict, List, Optional
 import logging
 import time
 
+# Pre-execution safety gate. BasePlugin.stream() invokes this before
+# any subprocess spawn — refuses unauthorized target attacks and
+# blocks always-dangerous commands. See src/security/gate.py.
+from src.security.gate import check_tool_execution
+
 logger = logging.getLogger("PluginBase")
 
 
@@ -244,6 +249,35 @@ class BasePlugin:
             cmd_list, cmd_str, use_shell = cmd, str(cmd), True
             default_name = str(cmd).split()[0] if str(cmd).strip() else "cmd"
         tool_name = tool_name or default_name
+
+        # ── Pre-execution safety gate ─────────────────────────────────────
+        # Same policy as BaseTool.execute() — single chokepoint for every
+        # tool execution path. Refuses unauthorized targets and dangerous
+        # patterns. See src/security/gate.py.
+        gate = check_tool_execution(
+            tool_name=tool_name,
+            target=target or "",
+            command=cmd_str,
+        )
+        if not gate.allowed:
+            logger.warning(f"BLOCKED {tool_name}: {gate.source}")
+            self.emit("tool.blocked", {
+                "tool":   tool_name,
+                "target": target,
+                "reason": gate.reason,
+                "source": gate.source,
+            })
+            return PluginResult(
+                output="",
+                success=False,
+                command=cmd_str,
+                metadata={
+                    "blocked":      True,
+                    "block_source": gate.source,
+                    "block_reason": gate.reason,
+                    "returncode":   -1,
+                },
+            )
 
         self.emit("tool.start", {
             "tool": tool_name, "command": cmd_str, "target": target,

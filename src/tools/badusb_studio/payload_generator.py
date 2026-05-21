@@ -97,7 +97,7 @@ class PayloadGenerator:
     """
 
     OLLAMA_URL = "http://localhost:11434/api/generate"
-    DEFAULT_MODEL = "qwen2.5-coder:7b"
+    DEFAULT_MODEL = "gemma3:1b"  # Pi 5 verified — see docs/STRESS_TESTS/FINDINGS_2026-05-20.md
 
     SYSTEM_PROMPT = """You are an expert BadUSB payload developer for authorized penetration testing.
 Generate DuckyScript payloads that are precise, effective, and follow best practices.

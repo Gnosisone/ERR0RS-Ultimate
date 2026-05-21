@@ -67,11 +67,25 @@ class LLMResponse:
 DEFAULT_CONFIGS: Dict[LLMProvider, LLMConfig] = {
     LLMProvider.OLLAMA: LLMConfig(
         provider    = LLMProvider.OLLAMA,
-        model       = "qwen2.5-coder:7b",   # ERR0RS default — Pi 5 Cyberdeck
+        # gemma3:1b: Pi 5 verified — only model in our stress tests that
+        # completes RAG-augmented teach inference within an interactive
+        # budget. qwen2.5-coder:7b and llama3.2:3b both hard-timeout at
+        # 300s on full-card prompts.
+        #   Measured 2026-05-20 (chunked RAG, 1310-char prompt):
+        #     TTFT 28.1s · gen 8.2 tok/s · peak 50.7°C · no throttle
+        #   See docs/STRESS_TESTS/FINDINGS_2026-05-20.md
+        #   See docs/BENCHMARKS/2026-05-20-164838_clean-baseline/
+        model       = "gemma3:1b",
         base_url    = "http://127.0.0.1:11434",
-        timeout     = 240,                  # Pi 5 needs time — 90s was too short
-        max_tokens  = 1024,                 # was 2048 — halved for RAM headroom
-        temperature = 0.2,
+        # 360s = 6 min. Generous for whole-card retrieval edge cases,
+        # tight enough to surface failures during runtime.
+        timeout     = 360,
+        # gemma3:1b generation is fast — let it speak. With chunked RAG,
+        # 1500 tokens is a full teach response in ~150s of generation.
+        max_tokens  = 1500,
+        # 0.3 vs 0.2: gemma3:1b over-truncates at very low temperatures
+        # (drops natural section structure under heavy RAG context).
+        temperature = 0.3,
     ),
     LLMProvider.LMSTUDIO: LLMConfig(
         provider   = LLMProvider.LMSTUDIO,

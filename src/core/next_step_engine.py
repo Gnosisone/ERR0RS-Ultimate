@@ -153,7 +153,7 @@ State:
 {json.dumps(summary, indent=2)}
 
 JSON array:"""
-        proc = subprocess.run(["ollama","run","qwen2.5-coder:7b",prompt],
+        proc = subprocess.run(["ollama","run","gemma3:1b",prompt],
                               capture_output=True, text=True, timeout=20)
         m = re.search(r"\[[\s\S]+\]", proc.stdout)
         if not m: return []

@@ -58,7 +58,7 @@ class LLMRouter:
 
         # Resolve defaults at instantiation time (after .env is loaded), not at class-definition time
         _default_models = {
-            "ollama":    os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b"),
+            "ollama":    os.getenv("OLLAMA_MODEL", "gemma3:1b"),
             "lmstudio":  "local-model",
             "anthropic": "claude-haiku-4-5-20251001",
             "openai":    "gpt-4o-mini",
@@ -68,7 +68,7 @@ class LLMRouter:
             "lmstudio": "http://localhost:1234",
         }
 
-        self.model     = model or _default_models.get(self.backend, "qwen2.5-coder:7b")
+        self.model     = model or _default_models.get(self.backend, "gemma3:1b")
         self.api_key   = api_key or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
         self._base_url = _default_urls.get(self.backend, "")
 

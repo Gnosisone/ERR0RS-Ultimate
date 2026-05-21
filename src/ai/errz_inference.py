@@ -448,9 +448,12 @@ class ERRZInference:
 
     def _call_ollama(self, url: str, prompt: str,
                      system: str, model: str) -> dict:
-        """Call Ollama's native API — Pi 5 tuned for 8GB RAM headroom."""
+        """Call Ollama's native API — Pi 5 tuned for memory headroom."""
         # ── Pi 5 RAM-aware options ────────────────────────────────
-        # qwen2.5-coder:7b uses ~5GB RSS — keep context small to avoid OOM
+        # gemma3:1b uses ~1.2 GB RSS (the recommended Pi 5 model per
+        # docs/STRESS_TESTS/FINDINGS_2026-05-20.md). Larger models like
+        # qwen2.5-coder:7b (~5 GB RSS) work on 16GB Pi 5 but exceed the
+        # interactive latency budget for RAG-augmented teach.
         # num_ctx 2048 vs default 4096 saves ~800MB RAM
         # num_predict 1024 keeps responses fast and memory-bounded
         # num_thread = physical cores only (4 on Pi5) avoids scheduler thrash

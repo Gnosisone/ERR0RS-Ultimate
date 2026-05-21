@@ -505,7 +505,11 @@ def query_ollama(prompt: str) -> dict:
     if not _m:
         try:
             with open("/proc/cpuinfo") as f:
-                _m = "qwen2.5-coder:7b" if "Raspberry Pi" in f.read() else "qwen2.5-coder:32b"
+                # Pi 5 verified — gemma3:1b is the only local model that
+                # completes RAG-augmented teach reliably on Pi 5 CPU
+                # (see docs/STRESS_TESTS/FINDINGS_2026-05-20.md).
+                # Desktop hosts get qwen-coder for higher quality.
+                _m = "gemma3:1b" if "Raspberry Pi" in f.read() else "qwen2.5-coder:32b"
         except Exception:
             _m = "qwen2.5-coder:32b"
     try:
@@ -3116,7 +3120,8 @@ def check_ollama():
     if not _m:
         try:
             with open("/proc/cpuinfo") as f:
-                _m = "qwen2.5-coder:7b" if "Raspberry Pi" in f.read() else "qwen2.5-coder:32b"
+                # Pi 5 verified — see docs/STRESS_TESTS/FINDINGS_2026-05-20.md
+                _m = "gemma3:1b" if "Raspberry Pi" in f.read() else "qwen2.5-coder:32b"
         except Exception:
             _m = "qwen2.5-coder:32b"
     try:

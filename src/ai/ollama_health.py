@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # ── Config from env ───────────────────────────────────────────────────────────
 OLLAMA_HOST    = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL", "err0rs-pi5")
-FALLBACK_MODEL = os.getenv("OLLAMA_MODEL_FALLBACK", "qwen2.5-coder:7b")
+FALLBACK_MODEL = os.getenv("OLLAMA_MODEL_FALLBACK", "gemma3:1b")
 NUM_CTX        = int(os.getenv("OLLAMA_NUM_CTX",     "2048"))
 NUM_PREDICT    = int(os.getenv("OLLAMA_NUM_PREDICT",  "1024"))
 NUM_THREAD     = int(os.getenv("OLLAMA_NUM_THREAD",   "4"))
@@ -102,7 +102,7 @@ def check_model() -> tuple[bool, str, str]:
     return False, (
         f"Neither '{OLLAMA_MODEL}' nor '{FALLBACK_MODEL}' found.\n"
         f"  Available: {', '.join(models) or 'none'}\n"
-        f"  Fix: ollama pull qwen2.5-coder:7b"
+        f"  Fix: ollama pull {FALLBACK_MODEL}"
     ), ""
 
 
@@ -212,7 +212,7 @@ def run_health_check(verbose: bool = True) -> dict:
     _print(f"  │  Model     : {'✅' if ok else '❌'}  {msg}")
     if not ok:
         _print("  │")
-        _print("  │  ⚡ FIX: ollama pull qwen2.5-coder:7b")
+        _print(f"  │  ⚡ FIX: ollama pull {FALLBACK_MODEL}")
         _print("  └───────────────────────────────────────────────────\n")
         return results
 

@@ -49,12 +49,21 @@ def _default_model() -> str:
                     models = [m["name"] for m in json.loads(r.read()).get("models", [])]
                     if "err0rs-pi5" in models:
                         return "err0rs-pi5"        # tuned model available
-                    # fallback to base model — still works, just not optimized
+                    # Pi 5 verified — gemma3:1b is the only local model that
+                    # completes RAG-augmented teach inference reliably on
+                    # Pi 5 CPU (2026-05-20 stress tests). 7B+ models hard-
+                    # timeout on full-card prompts; chunked RAG + gemma hits
+                    # 28s TTFT. See docs/STRESS_TESTS/FINDINGS_2026-05-20.md
+                    if "gemma3:1b" in models:
+                        return "gemma3:1b"
+                    # Older fallbacks if user has them pulled from prior installs
+                    if "llama3.2:3b" in models:
+                        return "llama3.2:3b"
                     if "qwen2.5-coder:7b" in models:
                         return "qwen2.5-coder:7b"
                 except Exception:
                     pass
-                return "qwen2.5-coder:7b"          # Pi default
+                return "gemma3:1b"                 # Pi default — install.sh pulls this
     except Exception:
         pass
 

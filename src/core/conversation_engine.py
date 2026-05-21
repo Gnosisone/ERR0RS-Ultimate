@@ -219,16 +219,21 @@ class ConversationEngine:
     Uses Ollama HTTP API for proper streaming (not subprocess).
     """
 
-    # Chat model preference order — fastest first for conversation
+    # Chat model preference order — fastest first for conversation.
+    # gemma3:1b promoted to top after 2026-05-20 stress tests proved it's
+    # the only local model that reliably completes RAG-augmented teach
+    # inference on Pi 5 hardware (TTFT 28.1s on chunked RAG).
+    # See docs/STRESS_TESTS/FINDINGS_2026-05-20.md
     CHAT_MODEL_PREFERENCE = [
-        "llama3.2:3b",       # fast, great for chat/explanation
-        "llama3.2:1b",       # very fast fallback
-        "qwen2.5-coder:7b",  # slower but available on Pi
+        "gemma3:1b",         # Pi 5 verified — primary
+        "llama3.2:3b",       # fast fallback, decent quality
+        "llama3.2:1b",       # very fast fallback when RAM-constrained
         "err0rs-pi5:latest", # custom model
+        "qwen2.5-coder:7b",  # quality but slow on Pi (use only on >= 16GB hosts)
     ]
 
     def __init__(self,
-                 model:       str = "qwen2.5-coder:7b",
+                 model:       str = "gemma3:1b",
                  ollama_host: str = "http://localhost:11434"):
         self.ollama_host = ollama_host
         self._sessions: Dict[str, ConversationHistory] = {}
@@ -503,7 +508,7 @@ class ConversationEngine:
 # ── Global singleton ──────────────────────────────────────────────────────────
 _engine: Optional[ConversationEngine] = None
 
-def get_engine(model: str = "qwen2.5-coder:7b",
+def get_engine(model: str = "gemma3:1b",
                host:  str = "http://localhost:11434") -> ConversationEngine:
     global _engine
     if _engine is None:

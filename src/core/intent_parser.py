@@ -300,7 +300,7 @@ def _ollama_parse(text, state=None):
     try:
         prompt = OLLAMA_SYSTEM_PROMPT + f"\n\nOperator message: {text}\n\nJSON intent:"
         proc = subprocess.run(
-            ["ollama","run","qwen2.5-coder:7b",prompt],
+            ["ollama","run","gemma3:1b",prompt],
             capture_output=True, text=True, timeout=20,
         )
         raw = proc.stdout.strip()

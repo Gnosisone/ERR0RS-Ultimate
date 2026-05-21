@@ -591,11 +591,15 @@ install_ollama() {
     ollama serve &>/dev/null & sleep 3
   fi
 
-  # Choose model based on arch
+  # Choose model. gemma3:1b verified for Pi 5 / ARM by stress test
+  # 2026-05-20 (TTFT 28.1s on chunked RAG, no thermal issues). x86 hosts
+  # default to the same model for consistency with the LLM router config;
+  # users can override via OLLAMA_MODEL=... in .env if they have RAM headroom
+  # for a larger model and want better quality.
   if [[ "$ARCH" == "aarch64" ]]; then
-    MODEL="llama3.2"      # Optimized for ARM (Pi 5)
+    MODEL="gemma3:1b"     # Pi 5 verified — see docs/STRESS_TESTS/FINDINGS_2026-05-20.md
   else
-    MODEL="${OLLAMA_MODEL:-llama3.2}"
+    MODEL="${OLLAMA_MODEL:-gemma3:1b}"
   fi
 
   echo -e "  Pulling model: ${CYAN}$MODEL${NC} (this takes a few minutes first time)..."

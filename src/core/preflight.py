@@ -98,7 +98,7 @@ def check_ollama(host: str = None, timeout: int = 5) -> bool:
                 print(f"  {_OK} Ollama running — models: {_C}{', '.join(models[:4])}{_N}")
             else:
                 print(f"  {_WARN} Ollama running but {_B}no models pulled{_N}.")
-                model = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b")
+                model = os.environ.get("OLLAMA_MODEL", "gemma3:1b")
                 print(f"     Pull one:  {_C}ollama pull {model}{_N}")
             return True
         else:

@@ -215,6 +215,22 @@ This requires real LLM judgment — exactly what we have. It's also unfakeable i
 
 Implementation: scenario library + LLM rubric for evaluation + reflection summary written to the student's portfolio. Highest engineering complexity of the five features; highest pedagogical payoff.
 
+### 6. Reflection journal (THE COMPOUNDING ONE — sequenced after features 1-5)
+
+Every engagement and meaningful teach session ends with structured reflection:
+
+- *"What did you assume that turned out wrong?"*
+- *"What surprised you?"*
+- *"What would you tell yourself before starting this engagement again?"*
+- *"Which opsec consideration almost cost you this run?"*
+- *"What's the one thing you'd do differently with another hour?"*
+
+The student answers in their own words. Each entry is timestamped, tagged with the tool/scenario/MITRE-technique involved, and stored privately to the student's local journal. Over time, **the journal compounds into the student's own pattern data** — the curriculum tailored to them, written by them, drawn from their own growth.
+
+**Why this is sequenced AFTER features 1-5:** the journal has nothing to compound until students are doing real metacognition (feature 2), running real engagements (feature 3), and being assessed on reasoning (feature 5). Building the journal first would mean students journaling about nothing. Building it after means students journaling about content that already taught them something. It is the keystone feature that locks the other five into long-term skill development.
+
+Implementation: SQLite-backed local journal + reflection prompt rotation hooked into engagement-end and teach-session-end events + retrospective query mode ("show me everywhere I struggled with opsec last month"). Privacy: lives in `~/.err0rs/journal/`, never leaves the device.
+
 ---
 
 ## Part V — The honest tensions
@@ -255,10 +271,11 @@ This document describes years of work. One person can't build it. **Answer:** th
 | **v3.6.0** (shipped) | Teach Knowledge Drop | 67 fully-taught tools, RAG online, merge pipeline |
 | **v3.7.0** (in progress) | Make the Pi Actually Teach | gemma3:1b default, chunked RAG, online toggle |
 | **v3.8.0** | Dual-Perspective Teach | `defender_view` field on every teach card; LLM-generated paired content; "blue team mode" toggle in UI |
-| **v3.9.0** | Metacognition | "Why did you do that?" probing wired to event bus; tracks student answer patterns; first version of reflection journal |
+| **v3.9.0** | Metacognition | "Why did you do that?" probing wired to event bus; tracks student answer patterns; metacog response capture (groundwork for journal in v4.2.5) |
 | **v4.0.0** | Adversarial Engagements | Scenario library, red/blue role-play mode, structured engagement wrapper |
 | **v4.1.0** | Threat Actor Narratives | MITRE Group cross-references; APT framing in teach cards; real-world consequence storytelling |
 | **v4.2.0** | Mindset Assessment | Conversation-based eval rubric; portfolio writes; student growth tracking |
+| **v4.2.5** | Reflection Journal | SQLite-backed local journal; rotating reflection prompts hooked to engagement-end and teach-session-end; retrospective query mode. Compounds the prior 5 mindset features into long-term skill data. Lives at `~/.err0rs/journal/`, never leaves the device. |
 | **v4.3.0** | EXPLORE Tier | Story-driven concept narratives for kids/beginners; safe simulated tooling |
 | **v4.5.0** | LEARN Tier consolidation | Guided lab integrations (Juice Shop, DVWA, HTB starter boxes); capability gating; legal-foundations gateway |
 | **v5.0.0** | OPERATE Tier consolidation | Full engagement framework; scoped-freedom mode; lab provisioning |

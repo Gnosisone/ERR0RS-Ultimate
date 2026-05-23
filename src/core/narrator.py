@@ -190,11 +190,20 @@ class Narrator:
     """
     Single narrator instance shared across all ERR0RS modules.
     Call narrator.tell() from anywhere to broadcast a live narration.
+
+    WebSocket broadcast model (Bug 1 fix, 2026-05-23):
+      Each registered WS client is stored as (send_coroutine_fn, asyncio_loop).
+      tell() schedules each send via run_coroutine_threadsafe(send_fn(payload), loop)
+      which works from ANY thread — sync or async. Previous implementation
+      used asyncio.get_event_loop() inside tell(), which creates a fresh
+      idle loop in worker threads and silently fails on the await.
     """
 
     def __init__(self):
         self._lock       = threading.Lock()
-        self._ws_clients : List[Callable] = []   # async send callbacks
+        # Each entry: (send_fn, loop) — loop captured at registration time
+        # so we can schedule the coroutine from any thread that calls tell().
+        self._ws_clients : List[tuple] = []
         self._terminal_fd: Optional[int]  = None
         self._log_file   = LOG_FILE
         self._step       = 0
@@ -206,14 +215,28 @@ class Narrator:
             self._log = None
 
     # ── Register WebSocket client ─────────────────────────────────────────
-    def register_ws(self, send_fn: Callable):
+    def register_ws(self, send_fn: Callable, loop=None):
+        """Register an async websocket send function and the loop that owns it.
+
+        If loop is None, we attempt to capture the currently-running loop.
+        This MUST be called from within the WS handler's async context so the
+        captured loop is the one that can actually drive the send coroutine.
+        """
+        if loop is None:
+            try:
+                import asyncio as _asyncio
+                loop = _asyncio.get_event_loop()
+            except Exception:
+                loop = None
         with self._lock:
-            if send_fn not in self._ws_clients:
-                self._ws_clients.append(send_fn)
+            # De-dup on send_fn so re-registration from the same handler doesn't
+            # accumulate duplicate broadcasts.
+            self._ws_clients = [(f, l) for (f, l) in self._ws_clients if f != send_fn]
+            self._ws_clients.append((send_fn, loop))
 
     def unregister_ws(self, send_fn: Callable):
         with self._lock:
-            self._ws_clients = [f for f in self._ws_clients if f != send_fn]
+            self._ws_clients = [(f, l) for (f, l) in self._ws_clients if f != send_fn]
 
     # ── Core broadcast ────────────────────────────────────────────────────
     def tell(self,
@@ -281,18 +304,25 @@ class Narrator:
         })
 
         dead = []
-        for send_fn in list(self._ws_clients):
+        # Snapshot the clients list under lock so we don't iterate while
+        # register_ws/unregister_ws could mutate it.
+        with self._lock:
+            clients_snapshot = list(self._ws_clients)
+
+        import asyncio as _asyncio
+        for send_fn, loop in clients_snapshot:
             try:
-                # Try calling synchronously (for threaded WS) or schedule
-                import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.run_coroutine_threadsafe(send_fn(ws_payload), loop)
-                    else:
-                        loop.run_until_complete(send_fn(ws_payload))
-                except RuntimeError:
-                    pass
+                if loop is not None and loop.is_running():
+                    # Schedule the coroutine on the WS handler's loop from
+                    # whatever thread we're currently on. Fire-and-forget —
+                    # we don't wait on .result() because the broadcast call
+                    # site can't afford to block on a slow client.
+                    _asyncio.run_coroutine_threadsafe(send_fn(ws_payload), loop)
+                else:
+                    # No loop or loop not running — client is dead, mark
+                    # for removal. We don't try the old run_until_complete
+                    # fallback because it was the source of the bug.
+                    dead.append(send_fn)
             except Exception:
                 dead.append(send_fn)
 

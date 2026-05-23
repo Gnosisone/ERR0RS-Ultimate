@@ -1150,8 +1150,15 @@ async def ws_terminal_handler(websocket):
     proc = None
 
     # ── Register this WS client with the narrator ─────────────────────────
+    # Pass the running event loop explicitly so the narrator can schedule
+    # async sends from any worker thread (Bug 1 fix, 2026-05-23).
     if NARRATOR and narrator:
-        narrator.register_ws(websocket.send)
+        try:
+            import asyncio as _asyncio_reg
+            _ws_loop = _asyncio_reg.get_event_loop()
+        except Exception:
+            _ws_loop = None
+        narrator.register_ws(websocket.send, loop=_ws_loop)
 
     try:
         await websocket.send(json.dumps({
@@ -1226,7 +1233,104 @@ async def ws_terminal_handler(websocket):
                               "execute": True, "teach": teach_flag, "mode": "execute"}
 
                 # Teach-only mode
+                # Bug 2 fix (2026-05-23): when CONV_ENGINE is available, route
+                # teach requests through the conversation engine so they get
+                # chunked-RAG enriched, conversational answers — instead of
+                # the static dict lookup in the legacy teach_engine. Falls
+                # back to legacy when CONV_ENGINE is unavailable.
                 if intent["mode"] == "teach" and not intent["execute"]:
+                    if CONV_ENGINE:
+                        # Reformulate so the conv engine knows this is a teach
+                        # request (not just a random tool name) — gemma3:1b
+                        # responds much better to a complete sentence than to
+                        # a bare "nmap" or "rubeus".
+                        teach_query = clean_cmd
+                        # Strip leading "teach " / "teach me " / "explain "
+                        # so the reformulated query reads naturally.
+                        import re as _re_teach
+                        _lead = _re_teach.match(
+                            r'^\s*(?:teach(?:\s+me)?|explain|what(?:\'s|\s+is)|tell\s+me\s+about)\s+(.+)$',
+                            clean_cmd, _re_teach.IGNORECASE
+                        )
+                        topic = _lead.group(1).strip() if _lead else clean_cmd
+                        teach_query = (
+                            f"Teach me about {topic}. Cover what it is, how it works, "
+                            f"typical use, what to look for in the output, key opsec "
+                            f"considerations, and what to do next."
+                        )
+
+                        conv_model = CONV_ENGINE.model if CONV_ENGINE else "llm"
+                        await websocket.send(json.dumps({
+                            "type": "system",
+                            "data": f"[ERR0RS] 🧠 {conv_model} — preparing teach answer (first response ~10s while model loads)..."
+                        }))
+                        op_state = None
+                        try:
+                            from src.core.operator import get_operator
+                            op_state = get_operator().state
+                        except Exception:
+                            pass
+
+                        import asyncio as _asyncio_teach
+                        buffer_teach = []
+
+                        def _teach_on_token(token):
+                            buffer_teach.append(token)
+                            combined = "".join(buffer_teach)
+                            if len(combined) >= 60 or "\n" in combined:
+                                try:
+                                    _asyncio_teach.run_coroutine_threadsafe(
+                                        websocket.send(json.dumps({
+                                            "type": "chat_token",
+                                            "data": combined
+                                        })),
+                                        _WS_LOOP
+                                    ).result(timeout=5)
+                                except Exception:
+                                    pass
+                                buffer_teach.clear()
+
+                        def _teach_on_done(full_reply):
+                            if buffer_teach:
+                                remaining = "".join(buffer_teach)
+                                try:
+                                    _asyncio_teach.run_coroutine_threadsafe(
+                                        websocket.send(json.dumps({
+                                            "type": "chat_token",
+                                            "data": remaining
+                                        })),
+                                        _WS_LOOP
+                                    ).result(timeout=5)
+                                except Exception:
+                                    pass
+                                buffer_teach.clear()
+                            try:
+                                _asyncio_teach.run_coroutine_threadsafe(
+                                    websocket.send(json.dumps({
+                                        "type": "chat_done",
+                                        "data": ""
+                                    })),
+                                    _WS_LOOP
+                                ).result(timeout=5)
+                            except Exception:
+                                pass
+
+                        import threading as _threading_teach
+                        _teach_thread = _threading_teach.Thread(
+                            target=CONV_ENGINE.chat_stream,
+                            kwargs={
+                                "user_msg":       teach_query,
+                                "session_id":     str(session_id),
+                                "operator_state": op_state,
+                                "on_token":       _teach_on_token,
+                                "on_done":        _teach_on_done,
+                            },
+                            daemon=True
+                        )
+                        _teach_thread.start()
+                        continue
+
+                    # Legacy fallback when CONV_ENGINE isn't loaded
                     if TEACH_ENGINE:
                         result = handle_teach_request(clean_cmd)
                         await websocket.send(json.dumps({

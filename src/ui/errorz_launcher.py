@@ -1232,105 +1232,112 @@ async def ws_terminal_handler(websocket):
                     intent = {"tool": None, "target": None, "raw_cmd": clean_cmd,
                               "execute": True, "teach": teach_flag, "mode": "execute"}
 
-                # Teach-only mode
-                # Bug 2 fix (2026-05-23): when CONV_ENGINE is available, route
-                # teach requests through the conversation engine so they get
-                # chunked-RAG enriched, conversational answers — instead of
-                # the static dict lookup in the legacy teach_engine. Falls
-                # back to legacy when CONV_ENGINE is unavailable.
-                if intent["mode"] == "teach" and not intent["execute"]:
-                    if CONV_ENGINE:
-                        # Reformulate so the conv engine knows this is a teach
-                        # request (not just a random tool name) — gemma3:1b
-                        # responds much better to a complete sentence than to
-                        # a bare "nmap" or "rubeus".
-                        teach_query = clean_cmd
-                        # Strip leading "teach " / "teach me " / "explain "
-                        # so the reformulated query reads naturally.
-                        import re as _re_teach
-                        _lead = _re_teach.match(
-                            r'^\s*(?:teach(?:\s+me)?|explain|what(?:\'s|\s+is)|tell\s+me\s+about)\s+(.+)$',
-                            clean_cmd, _re_teach.IGNORECASE
-                        )
-                        topic = _lead.group(1).strip() if _lead else clean_cmd
-                        teach_query = (
-                            f"Teach me about {topic}. Cover what it is, how it works, "
-                            f"typical use, what to look for in the output, key opsec "
-                            f"considerations, and what to do next."
-                        )
+                # Teach intent dispatch
+                # Bug 2 fix (2026-05-23, revised): parse_intent emits two
+                # different shapes for teach-style requests:
+                #   - 'teach nmap'         → mode='both',  execute=True, tool='nmap'
+                #   - 'teach kerberoasting'→ mode='teach', execute=False, tool=None
+                #   - 'teach me about X'   → mode='teach', execute=False, tool=None
+                #   - 'nmap --teach'       → mode='both',  execute=True, tool='nmap', teach=True
+                # The unifying signal is intent['teach'] is True AND there is
+                # no target to actually run against. When that's the case
+                # AND CONV_ENGINE is loaded, route through the conversation
+                # engine for chunked-RAG enriched streaming output.
+                _is_teach_intent = bool(intent.get("teach")) and not intent.get("target")
+                if _is_teach_intent and CONV_ENGINE:
+                    # Extract the topic — prefer teach_topic, fall back to tool
+                    # name, fall back to the raw command if nothing parsed out.
+                    topic = (intent.get("teach_topic")
+                             or intent.get("tool")
+                             or clean_cmd)
+                    # Strip leading teach-verbs for a cleaner reformulation
+                    import re as _re_teach
+                    _lead = _re_teach.match(
+                        r'^\s*(?:teach(?:\s+me)?(?:\s+about)?|explain|what(?:\'s|\s+is)|tell\s+me\s+about)\s+(.+)$',
+                        topic if isinstance(topic, str) else clean_cmd,
+                        _re_teach.IGNORECASE
+                    )
+                    if _lead:
+                        topic = _lead.group(1).strip()
+                    teach_query = (
+                        f"Teach me about {topic}. Cover what it is, how it works, "
+                        f"typical use, what to look for in the output, key opsec "
+                        f"considerations, and what to do next."
+                    )
 
-                        conv_model = CONV_ENGINE.model if CONV_ENGINE else "llm"
-                        await websocket.send(json.dumps({
-                            "type": "system",
-                            "data": f"[ERR0RS] 🧠 {conv_model} — preparing teach answer (first response ~10s while model loads)..."
-                        }))
-                        op_state = None
-                        try:
-                            from src.core.operator import get_operator
-                            op_state = get_operator().state
-                        except Exception:
-                            pass
+                    conv_model = CONV_ENGINE.model if CONV_ENGINE else "llm"
+                    await websocket.send(json.dumps({
+                        "type": "system",
+                        "data": f"[ERR0RS] 🧠 {conv_model} — preparing teach answer (first response ~10s while model loads)..."
+                    }))
+                    op_state = None
+                    try:
+                        from src.core.operator import get_operator
+                        op_state = get_operator().state
+                    except Exception:
+                        pass
 
-                        import asyncio as _asyncio_teach
-                        buffer_teach = []
+                    import asyncio as _asyncio_teach
+                    buffer_teach = []
 
-                        def _teach_on_token(token):
-                            buffer_teach.append(token)
-                            combined = "".join(buffer_teach)
-                            if len(combined) >= 60 or "\n" in combined:
-                                try:
-                                    _asyncio_teach.run_coroutine_threadsafe(
-                                        websocket.send(json.dumps({
-                                            "type": "chat_token",
-                                            "data": combined
-                                        })),
-                                        _WS_LOOP
-                                    ).result(timeout=5)
-                                except Exception:
-                                    pass
-                                buffer_teach.clear()
-
-                        def _teach_on_done(full_reply):
-                            if buffer_teach:
-                                remaining = "".join(buffer_teach)
-                                try:
-                                    _asyncio_teach.run_coroutine_threadsafe(
-                                        websocket.send(json.dumps({
-                                            "type": "chat_token",
-                                            "data": remaining
-                                        })),
-                                        _WS_LOOP
-                                    ).result(timeout=5)
-                                except Exception:
-                                    pass
-                                buffer_teach.clear()
+                    def _teach_on_token(token):
+                        buffer_teach.append(token)
+                        combined = "".join(buffer_teach)
+                        if len(combined) >= 60 or "\n" in combined:
                             try:
                                 _asyncio_teach.run_coroutine_threadsafe(
                                     websocket.send(json.dumps({
-                                        "type": "chat_done",
-                                        "data": ""
+                                        "type": "chat_token",
+                                        "data": combined
                                     })),
                                     _WS_LOOP
                                 ).result(timeout=5)
                             except Exception:
                                 pass
+                            buffer_teach.clear()
 
-                        import threading as _threading_teach
-                        _teach_thread = _threading_teach.Thread(
-                            target=CONV_ENGINE.chat_stream,
-                            kwargs={
-                                "user_msg":       teach_query,
-                                "session_id":     str(session_id),
-                                "operator_state": op_state,
-                                "on_token":       _teach_on_token,
-                                "on_done":        _teach_on_done,
-                            },
-                            daemon=True
-                        )
-                        _teach_thread.start()
-                        continue
+                    def _teach_on_done(full_reply):
+                        if buffer_teach:
+                            remaining = "".join(buffer_teach)
+                            try:
+                                _asyncio_teach.run_coroutine_threadsafe(
+                                    websocket.send(json.dumps({
+                                        "type": "chat_token",
+                                        "data": remaining
+                                    })),
+                                    _WS_LOOP
+                                ).result(timeout=5)
+                            except Exception:
+                                pass
+                            buffer_teach.clear()
+                        try:
+                            _asyncio_teach.run_coroutine_threadsafe(
+                                websocket.send(json.dumps({
+                                    "type": "chat_done",
+                                    "data": ""
+                                })),
+                                _WS_LOOP
+                            ).result(timeout=5)
+                        except Exception:
+                            pass
 
-                    # Legacy fallback when CONV_ENGINE isn't loaded
+                    import threading as _threading_teach
+                    _teach_thread = _threading_teach.Thread(
+                        target=CONV_ENGINE.chat_stream,
+                        kwargs={
+                            "user_msg":       teach_query,
+                            "session_id":     str(session_id),
+                            "operator_state": op_state,
+                            "on_token":       _teach_on_token,
+                            "on_done":        _teach_on_done,
+                        },
+                        daemon=True
+                    )
+                    _teach_thread.start()
+                    continue
+
+                # Legacy teach-only mode (CONV_ENGINE unavailable, e.g. Ollama down)
+                if intent["mode"] == "teach" and not intent["execute"]:
                     if TEACH_ENGINE:
                         result = handle_teach_request(clean_cmd)
                         await websocket.send(json.dumps({

@@ -137,6 +137,30 @@ def check_security_tools() -> tuple[int, int]:
     return len(CORE_TOOLS) - len(missing_core), found_nice
 
 
+def check_rag_status() -> bool:
+    """Report whether the chunked RAG collection is loaded and queryable.
+
+    Non-blocking. The conversation engine falls back to teach_engine if
+    RAG isn't available, so this is a "nice-to-know" status indicator
+    on startup — not a critical health check. Returns True if RAG is up.
+    """
+    try:
+        from src.ai.rag_retrieval import is_available, chunk_count
+        if is_available():
+            n = chunk_count()
+            print(f"  {_OK} RAG teach collection: {_C}{n} chunks{_N} loaded "
+                  f"(enriched teach mode available)")
+            return True
+        else:
+            print(f"  {_WARN} RAG teach collection not loaded — using legacy teach_engine only")
+            print(f"     Build:  {_C}python3 tools/ingest_chunked.py{_N}")
+            return False
+    except Exception as e:
+        # Don't crash preflight on any failure — RAG is non-critical
+        print(f"  {_WARN} RAG status check failed ({type(e).__name__}) — non-critical")
+        return False
+
+
 # ── Master preflight runner ───────────────────────────────────────────────────
 def run(check_ollama_flag: bool = True, verbose: bool = True) -> bool:
     """
@@ -166,7 +190,11 @@ def run(check_ollama_flag: bool = True, verbose: bool = True) -> bool:
         else:
             print(f"  {_OK} LLM backend: {_C}{backend}{_N} (Ollama check skipped)")
 
-    # 4. Security tools
+    # 4. RAG (chunked teach collection) — non-blocking, just a status line
+    #    so users know if their local install can do enriched teach mode
+    check_rag_status()
+
+    # 5. Security tools
     check_security_tools()
 
     # Optional dep warnings (non-blocking)

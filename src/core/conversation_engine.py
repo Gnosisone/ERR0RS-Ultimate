@@ -287,8 +287,39 @@ class ConversationEngine:
                 self._sessions[session_id].clear()
 
     def build_system_prompt(self, operator_state=None, user_msg: str = "") -> str:
-        """Build system prompt with current operator context and teach engine data injected."""
+        """Build system prompt with current operator context and teach engine data injected.
+
+        RAG budget discipline (v3.7 Phase 2):
+        gemma3:1b's interactive TTFT degrades sharply past ~7K total prompt
+        chars (baseline 2026-05-20). The base SYSTEM_PROMPT is ~5.9K, so we
+        budget AT MOST ONE RAG block per prompt — ~1-2K chars. Priority order:
+
+          1. PROACTIVE (semantic match on user_msg) wins when user_msg is
+             present — they asked a question, that's what they want help
+             with now. Even if they just ran a tool, the question is the
+             current intent.
+          2. REACTIVE (retrieval for last tool run) only fires if proactive
+             didn't, or if user_msg is empty (silent operator mode).
+
+        This priority order minimizes the "I asked about X but ERR0RS keeps
+        coaching me about the tool I just ran" failure mode.
+        """
         ctx_lines = []
+        rag_injected = False   # tracks whether any RAG block was added —
+                               # prevents overflowing gemma3:1b's interactive budget
+
+        # ── EARLY: try proactive RAG first when user has a question ───────
+        # Done BEFORE the operator_state block so it takes priority over
+        # the reactive (last-tool-run) injection further down.
+        if user_msg and user_msg.strip():
+            try:
+                from src.ai.rag_retrieval import retrieve_for_query
+                rag_block = retrieve_for_query(user_msg, n=2)
+                if rag_block:
+                    ctx_lines.append(rag_block)
+                    rag_injected = True
+            except Exception:
+                pass
         if operator_state:
             try:
                 if hasattr(operator_state, 'target') and operator_state.target:
@@ -315,26 +346,39 @@ class ConversationEngine:
                     else:
                         ctx_lines.append("Findings: none detected")
 
-                    # Pull lesson for the last tool so you can teach about it
-                    try:
-                        from src.core import teach_engine
-                        lesson = teach_engine.lookup(last.tool)
-                        if lesson:
-                            ctx_lines.append(f"\n### Teach Engine — {last.tool.upper()}")
-                            ctx_lines.append(f"Summary: {lesson['summary']}")
-                            ctx_lines.append(f"Typical use: {lesson['typical']}")
-                            read_tips = lesson.get('read', [])
-                            if read_tips:
-                                ctx_lines.append("How to read output:")
-                                for tip in read_tips[:4]:
-                                    ctx_lines.append(f"  • {tip}")
-                            next_steps = lesson.get('next', [])
-                            if next_steps:
-                                ctx_lines.append(f"Logical next tools: {', '.join(next_steps)}")
-                            if lesson.get('caution'):
-                                ctx_lines.append(f"Caution: {lesson['caution']}")
-                    except Exception:
-                        pass
+                    # Pull teach content for the last tool. Skip if proactive
+                    # RAG already fired (budget discipline) — but always try
+                    # legacy teach_engine as a smaller-cost summary.
+                    rag_block = None
+                    if not rag_injected:
+                        try:
+                            from src.ai.rag_retrieval import retrieve_for_tool
+                            rag_block = retrieve_for_tool(last.tool, n=2)
+                            if rag_block:
+                                ctx_lines.append("\n" + rag_block)
+                                rag_injected = True
+                        except Exception:
+                            rag_block = None
+                    if not rag_block:
+                        try:
+                            from src.core import teach_engine
+                            lesson = teach_engine.lookup(last.tool)
+                            if lesson:
+                                ctx_lines.append(f"\n### Teach Engine — {last.tool.upper()}")
+                                ctx_lines.append(f"Summary: {lesson['summary']}")
+                                ctx_lines.append(f"Typical use: {lesson['typical']}")
+                                read_tips = lesson.get('read', [])
+                                if read_tips:
+                                    ctx_lines.append("How to read output:")
+                                    for tip in read_tips[:4]:
+                                        ctx_lines.append(f"  • {tip}")
+                                next_steps = lesson.get('next', [])
+                                if next_steps:
+                                    ctx_lines.append(f"Logical next tools: {', '.join(next_steps)}")
+                                if lesson.get('caution'):
+                                    ctx_lines.append(f"Caution: {lesson['caution']}")
+                        except Exception:
+                            pass
 
                 # All session findings summary
                 if hasattr(operator_state, 'findings') and operator_state.findings:
@@ -346,13 +390,24 @@ class ConversationEngine:
             except Exception:
                 pass
 
-        # On-demand lesson: if the user mentions a tool not recently run, inject its lesson
-        if user_msg:
+        # On-demand reference: if the user mentions a tool not recently run,
+        # inject context for it. Proactive RAG was already attempted at the
+        # top of this method (highest-priority path). This block is the
+        # LEGACY teach_engine fallback — broader coverage (any of the ~49
+        # hand-written lessons), shallower depth. Fires only if RAG didn't
+        # already cover the topic.
+        if user_msg and not rag_injected:
             try:
-                from src.core import teach_engine
                 last_tool = ""
                 if operator_state and hasattr(operator_state, 'history') and operator_state.history:
                     last_tool = list(operator_state.history)[-1].tool
+
+                # Per-word lookup using the legacy teach_engine for tools
+                # NOT covered by the chunked RAG (the 4,987 unteached tools
+                # in the v3 registry, plus any custom mentions). We only
+                # inject one such lesson per message to keep token budget
+                # bounded.
+                from src.core import teach_engine
                 for word in re.findall(r'\b\w[\w-]*\b', user_msg.lower()):
                     if word == last_tool:
                         continue  # already covered in tool run section above

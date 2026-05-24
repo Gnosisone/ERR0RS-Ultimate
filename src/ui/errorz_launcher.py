@@ -3778,6 +3778,44 @@ def main():
 """)
     check_ollama()
     check_ws_deps()
+
+    # ── OPERATE tier attestation gate ────────────────────────────────
+    # If user has ERR0RS_OPERATOR_TIER=operate but no acceptance record
+    # on file, prompt them to accept before any sockets open. If they
+    # decline, we degrade gracefully to EXPLORE for this session rather
+    # than refuse to start — same product, fewer features.
+    try:
+        from src.security.operator_tier import (
+            current_tier, OperatorTier, has_valid_attestation,
+            ensure_attestation, tier_summary,
+        )
+        _tier = current_tier()
+        _summary = tier_summary()
+        # Always show a one-line tier banner so the user knows what mode they're in
+        _banner_lab = " + LAB_MODE" if _summary['lab_mode'] else ""
+        print(f"  {C}Tier:{N}       {_tier.label()}{_banner_lab}")
+        if _summary.get('has_attestation'):
+            print(f"  {C}Attested:{N}   {_summary.get('acceptance_at')}")
+
+        if _tier == OperatorTier.OPERATE and not has_valid_attestation():
+            print()
+            print(f"{Y}  ⚠  OPERATE tier requested but no attestation on file.{N}")
+            print(f"  Showing the one-time attestation prompt now.")
+            print(f"  Decline = downgrade to EXPLORE for this session (no restart needed).")
+            accepted = ensure_attestation(interactive=True)
+            if not accepted:
+                # Force the env var down for this process so downstream
+                # tier checks see EXPLORE, not OPERATE.
+                import os as _os_tier
+                _os_tier.environ['ERR0RS_OPERATOR_TIER'] = 'explore'
+                print(f"{Y}  Continuing in EXPLORE mode. "
+                      f"Restart with attestation accepted to enable OPERATE.{N}")
+    except ImportError:
+        # operator_tier not yet on disk (very early dev installs) — skip
+        pass
+    except Exception as _e:
+        print(f"{Y}  ⚠ tier check failed ({type(_e).__name__}: {_e}) — continuing{N}")
+
     start_server()
 
 

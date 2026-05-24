@@ -244,3 +244,36 @@ def _reset_for_testing():
     global _cache_built, _recipe_cache
     _recipe_cache = {}
     _cache_built = False
+
+
+# ── Per-session demo state ───────────────────────────────────────────────
+
+@dataclass
+class DemoState:
+    """Tracks one user's progress through a demo. The launcher creates
+    one of these when a demo starts, stores it per-session, and advances
+    it as the user sends 'continue' / 'skip' / 'stop' messages.
+
+    Lives in memory only — if the user disconnects mid-demo, state is
+    lost. That's intentional: demo progress shouldn't persist across
+    reconnects (security: a malicious reconnect could resume mid-demo
+    with attacker-chosen step state).
+    """
+    plan:            DemoPlan
+    current_step:    int = 0          # index into plan.steps; -1 = pre-start, len = done
+    awaiting_input:  bool = False     # True while we're paused for user confirmation
+    awaiting_kind:   str = "start"    # "start" | "step" | "complete"
+
+    def is_done(self) -> bool:
+        return self.current_step >= len(self.plan.steps)
+
+    def current(self) -> Optional[DemoStep]:
+        if 0 <= self.current_step < len(self.plan.steps):
+            return self.plan.steps[self.current_step]
+        return None
+
+    def advance(self) -> Optional[DemoStep]:
+        """Move past current step. Returns the new current step or None
+        if we just finished."""
+        self.current_step += 1
+        return self.current()

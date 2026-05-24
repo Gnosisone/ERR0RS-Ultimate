@@ -437,6 +437,7 @@ except ImportError:
 # Active processes registry: session_id → LiveProcess
 _active_processes = {}
 _ws_clients       = {}   # session_id → websocket
+_active_demos     = {}   # session_id → DemoState (interactive teach demos)
 
 def ws_broadcast(msg_type: str, data: str, extra: dict = None):
     """Push a message to ALL connected WebSocket clients immediately."""
@@ -1125,6 +1126,272 @@ def _query_brain_mode(prompt: str, mode: str) -> dict:
 # WEBSOCKET SERVER — live terminal streaming
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Demo-mode helpers (v3.8 Phase 1)
+#
+# These drive the step-at-a-time teach demo flow over the WebSocket
+# protocol. The dispatch in ws_terminal_handler creates a DemoState
+# when a recipe-backed teach intent arrives and all gates pass; these
+# helpers do the actual message-sending and state advancement.
+#
+# DESIGN: all step EXECUTION happens through the existing tool-running
+# infrastructure (subprocess + safety gate). These helpers only manage
+# the conversation around it — intent, command-display, post-output
+# narration. Separation of concerns: demo flow vs. tool execution.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Re-import DemoState here so it's visible to the launcher module.
+# Lazy-imported at first demo dispatch to avoid bootstrap cost when
+# the launcher starts but no demo ever runs.
+DemoState = None  # type: ignore  — populated on first demo
+
+
+def _ensure_demo_imports():
+    """Import DemoState into the launcher's namespace lazily."""
+    global DemoState
+    if DemoState is None:
+        from src.teach.demo_runner import DemoState as _DS
+        DemoState = _DS
+
+
+async def _send_demo_intro(websocket, plan):
+    """Send the opening message of a demo: description, step count,
+    and a 'continue / stop' prompt. After this, the demo is in
+    awaiting_input=True awaiting_kind='start' state."""
+    intro = (
+        f"\n[ERR0RS] 🎓 Demo: {plan.display_name}\n"
+        f"{plan.description}\n\n"
+        f"This demo has {len(plan.steps)} steps. All commands target "
+        f"{plan.default_target} only — nothing leaves this machine.\n\n"
+        f"Type 'continue' to start step 1, or 'stop' to cancel.\n"
+    )
+    await websocket.send(json.dumps({"type": "system", "data": intro}))
+
+
+async def _send_demo_step_preview(websocket, plan, state):
+    """Show the next step's intent + command, then pause for user
+    confirmation. State stays awaiting_input=True awaiting_kind='step'."""
+    step = state.current()
+    if step is None:
+        return
+    n = state.current_step + 1
+    total = len(plan.steps)
+    body = (
+        f"\n[ERR0RS] 📚 Step {n}/{total}: {step.name}\n"
+        f"{step.intent}\n\n"
+        f"  $ {step.command}\n\n"
+        f"Type 'continue' to run this step, 'skip' to skip to next, "
+        f"or 'stop' to end the demo.\n"
+    )
+    await websocket.send(json.dumps({"type": "system", "data": body}))
+
+
+async def _send_demo_complete(websocket, plan):
+    """Send the closing message of a demo with next_steps suggestions."""
+    next_block = "\n".join(f"  • {s}" for s in plan.next_steps) if plan.next_steps else "  (no further suggestions)"
+    msg = (
+        f"\n[ERR0RS] 🏁 Demo complete: {plan.display_name}\n\n"
+        f"Where to go from here:\n{next_block}\n"
+    )
+    await websocket.send(json.dumps({"type": "system", "data": msg}))
+
+
+async def _run_demo_step(websocket, session_id, state):
+    """Execute the current demo step's command. Streams output back to
+    the WS via the same pattern as a normal `run` — but the command is
+    from the recipe, not the user.
+
+    After the command completes, this also asks gemma3:1b (via CONV_ENGINE)
+    to narrate what just happened, using the recipe's teach_chunks hint
+    if present. Then advances state to the next step (or completion).
+    """
+    step = state.current()
+    if step is None:
+        return
+
+    # Send the "running" marker so the UI knows the command is live
+    await websocket.send(json.dumps({
+        "type": "system",
+        "data": f"[ERR0RS] ▶ Running: {step.command}\n"
+    }))
+
+    # Capture output as we stream so we can hand it to gemma for narration
+    captured_stdout = []
+    captured_stderr = []
+    rc = -1
+
+    try:
+        import subprocess as _subp
+        import asyncio as _aio
+        # Use shell=True so pipe chains in the recipe (head | awk) work
+        proc = _subp.Popen(
+            step.command,
+            shell=True,
+            stdout=_subp.PIPE,
+            stderr=_subp.PIPE,
+            text=True,
+            bufsize=1,
+        )
+
+        async def _pump_stream(stream, kind, capture):
+            """Read lines from subprocess pipe and emit each to WS."""
+            loop = _aio.get_event_loop()
+            while True:
+                line = await loop.run_in_executor(None, stream.readline)
+                if not line:
+                    break
+                capture.append(line)
+                await websocket.send(json.dumps({
+                    "type": "stdout" if kind == "stdout" else "stderr",
+                    "data": line,
+                }))
+
+        # Pump stdout and stderr concurrently. Bounded by step.timeout.
+        try:
+            await _aio.wait_for(
+                _aio.gather(
+                    _pump_stream(proc.stdout, "stdout", captured_stdout),
+                    _pump_stream(proc.stderr, "stderr", captured_stderr),
+                ),
+                timeout=step.timeout,
+            )
+        except _aio.TimeoutError:
+            proc.terminate()
+            await websocket.send(json.dumps({
+                "type": "system",
+                "data": f"[ERR0RS] ⏱  Step timed out after {step.timeout}s — moving on\n"
+            }))
+
+        rc = proc.wait(timeout=2) if proc.poll() is not None else 0
+    except Exception as e:
+        await websocket.send(json.dumps({
+            "type": "system",
+            "data": f"[ERR0RS] ⚠ Step failed: {type(e).__name__}: {e}\n"
+        }))
+
+    # Inline explanation: if the recipe provides one, use it directly.
+    # Otherwise hand the output to gemma3:1b via CONV_ENGINE for narration.
+    output_summary = "".join(captured_stdout[-30:])  # last 30 lines max
+    if step.explain_after:
+        await websocket.send(json.dumps({
+            "type": "system",
+            "data": f"\n[ERR0RS] 💡 {step.explain_after}\n"
+        }))
+    elif CONV_ENGINE and output_summary.strip():
+        # Ask gemma to narrate. Run in background thread so we don't
+        # block the WS loop while gemma generates.
+        await websocket.send(json.dumps({
+            "type": "system",
+            "data": "\n[ERR0RS] 🧠 Explaining the output...\n"
+        }))
+        narrate_query = (
+            f"A student just ran this command as part of a teach demo "
+            f"about {state.plan.display_name}:\n\n"
+            f"  $ {step.command}\n\n"
+            f"The output was:\n\n{output_summary}\n\n"
+            f"Briefly explain what they're looking at — what's interesting, "
+            f"what's expected, what they should pay attention to. Keep it "
+            f"under 200 words. Don't repeat the command back to them."
+        )
+        import asyncio as _aio_narr
+        narr_buf = []
+
+        def _narr_on_token(token):
+            narr_buf.append(token)
+            combined = "".join(narr_buf)
+            if len(combined) >= 60 or "\n" in combined:
+                try:
+                    _aio_narr.run_coroutine_threadsafe(
+                        websocket.send(json.dumps({
+                            "type": "chat_token", "data": combined
+                        })),
+                        _WS_LOOP
+                    ).result(timeout=5)
+                except Exception:
+                    pass
+                narr_buf.clear()
+
+        def _narr_on_done(_full):
+            if narr_buf:
+                try:
+                    _aio_narr.run_coroutine_threadsafe(
+                        websocket.send(json.dumps({
+                            "type": "chat_token", "data": "".join(narr_buf)
+                        })),
+                        _WS_LOOP
+                    ).result(timeout=5)
+                except Exception:
+                    pass
+                narr_buf.clear()
+            try:
+                _aio_narr.run_coroutine_threadsafe(
+                    websocket.send(json.dumps({"type": "chat_done", "data": ""})),
+                    _WS_LOOP
+                ).result(timeout=5)
+            except Exception:
+                pass
+
+        import threading as _t_narr
+        _t_narr.Thread(
+            target=CONV_ENGINE.chat_stream,
+            kwargs={
+                "user_msg":   narrate_query,
+                "session_id": f"{session_id}_demo_narrate",
+                "on_token":   _narr_on_token,
+                "on_done":    _narr_on_done,
+            },
+            daemon=True,
+        ).start()
+
+    # Advance to next step
+    state.advance()
+    if state.is_done():
+        state.awaiting_input = False
+        await _send_demo_complete(websocket, state.plan)
+        _active_demos.pop(session_id, None)
+    else:
+        state.awaiting_input = True
+        state.awaiting_kind = "step"
+        await _send_demo_step_preview(websocket, state.plan, state)
+
+
+async def _handle_demo_continuation(websocket, session_id, state, command):
+    """Route continue/skip/stop messages into the active demo state.
+    Called from the WS dispatch when _peek_cmd matched a magic word
+    and the session has an active awaiting_input demo."""
+    if command in ("stop", "quit", "exit"):
+        _active_demos.pop(session_id, None)
+        await websocket.send(json.dumps({
+            "type": "system",
+            "data": f"[ERR0RS] Demo cancelled.\n"
+        }))
+        return
+
+    if command == "skip":
+        # Skip the current step entirely
+        state.advance()
+        if state.is_done():
+            state.awaiting_input = False
+            await _send_demo_complete(websocket, state.plan)
+            _active_demos.pop(session_id, None)
+        else:
+            state.awaiting_input = True
+            state.awaiting_kind = "step"
+            await _send_demo_step_preview(websocket, state.plan, state)
+        return
+
+    # 'continue' or 'next'
+    state.awaiting_input = False
+    if state.awaiting_kind == "start":
+        # Show step 1 preview (don't run it yet — give the user one more
+        # chance to back out after seeing the actual command)
+        state.awaiting_input = True
+        state.awaiting_kind = "step"
+        await _send_demo_step_preview(websocket, state.plan, state)
+    elif state.awaiting_kind == "step":
+        await _run_demo_step(websocket, session_id, state)
+
+
 async def ws_terminal_handler(websocket):
     global _active_agent, _active_recon, _threat_detector
     """
@@ -1213,6 +1480,20 @@ async def ws_terminal_handler(websocket):
                     await websocket.send(json.dumps({"type":"system","data":"[ERR0RS] Process killed."}))
                 continue
 
+            # ── Active demo continuation hook ─────────────────────────────
+            # If this session has an active demo waiting for user input,
+            # intercept "continue" / "skip" / "stop" before the normal
+            # command parser sees them. This is what makes the
+            # step-at-a-time demo flow work in the WS protocol.
+            if mtype == "run":
+                _peek_cmd = (msg.get("command") or "").strip().lower()
+                _demo_state = _active_demos.get(session_id)
+                if _demo_state and _demo_state.awaiting_input and _peek_cmd in ("continue", "next", "skip", "stop", "quit", "exit"):
+                    await _handle_demo_continuation(
+                        websocket, session_id, _demo_state, _peek_cmd
+                    )
+                    continue
+
             # ── Run a command ─────────────────────────────────────────────
             if mtype == "run":
                 raw_cmd   = msg.get("command", "").strip()
@@ -1244,6 +1525,87 @@ async def ws_terminal_handler(websocket):
                 # AND CONV_ENGINE is loaded, route through the conversation
                 # engine for chunked-RAG enriched streaming output.
                 _is_teach_intent = bool(intent.get("teach")) and not intent.get("target")
+
+                # ─────────────────────────────────────────────────────────────
+                # Demo mode dispatch — checks BEFORE the conversational path:
+                #   1. Is this a teach intent?
+                #   2. Does a recipe exist for this tool?
+                #   3. Does the user's tier permit demo mode (LEARN+)?
+                #   4. Is lab mode active (required by recipes for safety)?
+                # If all gates pass, start the interactive step-by-step demo.
+                # Otherwise fall through to the chunked-RAG conversational
+                # path below (which always works regardless of tier).
+                # ─────────────────────────────────────────────────────────────
+                if _is_teach_intent:
+                    # Extract topic for recipe lookup
+                    _topic_raw = (intent.get("teach_topic")
+                                  or intent.get("tool")
+                                  or clean_cmd or "")
+                    # Strip teach verbs for the topic
+                    import re as _re_topic
+                    _topic_match = _re_topic.match(
+                        r'^\s*(?:teach(?:\s+me)?(?:\s+about)?|explain|what(?:\'s|\s+is)|tell\s+me\s+about)\s+(.+)$',
+                        _topic_raw if isinstance(_topic_raw, str) else "",
+                        _re_topic.IGNORECASE
+                    )
+                    _demo_topic = (_topic_match.group(1).strip() if _topic_match
+                                   else _topic_raw).lower().strip()
+
+                    # Try to build a demo plan
+                    _demo_plan = None
+                    try:
+                        from src.teach.demo_runner import build_demo_plan
+                        from src.security.operator_tier import current_tier, OperatorTier
+                        _demo_plan = build_demo_plan(_demo_topic)
+                    except Exception as _demo_err:
+                        log.debug(f"demo_runner unavailable: {_demo_err}")
+
+                    if _demo_plan is not None:
+                        # We have a recipe — check tier and lab mode gates
+                        _user_tier = current_tier()
+                        _required = {
+                            "EXPLORE": OperatorTier.EXPLORE,
+                            "LEARN":   OperatorTier.LEARN,
+                            "OPERATE": OperatorTier.OPERATE,
+                        }.get(_demo_plan.min_tier, OperatorTier.LEARN)
+                        _lab_on = os.environ.get("ERR0RS_LAB_MODE", "0") in ("1","true","yes","on")
+
+                        if _user_tier < _required:
+                            await websocket.send(json.dumps({
+                                "type": "system",
+                                "data": (
+                                    f"[ERR0RS] Demo mode for '{_demo_plan.display_name}' "
+                                    f"requires tier {_demo_plan.min_tier} or higher. "
+                                    f"You're at {_user_tier.label()}. Set "
+                                    f"ERR0RS_OPERATOR_TIER={_demo_plan.min_tier.lower()} "
+                                    f"in your .env to enable it. Falling back to "
+                                    f"conversational teach now..."
+                                )
+                            }))
+                            # Fall through to CONV_ENGINE path below
+                        elif _demo_plan.requires_lab_mode and not _lab_on:
+                            await websocket.send(json.dumps({
+                                "type": "system",
+                                "data": (
+                                    f"[ERR0RS] Demo mode for '{_demo_plan.display_name}' "
+                                    f"requires lab mode. Add ERR0RS_LAB_MODE=1 to your "
+                                    f".env and restart ERR0RS to enable it. Falling back "
+                                    f"to conversational teach now..."
+                                )
+                            }))
+                            # Fall through to CONV_ENGINE path below
+                        else:
+                            # All gates passed — start the demo
+                            _ensure_demo_imports()
+                            _active_demos[session_id] = DemoState(
+                                plan=_demo_plan,
+                                current_step=0,
+                                awaiting_input=True,
+                                awaiting_kind="start",
+                            )
+                            await _send_demo_intro(websocket, _demo_plan)
+                            continue   # done; user's next "continue" will advance
+
                 if _is_teach_intent and CONV_ENGINE:
                     # Extract the topic — prefer teach_topic, fall back to tool
                     # name, fall back to the raw command if nothing parsed out.
@@ -1663,6 +2025,7 @@ async def ws_terminal_handler(websocket):
         if proc and proc.is_running:
             proc.terminate()
         _ws_clients.pop(session_id, None)
+        _active_demos.pop(session_id, None)   # clear any active demo state
         if NARRATOR and narrator:
             narrator.unregister_ws(websocket.send)
 

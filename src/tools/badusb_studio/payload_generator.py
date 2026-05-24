@@ -125,6 +125,11 @@ Only output the DuckyScript code — no explanations, no markdown fences."""
         """
         Generate a payload from a natural language description.
         Tries Ollama first, falls back to template matching.
+
+        Returns the RAW payload with LHOST/PORT/USER_IP placeholders
+        still present as literals. For a tier-aware variant that
+        substitutes the user's real IP and tags deploy-vs-preview,
+        use generate_tiered() instead.
         """
         # Try template match first (fast path)
         template_match = self._match_template(description, target_os)
@@ -139,6 +144,116 @@ Only output the DuckyScript code — no explanations, no markdown fences."""
 
         # Fall back to template or generic stub
         return template_match or self._generic_stub(description, target_os)
+
+    def generate_tiered(self, description: str, target_os: str = "windows",
+                        output_format: str = "duckyscript",
+                        port: int = 4444) -> dict:
+        """
+        Generate a payload with tier-aware output. Returns a dict that the
+        UI uses to decide what to show and whether 'deploy' is permitted.
+
+        Output shape:
+            {
+                'template':   raw text with {LHOST}/{PORT} placeholders unsubstituted
+                              (always present, every tier)
+                'preview':    text with the user's real IP/host substituted in
+                              (LEARN+: visible; EXPLORE: same as template)
+                'deployable': text identical to preview but ready to write to
+                              a USB drive. Present ONLY in OPERATE tier; key
+                              is missing or None otherwise.
+                'tier':       'EXPLORE' | 'LEARN' | 'OPERATE'
+                'user_ip':    the IP that was substituted (None if EXPLORE)
+                'port':       the port that was substituted
+                'warnings':   list of strings shown to the user before deploy
+            }
+
+        SAFETY CONTRACT:
+          - EXPLORE never sees the user's real IP. Template only.
+          - LEARN sees the preview but 'deployable' stays None (UI grays out
+            the deploy button).
+          - OPERATE + valid attestation gets the deployable form with explicit
+            CFAA warnings attached.
+        """
+        raw = self.generate(description, target_os, output_format)
+
+        try:
+            from src.ai.host_context import substitute_placeholders, get_lan_ip
+        except ImportError:
+            substitute_placeholders = None
+            get_lan_ip = lambda: None
+
+        tier_name = "EXPLORE"
+        user_ip = None
+        warnings: list[str] = []
+        try:
+            from src.security.operator_tier import (
+                current_tier, OperatorTier, has_valid_attestation,
+            )
+            tier = current_tier()
+            tier_name = tier.label()
+        except Exception:
+            tier = None
+            has_valid_attestation = lambda: False
+
+        substituted = raw
+        if substitute_placeholders is not None and tier_name in ("LEARN", "OPERATE"):
+            user_ip = get_lan_ip()
+            if user_ip:
+                # Brace-form substitution from host_context
+                substituted = substitute_placeholders(
+                    substituted,
+                    extra={"PORT": str(port)},
+                    user_ip=user_ip,
+                )
+                # Bare-word substitution for legacy templates ('LHOST', 'PORT'
+                # without braces). Word-boundary regex so we don't eat
+                # substrings like 'LHOSTNAME'.
+                import re as _re_sub
+                substituted = _re_sub.sub(r"\bLHOST\b", user_ip, substituted)
+                substituted = _re_sub.sub(r"\bPORT\b",  str(port),  substituted)
+
+        result = {
+            "template":   raw,
+            "preview":    substituted,
+            "deployable": None,
+            "tier":       tier_name,
+            "user_ip":    user_ip if tier_name in ("LEARN", "OPERATE") else None,
+            "port":       port,
+            "warnings":   warnings,
+        }
+
+        if tier_name == "OPERATE":
+            try:
+                if has_valid_attestation():
+                    result["deployable"] = substituted
+                    warnings.append(
+                        f"⚠️  This payload is ARMED — it points to YOUR machine "
+                        f"({user_ip}:{port}). Anyone running it will connect back "
+                        f"to you. Unauthorized deployment is a CFAA violation."
+                    )
+                    if user_ip and not user_ip.startswith("127."):
+                        warnings.append(
+                            f"⚠️  Your machine ({user_ip}) is on a routable network. "
+                            f"This payload will succeed against any host that can "
+                            f"reach your LAN."
+                        )
+                else:
+                    warnings.append(
+                        "OPERATE tier is set but no valid attestation on file. "
+                        "Deploy is locked. Complete the attestation prompt at "
+                        "launcher startup to unlock."
+                    )
+            except Exception:
+                pass
+        elif tier_name == "LEARN":
+            warnings.append(
+                "Preview only — LEARN tier shows what the real payload would "
+                "look like, but does not produce a deployable file. Set "
+                "ERR0RS_OPERATOR_TIER=operate in .env and complete attestation "
+                "to enable deploy."
+            )
+
+        return result
 
     def _match_template(self, description: str, target_os: str) -> str | None:
         """Find the best matching template for the description."""

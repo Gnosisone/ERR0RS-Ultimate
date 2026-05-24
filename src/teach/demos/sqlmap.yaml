@@ -1,0 +1,43 @@
+tool: sqlmap
+display_name: sqlmap
+description: |
+  sqlmap automates SQL injection detection and exploitation. This demo
+  targets a locally-running test app (sqlmap's own test environment,
+  if installed). If no local target is available, we'll explain what
+  YOU would type against a target you have written authorization for.
+  We do NOT target any random web server.
+
+default_target: "127.0.0.1"
+min_tier: LEARN
+requires_lab_mode: true
+
+steps:
+  - name: Confirm sqlmap is installed
+    intent: "Quick sanity check — sqlmap should be on Kali by default. If not, this step will tell you how to install it."
+    command: "command -v sqlmap && sqlmap --version 2>&1 | head -3 || echo 'install: sudo apt install sqlmap'"
+    timeout: 5
+    requires_root: false
+
+  - name: Show the help structure (read-only)
+    intent: "Before running sqlmap against anything, learners should see what its flags do. We pull the most important ones."
+    command: "sqlmap -hh 2>&1 | head -40"
+    timeout: 5
+    requires_root: false
+
+  - name: List built-in payload library
+    intent: "sqlmap ships with hundreds of pre-written injection payloads grouped by DB family and technique. Listing them shows the breadth without sending any packets."
+    command: "ls /usr/share/sqlmap/data/xml/payloads/ 2>/dev/null || find / -path '*/sqlmap/data/xml/payloads' -type d 2>/dev/null | head -3"
+    timeout: 5
+    requires_root: false
+
+  - name: Simulate a localhost test (informational)
+    intent: "On a real lab target like Juice Shop or DVWA running on localhost, the command pattern looks like the one below. We just ECHO it — we don't run it because you may not have such a target on this box. When you DO have one, copy this line and remove the 'echo'."
+    command: "echo 'sqlmap -u \"http://127.0.0.1/vulnerable.php?id=1\" --batch --level=1 --risk=1'"
+    timeout: 2
+    requires_root: false
+
+next_steps:
+  - "Stand up OWASP Juice Shop on localhost, then re-run this demo against http://127.0.0.1:3000"
+  - "DVWA is the classic SQL injection learning lab — `teach dvwa-setup` (if it's in your knowledge base)"
+  - "For real engagements always pair sqlmap with Burp — pipe through `--proxy=http://127.0.0.1:8080` and review every request"
+  - "Ask me 'when does sqlmap fail and what do I do?'"

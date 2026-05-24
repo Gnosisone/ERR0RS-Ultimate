@@ -1,0 +1,42 @@
+tool: hashcat
+display_name: Hashcat
+description: |
+  Hashcat is the GPU-accelerated password cracker — the industry
+  standard. This demo creates a known weak hash on disk (in /tmp) and
+  cracks it. Nothing touches the network. No real password is ever
+  involved — we control both sides of this exercise.
+
+default_target: ""
+min_tier: LEARN
+requires_lab_mode: true
+
+steps:
+  - name: Generate a known weak hash
+    intent: "We'll hash the word 'password123' with MD5 and put it in /tmp/demo_hash.txt. In a real engagement, hashes come from /etc/shadow, NTDS.dit, captured handshakes, or a dump. Here, we MAKE one so the cracking step has something safe to chew on."
+    command: "echo -n 'password123' | md5sum | awk '{print $1}' | tee /tmp/err0rs_demo_hash.txt"
+    timeout: 3
+    requires_root: false
+
+  - name: Crack it with rockyou (top 100)
+    intent: "Hashcat mode 0 is raw MD5. We point it at our hash file and a tiny slice of rockyou.txt. On a Pi this takes 1-3 seconds because the hash is in the first few thousand entries of any real wordlist."
+    command: "head -10000 /usr/share/wordlists/rockyou.txt 2>/dev/null > /tmp/err0rs_demo_wl.txt && hashcat -m 0 -a 0 /tmp/err0rs_demo_hash.txt /tmp/err0rs_demo_wl.txt --quiet 2>&1 | tail -20"
+    timeout: 120
+    requires_root: false
+
+  - name: Show the cracked result
+    intent: "Hashcat caches cracked hashes in its potfile. Re-running with --show prints anything it's already broken."
+    command: "hashcat -m 0 --show /tmp/err0rs_demo_hash.txt 2>&1 | head -5"
+    timeout: 5
+    requires_root: false
+
+  - name: Clean up
+    intent: "Remove our demo hash and wordlist slice."
+    command: "rm -f /tmp/err0rs_demo_hash.txt /tmp/err0rs_demo_wl.txt && echo cleaned"
+    timeout: 3
+    requires_root: false
+
+next_steps:
+  - "Try mode 1000 (NTLM): `hashcat -m 1000 -a 0 hashes.txt wordlist.txt`"
+  - "Mask attacks (mode -a 3) crack patterns like Password####"
+  - "For very weak hashes try `john` — different strengths in different scenarios. `teach john`"
+  - "Ask me 'how do I choose between hashcat and john?'"

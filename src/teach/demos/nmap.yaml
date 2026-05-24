@@ -1,0 +1,36 @@
+tool: nmap
+display_name: Nmap
+description: |
+  Nmap is the universal network mapper. We'll discover what nmap can
+  see about THIS machine (the one ERR0RS runs on) by scanning the
+  loopback interface 127.0.0.1. Everything here is safe — no packets
+  leave your device, nothing is sent over the network.
+
+default_target: "127.0.0.1"
+min_tier: LEARN
+requires_lab_mode: true
+
+steps:
+  - name: Show network interfaces
+    intent: "First — let's see what network interfaces this machine has and what addresses they hold. nmap doesn't need this, but YOU should always know your starting position."
+    command: "ip -4 -o addr show"
+    timeout: 3
+    requires_root: false
+
+  - name: Scan localhost top-100 TCP ports
+    intent: "Now we scan the most common 100 TCP ports on 127.0.0.1. With -sV nmap also tries to identify the SERVICE behind each open port — not just that the port is listening."
+    command: "nmap -sV --top-ports 100 127.0.0.1"
+    timeout: 60
+    requires_root: false
+
+  - name: Targeted service detection
+    intent: "Pick one open port from above (or use 22 if SSH is running). This step deep-fingerprints just that one service — slower per-port, but much more detail."
+    command: "nmap -sV -sC -p 22,80,443 127.0.0.1"
+    timeout: 60
+    requires_root: false
+
+next_steps:
+  - "Now that you've seen nmap basics, try `teach gobuster` to enumerate hidden directories on any web servers nmap found."
+  - "If nmap found SMB (port 445), `teach enum4linux` is the next stop."
+  - "Want to learn how attackers move on nmap output? Ask me 'how would an attacker prioritize these findings?'"
+  - "For real engagements you'd run `nmap -p- -sV -A target` — but that takes 20+ minutes per host and is loud. We didn't run that here on purpose."

@@ -1,0 +1,47 @@
+tool: john
+display_name: John the Ripper
+description: |
+  John the Ripper is the OG password cracker — older than hashcat,
+  still excellent at format auto-detection and cracking weak Unix
+  hashes. Same approach as the hashcat demo: we generate a known weak
+  hash, then let john break it. Nothing leaves this machine.
+
+default_target: ""
+min_tier: LEARN
+requires_lab_mode: true
+
+steps:
+  - name: Create a sample shadow-style hash
+    intent: "Generate a SHA-512 crypt hash (the format /etc/shadow uses on modern Linux) of the password 'demo123' so we have something realistic to crack."
+    command: "openssl passwd -6 -salt err0rs 'demo123' | tee /tmp/err0rs_demo_jhash.txt"
+    timeout: 5
+    requires_root: false
+
+  - name: Let john auto-detect the format
+    intent: "John can usually identify the hash format on its own. Let's see what it thinks this is before we crack it."
+    command: "john --list=formats 2>/dev/null | head -1 > /dev/null && john --show=invalid /tmp/err0rs_demo_jhash.txt 2>&1 || echo 'john not in PATH'"
+    timeout: 5
+    requires_root: false
+
+  - name: Crack with a small wordlist
+    intent: "John runs against a 1000-line slice of rockyou. 'demo123' should be found within a second or two if it's in the list, otherwise john will try its built-in incremental rules next."
+    command: "head -1000 /usr/share/wordlists/rockyou.txt 2>/dev/null > /tmp/err0rs_demo_jwl.txt && john --wordlist=/tmp/err0rs_demo_jwl.txt /tmp/err0rs_demo_jhash.txt 2>&1 | tail -10"
+    timeout: 60
+    requires_root: false
+
+  - name: Show cracked passwords
+    intent: "john caches everything it has ever cracked in ~/.john/john.pot. --show reads that and tells you the plaintext for any hash file you pass in."
+    command: "john --show /tmp/err0rs_demo_jhash.txt 2>&1 | head -5"
+    timeout: 5
+    requires_root: false
+
+  - name: Clean up
+    intent: "Remove the demo files."
+    command: "rm -f /tmp/err0rs_demo_jhash.txt /tmp/err0rs_demo_jwl.txt && echo cleaned"
+    timeout: 3
+    requires_root: false
+
+next_steps:
+  - "Try other formats — `john --list=formats | wc -l` shows the hundreds john understands"
+  - "When GPU acceleration matters more than format flexibility, switch to hashcat: `teach hashcat`"
+  - "Real engagements often combine: john for quick identification, then hashcat with GPU for serious crunching"

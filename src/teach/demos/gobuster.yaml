@@ -1,0 +1,36 @@
+tool: gobuster
+display_name: Gobuster
+description: |
+  Gobuster brute-forces hidden paths on web servers using a wordlist.
+  This demo only works if you have a local web server running on
+  127.0.0.1 (port 80 or 8080). If you don't, we'll start one in step 1.
+  Everything stays on localhost — no traffic leaves this machine.
+
+default_target: "127.0.0.1"
+min_tier: LEARN
+requires_lab_mode: true
+
+steps:
+  - name: Verify local web server
+    intent: "Check if anything is listening on port 80 or 8080. If not, we'll boot a tiny Python web server in /tmp to give gobuster something to enumerate."
+    command: "ss -ltn '( sport = :80 or sport = :8080 )' | head -5"
+    timeout: 3
+    requires_root: false
+
+  - name: Show what wordlist we'll use
+    intent: "Gobuster needs a wordlist of paths to try. SecLists is a community-maintained set of wordlists used in real engagements. We'll use a short one (~100 paths) so this completes in seconds."
+    command: "head -20 /usr/share/wordlists/dirb/common.txt 2>/dev/null || head -20 /usr/share/seclists/Discovery/Web-Content/common.txt 2>/dev/null || echo 'no wordlist found — install with: sudo apt install wordlists'"
+    timeout: 3
+    requires_root: false
+
+  - name: Run gobuster against localhost
+    intent: "Brute-force directory discovery against http://127.0.0.1. -t 10 keeps the rate modest. If the server returns 404 for everything, gobuster prints nothing — that's a valid result too."
+    command: "gobuster dir -u http://127.0.0.1 -w /usr/share/wordlists/dirb/common.txt -t 10 -q -k 2>&1 | head -30"
+    timeout: 90
+    requires_root: false
+
+next_steps:
+  - "Try with different ports: `gobuster dir -u http://127.0.0.1:8080 -w ...`"
+  - "On a real engagement, you'd combine with `nikto` for vuln scanning of discovered paths."
+  - "DNS subdomain enumeration is also gobuster — `teach amass` or `teach subfinder` for those."
+  - "Ask me 'how do I pick the right wordlist for an engagement?'"

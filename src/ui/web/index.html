@@ -1039,9 +1039,131 @@
       color: var(--green); opacity: .7; max-width: 60%;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+
+    /* ── ONBOARDING TOOLTIP SYSTEM ────────────────────────────────────
+       Custom tooltip using data-help attribute. Faster than native title=
+       (~200ms vs ~1.5s), supports longer text, themed to match ERR0RS UI.
+       Native title= still works on elements that have it — these don't
+       conflict because :hover::after only fires when data-help is set.
+    */
+    [data-help] { position: relative; }
+    [data-help]:hover::after {
+      content: attr(data-help);
+      position: absolute;
+      bottom: calc(100% + 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, #0d0220 0%, #08001a 100%);
+      color: var(--cyan);
+      border: 1px solid var(--purple);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.72rem;
+      line-height: 1.4;
+      letter-spacing: 0.02em;
+      width: max-content;
+      max-width: 320px;
+      white-space: normal;
+      text-align: left;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 16px rgba(123,47,190,0.4);
+      z-index: 9999;
+      pointer-events: none;
+      animation: tooltipFadeIn 0.15s ease-out;
+    }
+    [data-help]:hover::before {
+      content: '';
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--purple);
+      z-index: 9999;
+      pointer-events: none;
+    }
+    @keyframes tooltipFadeIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    /* Variant: tooltip below the element (use data-help-pos="below")
+       for buttons near the top of the viewport so the tooltip doesn't
+       get clipped by the topbar. */
+    [data-help][data-help-pos="below"]:hover::after {
+      bottom: auto;
+      top: calc(100% + 10px);
+    }
+    [data-help][data-help-pos="below"]:hover::before {
+      bottom: auto;
+      top: calc(100% + 4px);
+      border-top-color: transparent;
+      border-bottom-color: var(--purple);
+    }
+
+    /* ── FIRST-RUN ONBOARDING BANNER ──────────────────────────────────
+       Shown once per browser (dismissed via localStorage). Single line
+       at the top of the operator console that gives new users a starting
+       point without filling the screen with help text.
+    */
+    #onboarding-banner {
+      display: none;   /* JS toggles to flex on first load */
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 8px 16px;
+      background: linear-gradient(90deg,
+        rgba(123,47,190,0.95) 0%,
+        rgba(0,245,255,0.15) 50%,
+        rgba(123,47,190,0.95) 100%);
+      border-bottom: 1px solid var(--cyan);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem;
+      color: #fff;
+      letter-spacing: 0.04em;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.5);
+    }
+    #onboarding-banner .ob-kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--cyan);
+      border-radius: 3px;
+      color: var(--cyan);
+      font-weight: 700;
+      margin: 0 2px;
+    }
+    #onboarding-banner .ob-close {
+      background: transparent;
+      border: 1px solid #fff;
+      color: #fff;
+      padding: 2px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+    #onboarding-banner .ob-close:hover {
+      background: #fff;
+      color: var(--purple);
+    }
   </style>
 </head>
 <body>
+
+<!-- ══ FIRST-RUN ONBOARDING BANNER ══════════════════════════════════════
+     Hidden by default. Shown by JS on first visit (or after localStorage
+     is cleared). User-dismissible via the × button.
+-->
+<div id="onboarding-banner">
+  <span>👋 New to ERR0RS? Hover any button for help. Type
+    <span class="ob-kbd">help</span> for commands. Click
+    <span class="ob-kbd">🤖</span> for the autonomous agent.</span>
+  <button class="ob-close" onclick="dismissOnboardingBanner()">GOT IT ×</button>
+</div>
 
 <div id="app">
 
@@ -1075,7 +1197,7 @@
             onclick="checkHailoStatus()" title="Click to check Hailo-10H NPU status">
         ⬡ HAILO NPU
       </span>
-      <span class="pill" id="session-pill" style="border-color:var(--amber);color:var(--amber);cursor:pointer;" onclick="toggleSessionMenu()" title="Session Manager">💾 SESSION</span>
+      <span class="pill" id="session-pill" style="border-color:var(--amber);color:var(--amber);cursor:pointer;" onclick="toggleSessionMenu()" data-help-pos="below" data-help="Session Manager — Save, load, export, or wipe your work sessions. Each session captures chat history, tool runs, and findings. Stored locally only.">💾 SESSION</span>
       <span class="pill" style="border-color:var(--orange);color:var(--orange);cursor:pointer;" onclick="location.href='/payload_studio.html'" title="Payload Studio">⚡ PAYLOAD STUDIO</span>
       <span class="pill" style="border-color:var(--amber);color:var(--amber);cursor:pointer;" onclick="location.href='/badusb_catalog.html'" title="BadUSB Catalog — 2165 payloads">🦆 BADUSB CATALOG</span>
       <span class="pill" style="border-color:var(--purple-hi);color:var(--purple-hi);cursor:pointer;" onclick="location.href='/purple_team.html'" title="Purple Team Operator">🟣 PURPLE TEAM</span>
@@ -1088,13 +1210,13 @@
     <div class="sm-header">💾 SESSION MANAGER</div>
     <div class="sm-row">
       <input id="sm-name" type="text" placeholder="session name..." autocomplete="off"/>
-      <button onclick="saveSession()">SAVE</button>
+      <button onclick="saveSession()" data-help-pos="below" data-help="Save current session — Persists your tabs, chat history, and active tools to disk. Reload them later from the Session Manager. Sessions stay local; nothing leaves this machine.">SAVE</button>
     </div>
     <div class="sm-header" style="margin-top:8px;">SAVED SESSIONS</div>
     <div id="sm-list"></div>
     <div class="sm-row" style="margin-top:8px;justify-content:center;">
-      <button onclick="exportSession()" style="border-color:var(--cyan);color:var(--cyan);">⬇ EXPORT</button>
-      <button onclick="clearAllSessions()" style="border-color:var(--red);color:var(--red);">🗑 CLEAR ALL</button>
+      <button onclick="exportSession()" style="border-color:var(--cyan);color:var(--cyan);" data-help-pos="below" data-help="Export this session as JSON — Downloads a portable file of your chat, findings, and tool runs. Useful for engagement reports or sharing your work with teammates.">⬇ EXPORT</button>
+      <button onclick="clearAllSessions()" style="border-color:var(--red);color:var(--red);" data-help-pos="below" data-help="Delete every saved session — Wipes all sessions from local storage. Irreversible. The current live session keeps running until you reload.">🗑 CLEAR ALL</button>
     </div>
   </div>
 
@@ -1271,7 +1393,7 @@
         style="flex:1;background:#08001a;border:1px solid var(--cyan);color:var(--cyan);
                font-family:'Share Tech Mono',monospace;font-size:.78rem;
                padding:6px 12px;border-radius:4px;outline:none;"/>
-      <button onclick="sendToOperator()" style="
+      <button onclick="sendToOperator()" data-help="Send to ERR0RS — Submits your command or question. Tools (nmap, sqlmap…) execute via the safety gate. Plain questions ('teach me kerberoasting') get a conversational answer from the local LLM." style="
         background:linear-gradient(135deg,#00d7ff,#7b2fbe);
         border:none;color:#fff;font-family:'Orbitron',monospace;
         font-size:.65rem;letter-spacing:.1em;padding:6px 16px;
@@ -1295,26 +1417,26 @@
         style="background:#08001a;border:1px solid var(--purple);color:var(--cyan);
                font-family:'Share Tech Mono',monospace;font-size:.72rem;
                padding:3px 8px;border-radius:3px;width:170px;"/>
-      <button onclick="launchKillChain()" style="
+      <button onclick="launchKillChain()" data-help="Run the Juice Shop kill chain — Executes a pre-built 6-phase attack sequence (recon → enumeration → exploit → post-ex) against OWASP Juice Shop at the target above. Lab use only." style="
         background:linear-gradient(135deg,#7b2fbe,#c084fc);
         border:none;color:#fff;font-family:'Orbitron',monospace;
         font-size:.62rem;letter-spacing:.1em;padding:4px 14px;
         border-radius:3px;cursor:pointer;font-weight:700;">
         🔥 RUN KILL CHAIN
       </button>
-      <button id="op-pause-btn" onclick="pauseResumeAuto()" style="
+      <button id="op-pause-btn" onclick="pauseResumeAuto()" data-help="Pause or resume the auto-pilot — Halts the active kill chain or agent between steps. Resume picks up where it left off. Use this when you want to inspect findings before the next phase." style="
         background:transparent;border:1px solid var(--amber);color:var(--amber);
         font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
         border-radius:3px;cursor:pointer;display:none;">
         ⏸ PAUSE
       </button>
-      <button onclick="sendToOperator('report')" style="
+      <button onclick="sendToOperator('report')" data-help="Generate an engagement report — Produces a Markdown summary of every tool run, finding, and credential captured in this session. Saves to your reports directory." style="
         background:transparent;border:1px solid var(--green);color:var(--green);
         font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
         border-radius:3px;cursor:pointer;">
         📄 REPORT
       </button>
-      <button onclick="window.open('juice_tracker.html','_blank')" style="
+      <button onclick="window.open('juice_tracker.html','_blank')" data-help="Open the Juice Shop challenge tracker — Live progress board for the 100+ Juice Shop CTF challenges. Shows which ones the current run has solved, attempted, or skipped." style="
         background:transparent;border:1px solid var(--cyan);color:var(--cyan);
         font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
         border-radius:3px;cursor:pointer;">
@@ -3239,7 +3361,7 @@ const SNIPPETS = {
 <script src="progression_ui.js"></script>
 
 <!-- ══ AGENT TRIGGER ═════════════════════════════════════════════════════ -->
-<div id="agent-trigger" onclick="toggleAgentPanel()" title="Autonomous Agent">🤖</div>
+<div id="agent-trigger" onclick="toggleAgentPanel()" data-help="Autonomous Agent — Click to open the agent panel. Runs a full pentest chain (recon → exploit → post-ex) against a target you specify, narrating each step. Requires LEARN tier + lab mode.">🤖</div>
 
 <!-- ══ AGENT PANEL ═══════════════════════════════════════════════════════ -->
 <div id="agent-panel">
@@ -3264,10 +3386,10 @@ const SNIPPETS = {
     <option value="ad">Active Directory — path to DA</option>
   </select>
 
-  <button class="ag-btn" id="ag-launch-btn" onclick="launchAgent()">
+  <button class="ag-btn" id="ag-launch-btn" onclick="launchAgent()" data-help="Launch the autonomous agent — Starts a pentest run against the target above using the selected goal. Live status updates every 2 seconds. Safety gate still enforces authorization.">
     ⚡ LAUNCH AGENT
   </button>
-  <button class="ag-btn stop" id="ag-stop-btn" onclick="stopAgent()" style="display:none">
+  <button class="ag-btn stop" id="ag-stop-btn" onclick="stopAgent()" data-help="Stop the running agent — Sends a stop request to the agent. It finishes its current step cleanly before exiting. Findings collected so far are preserved." style="display:none">
     ⏹ STOP AGENT
   </button>
 
@@ -3743,6 +3865,43 @@ function _agentSetStatus(text, state) {
 window.toggleAgentPanel = toggleAgentPanel;
 window.launchAgent      = launchAgent;
 window.stopAgent        = stopAgent;
+// ════════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
+//  FIRST-RUN ONBOARDING BANNER
+//  Shows once per browser (keyed by localStorage). User dismisses with the
+//  GOT IT × button and the banner stays hidden on future loads. Reset by
+//  clearing localStorage or deleting the err0rs_onboarded key.
+// ════════════════════════════════════════════════════════════════════════════
+
+const _ONBOARDING_KEY = 'err0rs_onboarded_v1';
+
+function dismissOnboardingBanner() {
+  const banner = document.getElementById('onboarding-banner');
+  if (banner) banner.style.display = 'none';
+  try { localStorage.setItem(_ONBOARDING_KEY, '1'); } catch (_e) {}
+}
+
+function showOnboardingBannerIfNeeded() {
+  try {
+    if (localStorage.getItem(_ONBOARDING_KEY) === '1') return;   // already dismissed
+  } catch (_e) {
+    // localStorage may be unavailable (private mode); show banner this time
+  }
+  const banner = document.getElementById('onboarding-banner');
+  if (banner) banner.style.display = 'flex';
+}
+
+// Expose dismiss to window so the inline onclick resolves
+window.dismissOnboardingBanner = dismissOnboardingBanner;
+
+// Run on DOMContentLoaded. If the page already loaded (script at bottom),
+// run immediately.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', showOnboardingBannerIfNeeded);
+} else {
+  showOnboardingBannerIfNeeded();
+}
 // ════════════════════════════════════════════════════════════════════════════
 </script>
 </body>

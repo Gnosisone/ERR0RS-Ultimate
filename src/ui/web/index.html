@@ -3582,6 +3582,168 @@ function renderChatMarkdown(md) {
   return '<p class="chat-p">' + html + '</p>';
 }
 // ════════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
+//  AUTONOMOUS AGENT PANEL — toggle, launch, stop, live status polling
+//  Wired 2026-05-25 to close UI-gap where button onclick handlers referenced
+//  undefined functions. Backend support has been live for many sessions —
+//  the user can type `agent <target>` in the terminal already. This binds
+//  the panel UI to the same backend WS dispatch + HTTP status endpoint.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Polling handle — non-null while agent is running and panel is visible
+let _agentPollTimer = null;
+let _agentPollInterval = 2000;  // 2s — slow enough to be polite to the Pi
+
+// Toggle the panel open/closed. On open we kick off a one-shot status poll
+// so the fields populate immediately (rather than after a full interval).
+function toggleAgentPanel() {
+  const panel = document.getElementById('agent-panel');
+  if (!panel) return;
+  const willBeVisible = !panel.classList.contains('visible');
+  panel.classList.toggle('visible');
+  if (willBeVisible) {
+    _agentPollStatus();   // immediate refresh on open
+    if (!_agentPollTimer) {
+      _agentPollTimer = setInterval(_agentPollStatus, _agentPollInterval);
+    }
+  } else {
+    // Panel closed — stop polling to avoid burning Pi cycles on a hidden UI
+    if (_agentPollTimer) {
+      clearInterval(_agentPollTimer);
+      _agentPollTimer = null;
+    }
+  }
+}
+
+// Launch the agent via the same WS command path the terminal uses.
+// We validate inputs client-side first so the user gets immediate feedback
+// before the round-trip to the backend.
+function launchAgent() {
+  const target = (document.getElementById('ag-target').value || '').trim();
+  const goal   = (document.getElementById('ag-goal').value || 'full_chain').trim();
+
+  if (!target) {
+    _agentSetStatus('IDLE — Target required', 'idle');
+    document.getElementById('ag-target').focus();
+    return;
+  }
+  if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) {
+    _agentSetStatus('OFFLINE — WebSocket not connected', 'error');
+    return;
+  }
+
+  // Visual swap: launch → stop button
+  document.getElementById('ag-launch-btn').style.display = 'none';
+  document.getElementById('ag-stop-btn').style.display   = '';
+  _agentSetStatus('LAUNCHING — sending command...', 'running');
+
+  // Reuse the exact same shape the terminal uses so the launcher's WS
+  // dispatch routes it through the agent regex at line 1829.
+  ws.send(JSON.stringify({
+    type:    'run',
+    command: `agent ${target} ${goal}`,
+    teach:   false,
+  }));
+
+  // Kick polling immediately so the UI starts updating without waiting
+  // a full interval for the first refresh.
+  if (!_agentPollTimer) {
+    _agentPollTimer = setInterval(_agentPollStatus, _agentPollInterval);
+  }
+  setTimeout(_agentPollStatus, 500);   // refresh 500ms after launch
+}
+
+// Stop the agent via the same `stop agent` WS command. Restore button state
+// regardless of whether the backend confirms — UI shouldn't be stuck in
+// "stopping..." if the WS drops the response.
+function stopAgent() {
+  if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type:    'run',
+      command: 'stop agent',
+      teach:   false,
+    }));
+  }
+  document.getElementById('ag-launch-btn').style.display = '';
+  document.getElementById('ag-stop-btn').style.display   = 'none';
+  _agentSetStatus('STOPPING — request sent', 'idle');
+  // One more refresh after a short delay so the user sees the final state
+  setTimeout(_agentPollStatus, 1000);
+}
+
+// Poll /api/agent/status and update DOM fields. Auto-handles button state
+// when the agent finishes naturally (running flips false).
+function _agentPollStatus() {
+  fetch('/api/agent/status', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(s => {
+      if (!s) return;
+      if (!s.running) {
+        // Agent not running — reset button state, keep last-known fields visible
+        document.getElementById('ag-launch-btn').style.display = '';
+        document.getElementById('ag-stop-btn').style.display   = 'none';
+        if (s.state) {
+          _agentSetStatus(`COMPLETE — ${s.state.phase || 'done'}`, 'idle');
+          _agentUpdateFields(s.state);
+        } else {
+          _agentSetStatus('IDLE — Ready to engage', 'idle');
+        }
+        return;
+      }
+      // Agent running — show stop button, update all fields
+      document.getElementById('ag-launch-btn').style.display = 'none';
+      document.getElementById('ag-stop-btn').style.display   = '';
+      _agentSetStatus(`RUNNING — ${s.phase || 'working'}`, 'running');
+      _agentUpdateFields(s);
+    })
+    .catch(_e => {
+      // Network failure — don't spam the user, the next poll will retry
+    });
+}
+
+// Update the six live-status fields. Defensive against missing keys so a
+// backend shape change doesn't blank the whole panel.
+function _agentUpdateFields(s) {
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (val === undefined || val === null) ? '—' : String(val);
+  };
+  setText('ag-phase',    s.phase);
+  setText('ag-steps',    s.steps);
+  setText('ag-findings', s.findings);
+  // open_ports is an array — show count + first few
+  let portsText = '—';
+  if (Array.isArray(s.open_ports)) {
+    portsText = s.open_ports.length === 0
+      ? '—'
+      : (s.open_ports.length <= 4
+          ? s.open_ports.join(', ')
+          : `${s.open_ports.slice(0, 3).join(', ')} +${s.open_ports.length - 3}`);
+  }
+  setText('ag-ports', portsText);
+  // vulns is a list per agent.py — show count
+  const vulnCount = Array.isArray(s.vulns) ? s.vulns.length : (s.vulns || 0);
+  setText('ag-vulns', vulnCount);
+  setText('ag-creds', s.creds);
+}
+
+// Update the colored dot + status text. State controls dot color via CSS.
+function _agentSetStatus(text, state) {
+  const dot = document.getElementById('ag-dot');
+  const txt = document.getElementById('ag-status-text');
+  if (txt) txt.textContent = text;
+  if (dot) {
+    dot.classList.remove('running', 'error', 'idle');
+    dot.classList.add(state || 'idle');
+  }
+}
+
+// Expose to window so onclick attributes resolve even in strict contexts
+window.toggleAgentPanel = toggleAgentPanel;
+window.launchAgent      = launchAgent;
+window.stopAgent        = stopAgent;
+// ════════════════════════════════════════════════════════════════════════════
 </script>
 </body>
 </html>

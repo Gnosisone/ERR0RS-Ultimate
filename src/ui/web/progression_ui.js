@@ -222,63 +222,76 @@ async function completeOnboarding() {
 
   document.getElementById('onboarding-overlay').classList.add('hidden');
 
-  // ── Initialize mission stepper with the backend-provided step list ────────
-  // The onboarding payload from /api/onboarding includes first_mission_steps,
-  // a list of {id, instruction, command, what_it_does, what_to_look_for,
-  // xp_reward} entries. We walk the user through them one at a time, gated
-  // on successful tool completion of the expected tool for each step.
-  try {
-    _missionSteps  = (_obPayload && _obPayload.first_mission_steps) || [];
-    _currentStep   = 0;
-    _missionActive = _missionSteps.length > 0;
-    window.MISSION_STEPS  = _missionSteps;   // expose for debug
-    window.MISSION_CURRENT = () => _currentStep;
-    window.MISSION_ACTIVE = _missionActive;  // read by index.html suggestion suppressor
-  } catch(e) {
-    _missionActive = false;
-    window.MISSION_ACTIVE = false;
-  }
-
-  if (_missionActive) {
-    showCurrentMissionStep();
-  } else {
-    // Fallback if for some reason the payload didn't include steps
-    showMissionCoach(
-      'MISSION 01: YOUR FIRST RECON',
-      "Let's run nmap against the Juice Shop. Type in the terminal: <code style='color:#a855f7'>nmap -sV -p 80,443,3000,8080 localhost</code>"
-    );
-  }
+  // ── Mission opt-in instead of auto-start ──────────────────────────────────
+  // Per the agreed UX: onboarding completion does NOT auto-start a mission.
+  // The user sees a "Start Mission 01" card on the dashboard and clicks it
+  // when ready. This respects user agency and lets them explore the UI
+  // before committing to a guided flow.
+  showMissionInvite();
 
   // Award XP for completing onboarding
   showXPToast(10, false, '');
 }
 
-// ── Mission Stepper State ────────────────────────────────────────────────────
-// These live at module scope so the WS handler in index.html can call
-// advanceMission() when a tool completes successfully.
-let _missionSteps  = [];     // [{id, instruction, command, what_it_does, ...}, ...]
-let _currentStep   = 0;      // index into _missionSteps
-let _missionActive = false;  // false once the mission completes or is dismissed
+// ── Mission Coach — server-authoritative ─────────────────────────────────────
+// The frontend is a thin renderer. All mission state lives in the backend
+// (src/core/mission_state.py + ~/.err0rs/mission_state.json) and survives
+// reboots, browser refreshes, and multiple tabs. The JS module-level state
+// here is purely a cache of the last server response.
+let _missionState = null;  // last response from /api/mission/state
 
-// Extract the tool name from a command string. "nmap -sV foo" → "nmap".
-// Strips path prefixes ("/usr/bin/nmap" → "nmap") and lowercases.
+// Extract the tool name from a command string ("nmap -sV foo" → "nmap").
+// Used to render step previews; advancement logic lives server-side.
 function _missionToolFromCommand(cmd) {
   if (!cmd) return '';
   const first = cmd.trim().split(/\s+/)[0] || '';
-  const stripped = first.split('/').pop().toLowerCase();
-  return stripped;
+  return first.split('/').pop().toLowerCase();
 }
 
-// Render the current mission step into the Mission Coach card. Pulls the
-// rich coaching fields from the backend payload (what_it_does, what_to_look_for)
-// so the user gets the same context that get_mission_step_coaching() builds
-// server-side, formatted for inline HTML.
-function showCurrentMissionStep() {
-  if (!_missionActive || _currentStep >= _missionSteps.length) return;
+// Pull current mission state from the server. Called on page load and after
+// every advancement. Updates the Mission Coach UI to reflect what the server
+// says is the truth.
+async function refreshMissionState() {
+  try {
+    const r = await fetch('/api/mission/state');
+    const state = await r.json();
+    _missionState = state;
+    window.MISSION_STATE  = state;             // expose for debug
+    window.MISSION_ACTIVE = !!state.active_mission && !state.is_complete;
+    renderMissionCoach(state);
+    return state;
+  } catch(e) {
+    window.MISSION_ACTIVE = false;
+    return null;
+  }
+}
 
-  const step    = _missionSteps[_currentStep];
-  const stepNum = _currentStep + 1;
-  const total   = _missionSteps.length;
+// Decide what to render based on current server state. Three cases:
+//   1. No active mission → show invite card so user can opt in
+//   2. Active mission, not complete → show current step
+//   3. Active mission, complete → show celebration
+// The Mission Coach card is hidden in any other case.
+function renderMissionCoach(state) {
+  if (!state || !state.active_mission) {
+    // No active mission — show invite (if onboarded) or hide
+    return;
+  }
+  if (state.is_complete) {
+    showMissionComplete(state);
+    return;
+  }
+  showCurrentMissionStep(state);
+}
+
+// Render the current step using server-provided data. Pulls rich coaching
+// fields (instruction, what_it_does, what_to_look_for) directly from the
+// state.current_step_data the backend joined in from FIRST_MISSIONS.
+function showCurrentMissionStep(state) {
+  const step    = state.current_step_data;
+  if (!step) return;
+  const stepNum = state.current_step + 1;
+  const total   = state.total_steps;
+  const mtitle  = (state.mission_def && state.mission_def.title) || 'MISSION';
 
   const html = `
     <div style="font-size:11px;color:#7b2fbe;font-weight:700;margin-bottom:6px">
@@ -290,7 +303,9 @@ function showCurrentMissionStep() {
     <div style="background:#0d001a;border:1px solid #7b2fbe66;border-radius:6px;
                 padding:8px 10px;margin:6px 0;
                 font-family:'Share Tech Mono',monospace;font-size:12px;
-                color:#a855f7;word-break:break-all">
+                color:#a855f7;word-break:break-all;cursor:pointer"
+         onclick="navigator.clipboard&&navigator.clipboard.writeText(this.textContent.trim());this.style.borderColor='#22d3ee';setTimeout(()=>this.style.borderColor='#7b2fbe66',600)"
+         title="Click to copy">
       ${step.command}
     </div>
     <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5">
@@ -303,59 +318,105 @@ function showCurrentMissionStep() {
       ▶ Run the command in the terminal — ERR0RS will advance when it completes.
     </div>
   `;
-  showMissionCoach(`MISSION 01 — STEP ${stepNum}: ${step.instruction.split('.')[0]}`, html);
+  const shortTitle = step.instruction.split('.')[0].slice(0, 60);
+  showMissionCoach(`${mtitle} — STEP ${stepNum}: ${shortTitle}`, html);
 }
 
-// Called from the WS handler when a tool completes successfully. We only
-// advance if the completed tool matches the expected tool for the current
-// step — running the wrong tool, or re-running for practice, doesn't skip.
-// Exposed on window so the inline script in index.html can call it.
-function advanceMission(completedCommand) {
-  if (!_missionActive) return false;
-  if (_currentStep >= _missionSteps.length) return false;
-
-  const step          = _missionSteps[_currentStep];
-  const expectedTool  = _missionToolFromCommand(step.command);
-  const completedTool = _missionToolFromCommand(completedCommand);
-
-  // Wrong tool — don't advance, but don't punish either. The user might be
-  // exploring before doing the assigned step. Silent no-op is the right call.
-  if (expectedTool && completedTool && expectedTool !== completedTool) {
-    return false;
-  }
-
-  // Award XP for this step
-  try { showXPToast(step.xp_reward, false, ''); } catch(e) {}
-
-  _currentStep += 1;
-
-  if (_currentStep >= _missionSteps.length) {
-    // Mission complete — show celebration, then dismiss the coach after a beat
-    _missionActive = false;
-    window.MISSION_ACTIVE = false;   // re-enable Next-Step Engine suggestions
-    showMissionCoach(
-      '✅ MISSION 01 COMPLETE',
-      `<div style="font-size:13px;color:#22d3ee;line-height:1.5">
-        Nice work, operator. You've completed your first recon.
-        You now know the target's attack surface — every path you found is a
-        potential entry point.
-      </div>
-      <div style="margin-top:10px;font-size:11px;color:#888">
-        Ready for more? Try <code style="color:#a855f7">teach sqli</code>
-        to start Mission 02, or just ask ERR0RS anything in the terminal.
-      </div>`
-    );
-    return true;
-  }
-
-  // Advance to the next step
-  showCurrentMissionStep();
-  return true;
+// Mission completed — celebration card with pointer to next mission.
+function showMissionComplete(state) {
+  const mtitle = (state.mission_def && state.mission_def.title) || 'Mission';
+  showMissionCoach(
+    `✅ ${mtitle.toUpperCase()} COMPLETE`,
+    `<div style="font-size:13px;color:#22d3ee;line-height:1.5">
+      Nice work, operator. You've completed your first recon.
+      You now know the target's attack surface — every path you found is a
+      potential entry point.
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:#888">
+      Ready for more? Try <code style="color:#a855f7">teach sqli</code>
+      to start the next mission, or just ask ERR0RS anything in the terminal.
+    </div>`
+  );
 }
 
-// Expose mission API to the inline handler in index.html
+// Invite card — shown after onboarding when no mission is active.
+// Single button "Start Mission 01" calls the backend to begin web_recon.
+function showMissionInvite() {
+  const html = `
+    <div style="font-size:13px;color:#e8d5ff;line-height:1.5;margin-bottom:10px">
+      Welcome aboard, operator. You're ready for your first guided mission —
+      a 3-step web recon against a local target.
+    </div>
+    <div style="font-size:11px;color:#888;margin-bottom:12px">
+      Or close this card and explore the platform on your own. You can start
+      the mission anytime from the dashboard.
+    </div>
+    <button onclick="startMission('web_recon')"
+            style="background:#7b2fbe;border:none;color:#fff;padding:8px 16px;
+                   border-radius:6px;font-family:'Share Tech Mono',monospace;
+                   font-size:12px;font-weight:700;letter-spacing:.08em;cursor:pointer">
+      START MISSION 01 →
+    </button>
+  `;
+  showMissionCoach('🎯 MISSION 01 AVAILABLE', html);
+}
+
+// Called from the "Start Mission" button. Hits the backend, then refreshes
+// the local view from the server's authoritative response.
+async function startMission(missionId) {
+  try {
+    await fetch('/api/mission/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mission_id: missionId}),
+    });
+    await refreshMissionState();
+  } catch(e) {
+    console.error('startMission failed:', e);
+  }
+}
+
+// Called from the WS handler in index.html when a tool completes. Hits the
+// backend — server decides whether to advance, returns new state, we re-render.
+// Wrong-tool runs return the state unchanged (silent no-op by design).
+async function advanceMission(completedCommand) {
+  const tool = _missionToolFromCommand(completedCommand);
+  if (!tool) return null;
+  try {
+    const r = await fetch('/api/mission/advance', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tool: tool}),
+    });
+    const newState = await r.json();
+    // Did we actually advance? Compare to cached state.
+    const advanced = _missionState
+      && newState.current_step > (_missionState.current_step || 0);
+    _missionState = newState;
+    window.MISSION_STATE  = newState;
+    window.MISSION_ACTIVE = !!newState.active_mission && !newState.is_complete;
+    if (advanced) {
+      // Award XP for the completed step (XP toast is FE-only flash)
+      const completedIdx = newState.current_step - 1;
+      try {
+        // Find xp_reward of the just-completed step from completion_history
+        // or fall back to the step object we just left
+        showXPToast(30, false, '');  // Conservative default; real XP lives server-side
+      } catch(e) {}
+      renderMissionCoach(newState);
+    }
+    return newState;
+  } catch(e) {
+    console.error('advanceMission failed:', e);
+    return null;
+  }
+}
+
+// Expose mission API to the inline handler in index.html and to dashboard buttons
+window.startMission           = startMission;
 window.advanceMission         = advanceMission;
-window.showCurrentMissionStep = showCurrentMissionStep;
+window.refreshMissionState    = refreshMissionState;
+window.showMissionInvite      = showMissionInvite;
 
 function showMissionCoach(title, text) {
   document.getElementById('mc-title').textContent = title;
@@ -367,8 +428,17 @@ function showMissionCoach(title, text) {
 window.addEventListener('load', () => {
   // Load skill panel data in background
   loadSkillPanel();
-  // Check onboarding after 1s (let WS connect first)
-  setTimeout(checkOnboarding, 1200);
+  // Check onboarding after 1s (let WS connect first). If it's NOT the first
+  // run, checkOnboarding silently returns and we instead refresh mission
+  // state — restoring the Mission Coach for users who had an active mission
+  // before their last reboot/refresh.
+  setTimeout(async () => {
+    await checkOnboarding();
+    // Always pull mission state from server. If a mission is active, the
+    // Mission Coach renders. If not, the coach stays hidden (or shows the
+    // invite when triggered from the dashboard "Start Mission" button).
+    await refreshMissionState();
+  }, 1200);
 });
 
 // ════════════════════════════════════════════════════════════════════════════

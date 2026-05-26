@@ -2144,6 +2144,23 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                         self._json({"first_run": False})
                 except Exception as _oe:
                     self._json({"first_run": False, "error": str(_oe)})
+            elif self.path == "/api/mission/state":
+                # Server-authoritative mission progress. Frontend pulls this
+                # on every page load to render the Mission Coach (or hide it
+                # when no mission is active). Includes joined step data so
+                # the FE doesn't need to mirror onboarding.FIRST_MISSIONS.
+                try:
+                    from src.core.mission_state import get_full_state
+                    self._json(get_full_state())
+                except Exception as _me:
+                    self._json({"error": str(_me)})
+            elif self.path == "/api/mission/list":
+                # All known missions for a "pick a mission" dashboard.
+                try:
+                    from src.core.mission_state import list_available_missions
+                    self._json({"missions": list_available_missions()})
+                except Exception as _me:
+                    self._json({"missions": [], "error": str(_me)})
             elif self.path == "/api/narrator/feed":
                 try:
                     with open("/tmp/err0rs_live.log") as _lf:
@@ -2240,6 +2257,37 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json({"status": "ok", "mode": prefs["mode"], "xp_awarded": 10})
                 except Exception as _oe:
                     self._json({"status": "error", "error": str(_oe)})
+
+            elif self.path == "/api/mission/start":
+                # Begin a mission. payload: {"mission_id": "web_recon"}
+                # Resets any in-progress mission. Returns the full state so
+                # the FE can render the Mission Coach immediately.
+                try:
+                    from src.core.mission_state import start_mission
+                    mid = payload.get("mission_id", "web_recon")
+                    self._json(start_mission(mid))
+                except Exception as _me:
+                    self._json({"error": str(_me)})
+
+            elif self.path == "/api/mission/advance":
+                # Frontend signals a tool completion. payload: {"tool": "nmap"}
+                # Backend silently decides if it counts (wrong tool = no-op).
+                # Returns the full updated state.
+                try:
+                    from src.core.mission_state import advance_mission
+                    tool = payload.get("tool", "")
+                    self._json(advance_mission(tool))
+                except Exception as _me:
+                    self._json({"error": str(_me)})
+
+            elif self.path == "/api/mission/reset":
+                # Wipe active mission state. Preserves completion history.
+                # Useful for "restart this mission" or test reset.
+                try:
+                    from src.core.mission_state import reset_state
+                    self._json(reset_state())
+                except Exception as _me:
+                    self._json({"error": str(_me)})
 
             elif self.path == "/api/progression/award":
                 try:

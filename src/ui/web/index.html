@@ -51,9 +51,10 @@
     ══════════════════════════════════════════ */
     #app {
       display: grid;
-      grid-template-rows: 44px 1fr 200px;
+      grid-template-rows: 44px 1fr minmax(240px, auto);
       grid-template-columns: 1fr 340px;
-      height: 100vh;
+      height: 100dvh; /* dynamic viewport handles mobile chrome */
+      min-height: 100vh; /* fallback for older browsers */
       gap: 0;
     }
 
@@ -421,7 +422,7 @@
     /* ── Autonomous Agent Panel ──────────────────────────────── */
     #agent-panel {
       position: fixed;
-      top: 44px; left: 0;
+      top: 84px; left: 0;
       width: 260px;
       background: #0a0012;
       border-right: 1px solid #7b2fbe44;
@@ -436,7 +437,7 @@
     #agent-panel.visible { display: flex; }
     #agent-trigger {
       position: fixed;
-      top: 50px; left: 0;
+      top: 90px; left: 0;
       width: 28px; height: 80px;
       background: #7b2fbe;
       border-radius: 0 6px 6px 0;

@@ -2221,14 +2221,39 @@ function connectWS() {
     try {
       const msg = JSON.parse(evt.data);
       handleWSMessage(msg);
-      // Mission stepper: when a tool completes, advance the mission if the
-      // completed tool matches the one this step is asking for. The helper
-      // lives in progression_ui.js and silently no-ops if no mission is
-      // active, so this hook is safe for non-onboarding users too.
-      if (msg && msg.type === 'system' && typeof msg.data === 'string'
-          && msg.data.indexOf('Process complete') !== -1
-          && typeof window.advanceMission === 'function') {
-        window.advanceMission(window._lastRunCommand || '');
+
+      // ── Mission stepper trigger (two code paths converge here) ──────────────
+      // ERR0RS runs tools through two different paths and each emits its own
+      // completion signal:
+      //
+      //   1. LiveProcess (typed in terminal box) → "system" message
+      //      containing "Process complete." (src/core/live_terminal.py:712)
+      //      The command we sent is in window._lastRunCommand.
+      //
+      //   2. OperatorBrain (clickable suggestion cards / NL commands) →
+      //      "narrator" message starting with "✅ " or "⚠️ " and containing
+      //      "rc=" (src/core/operator.py:_run_tool). The completed tool name
+      //      is on msg.tool — we don't have the full command string, but the
+      //      tool name alone is enough for advanceMission's match check.
+      //
+      // advanceMission() in progression_ui.js silently no-ops when no
+      // mission is active, so this hook is safe for everyone.
+      if (typeof window.advanceMission === 'function' && msg) {
+        // Path 1 — LiveProcess completion
+        if (msg.type === 'system' && typeof msg.data === 'string'
+            && msg.data.indexOf('Process complete') !== -1) {
+          window.advanceMission(window._lastRunCommand || '');
+        }
+        // Path 2 — Operator Brain completion
+        else if (msg.type === 'narrator' && typeof msg.data === 'string'
+                 && (msg.data.indexOf('rc=') !== -1)
+                 && (msg.data.startsWith('✅') || msg.data.startsWith('⚠️'))) {
+          // The Operator Brain emits msg.tool in its metadata. Synthesize a
+          // minimal command string so advanceMission's _missionToolFromCommand
+          // still works (it just splits on whitespace and takes word[0]).
+          const toolName = msg.tool || '';
+          if (toolName) window.advanceMission(toolName);
+        }
       }
     } catch(e) {
       ltpWrite(evt.data, 'output');
@@ -2274,7 +2299,13 @@ function handleWSMessage(msg) {
       addIntel('ERR0RS', msg.data.substring(0,120), 'info');
       break;
     case 'suggestion':
-      // Next-best-step card — CLICKABLE
+      // Next-best-step card — CLICKABLE.
+      // During an active onboarding mission we suppress these — the Mission
+      // Coach already owns the user's attention with the correct next step,
+      // and dual-narrator UX (Brain suggesting hydra while Mission says nikto)
+      // was confusing in live testing. Suggestion cards return as soon as
+      // the mission completes (window.MISSION_ACTIVE flips false).
+      if (window.MISSION_ACTIVE === true) break;
       addSuggestionCard(msg);
       break;
     case 'teach_block':

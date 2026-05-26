@@ -504,16 +504,33 @@ class OperatorTerminal:
         )
 
         try:
+            # ── Pre-clear any held keys before grabbing focus ──────────────────
+            # If the user clicked a UI button that triggered this call, the
+            # browser may still be releasing keys when xdotool starts typing.
+            # Explicitly release common stuck-key culprits before focus shift
+            # so we don't end up with output like "hhhhhhhhhydra ...".
+            # The space prefix on the typed command also absorbs any residual
+            # stuck-key into a harmless leading space the shell ignores.
+            for stuck_key in ("h", "shift", "ctrl", "alt", "super"):
+                subprocess.run(["xdotool", "keyup", stuck_key],
+                               capture_output=True, timeout=1)
+
             # Raise & focus the window
             subprocess.run(["xdotool", "windowraise",  self._wid], capture_output=True)
             subprocess.run(["xdotool", "windowfocus", "--sync", self._wid], capture_output=True)
-            time.sleep(0.15)
+            time.sleep(0.30)   # longer settle so X server fully processes focus shift
 
-            # Type the announce line then the real command
-            for text in ([announce_line] if announce else []) + [command]:
+            # Type the announce line then the real command. Leading space on
+            # the actual command absorbs any residual stuck-key as a harmless
+            # leading whitespace (the shell trims it).
+            for i, text in enumerate(([announce_line] if announce else []) + [command]):
+                # Only prefix the real command, not the announce line which
+                # already starts with echo.
+                if i == (1 if announce else 0) and not text.startswith(" "):
+                    text = " " + text
                 subprocess.run(
                     ["xdotool", "type", "--window", self._wid,
-                     "--clearmodifiers", "--delay", "18", text],
+                     "--clearmodifiers", "--delay", "25", text],
                     capture_output=True
                 )
             # Press Enter to execute

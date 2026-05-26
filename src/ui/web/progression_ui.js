@@ -233,8 +233,10 @@ async function completeOnboarding() {
     _missionActive = _missionSteps.length > 0;
     window.MISSION_STEPS  = _missionSteps;   // expose for debug
     window.MISSION_CURRENT = () => _currentStep;
+    window.MISSION_ACTIVE = _missionActive;  // read by index.html suggestion suppressor
   } catch(e) {
     _missionActive = false;
+    window.MISSION_ACTIVE = false;
   }
 
   if (_missionActive) {
@@ -330,6 +332,7 @@ function advanceMission(completedCommand) {
   if (_currentStep >= _missionSteps.length) {
     // Mission complete — show celebration, then dismiss the coach after a beat
     _missionActive = false;
+    window.MISSION_ACTIVE = false;   // re-enable Next-Step Engine suggestions
     showMissionCoach(
       '✅ MISSION 01 COMPLETE',
       `<div style="font-size:13px;color:#22d3ee;line-height:1.5">

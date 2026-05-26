@@ -2221,6 +2221,15 @@ function connectWS() {
     try {
       const msg = JSON.parse(evt.data);
       handleWSMessage(msg);
+      // Mission stepper: when a tool completes, advance the mission if the
+      // completed tool matches the one this step is asking for. The helper
+      // lives in progression_ui.js and silently no-ops if no mission is
+      // active, so this hook is safe for non-onboarding users too.
+      if (msg && msg.type === 'system' && typeof msg.data === 'string'
+          && msg.data.indexOf('Process complete') !== -1
+          && typeof window.advanceMission === 'function') {
+        window.advanceMission(window._lastRunCommand || '');
+      }
     } catch(e) {
       ltpWrite(evt.data, 'output');
     }
@@ -2662,6 +2671,7 @@ function submitTargetModal() {
   setTimeout(() => {
     ltpWrite(`ERR0RS@kali:~$ ${cmd}`, 'system');
     if (ws && wsConnected) {
+      window._lastRunCommand = cmd;
       ws.send(JSON.stringify({ type: 'run', command: cmd, teach: teachMode }));
       ltpBadge.textContent = '⬤ RUNNING';
       ltpBadge.className   = 'ltp-badge live';
@@ -2673,6 +2683,7 @@ function submitTargetModal() {
         connectWS();
         setTimeout(() => {
           if (ws && wsConnected) {
+            window._lastRunCommand = cmd;
             ws.send(JSON.stringify({ type: 'run', command: cmd, teach: teachMode }));
           } else {
             // HTTP fallback
@@ -2808,6 +2819,7 @@ async function socAction(action) {
   ltpWrite(`ERR0RS@kali:~$ ${cmd.slice(2)}`, 'system');
   addIntel(`SOC ACTION: ${action.toUpperCase()}`, 'Executing blue team check...', 'info');
   if (ws && wsConnected) {
+    window._lastRunCommand = cmd;
     ws.send(JSON.stringify({ type: 'run', command: cmd, teach: false }));
     ltpBadge.textContent = '⬤ RUNNING';
     ltpBadge.className   = 'ltp-badge live';

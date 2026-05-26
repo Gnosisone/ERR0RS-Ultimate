@@ -222,15 +222,137 @@ async function completeOnboarding() {
 
   document.getElementById('onboarding-overlay').classList.add('hidden');
 
-  // Show first mission coach
-  showMissionCoach(
-    'MISSION 01: YOUR FIRST RECON',
-    "Let's run nmap against the Juice Shop. Type in the terminal: <code style='color:#a855f7'>nmap -sV -p 80,443,3000,8080 localhost</code>"
-  );
+  // ── Initialize mission stepper with the backend-provided step list ────────
+  // The onboarding payload from /api/onboarding includes first_mission_steps,
+  // a list of {id, instruction, command, what_it_does, what_to_look_for,
+  // xp_reward} entries. We walk the user through them one at a time, gated
+  // on successful tool completion of the expected tool for each step.
+  try {
+    _missionSteps  = (_obPayload && _obPayload.first_mission_steps) || [];
+    _currentStep   = 0;
+    _missionActive = _missionSteps.length > 0;
+    window.MISSION_STEPS  = _missionSteps;   // expose for debug
+    window.MISSION_CURRENT = () => _currentStep;
+  } catch(e) {
+    _missionActive = false;
+  }
 
-  // Award XP
+  if (_missionActive) {
+    showCurrentMissionStep();
+  } else {
+    // Fallback if for some reason the payload didn't include steps
+    showMissionCoach(
+      'MISSION 01: YOUR FIRST RECON',
+      "Let's run nmap against the Juice Shop. Type in the terminal: <code style='color:#a855f7'>nmap -sV -p 80,443,3000,8080 localhost</code>"
+    );
+  }
+
+  // Award XP for completing onboarding
   showXPToast(10, false, '');
 }
+
+// ── Mission Stepper State ────────────────────────────────────────────────────
+// These live at module scope so the WS handler in index.html can call
+// advanceMission() when a tool completes successfully.
+let _missionSteps  = [];     // [{id, instruction, command, what_it_does, ...}, ...]
+let _currentStep   = 0;      // index into _missionSteps
+let _missionActive = false;  // false once the mission completes or is dismissed
+
+// Extract the tool name from a command string. "nmap -sV foo" → "nmap".
+// Strips path prefixes ("/usr/bin/nmap" → "nmap") and lowercases.
+function _missionToolFromCommand(cmd) {
+  if (!cmd) return '';
+  const first = cmd.trim().split(/\s+/)[0] || '';
+  const stripped = first.split('/').pop().toLowerCase();
+  return stripped;
+}
+
+// Render the current mission step into the Mission Coach card. Pulls the
+// rich coaching fields from the backend payload (what_it_does, what_to_look_for)
+// so the user gets the same context that get_mission_step_coaching() builds
+// server-side, formatted for inline HTML.
+function showCurrentMissionStep() {
+  if (!_missionActive || _currentStep >= _missionSteps.length) return;
+
+  const step    = _missionSteps[_currentStep];
+  const stepNum = _currentStep + 1;
+  const total   = _missionSteps.length;
+
+  const html = `
+    <div style="font-size:11px;color:#7b2fbe;font-weight:700;margin-bottom:6px">
+      STEP ${stepNum} / ${total} &nbsp;•&nbsp; +${step.xp_reward} XP
+    </div>
+    <div style="font-size:13px;color:#e8d5ff;margin-bottom:8px;line-height:1.5">
+      ${step.instruction}
+    </div>
+    <div style="background:#0d001a;border:1px solid #7b2fbe66;border-radius:6px;
+                padding:8px 10px;margin:6px 0;
+                font-family:'Share Tech Mono',monospace;font-size:12px;
+                color:#a855f7;word-break:break-all">
+      ${step.command}
+    </div>
+    <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5">
+      <strong style="color:#22d3ee">What it does:</strong> ${step.what_it_does}
+    </div>
+    <div style="font-size:11px;color:#888;margin-top:6px;line-height:1.5">
+      <strong style="color:#f59e0b">What to look for:</strong> ${step.what_to_look_for}
+    </div>
+    <div style="margin-top:10px;font-size:10px;color:#7b2fbe;letter-spacing:.08em">
+      ▶ Run the command in the terminal — ERR0RS will advance when it completes.
+    </div>
+  `;
+  showMissionCoach(`MISSION 01 — STEP ${stepNum}: ${step.instruction.split('.')[0]}`, html);
+}
+
+// Called from the WS handler when a tool completes successfully. We only
+// advance if the completed tool matches the expected tool for the current
+// step — running the wrong tool, or re-running for practice, doesn't skip.
+// Exposed on window so the inline script in index.html can call it.
+function advanceMission(completedCommand) {
+  if (!_missionActive) return false;
+  if (_currentStep >= _missionSteps.length) return false;
+
+  const step          = _missionSteps[_currentStep];
+  const expectedTool  = _missionToolFromCommand(step.command);
+  const completedTool = _missionToolFromCommand(completedCommand);
+
+  // Wrong tool — don't advance, but don't punish either. The user might be
+  // exploring before doing the assigned step. Silent no-op is the right call.
+  if (expectedTool && completedTool && expectedTool !== completedTool) {
+    return false;
+  }
+
+  // Award XP for this step
+  try { showXPToast(step.xp_reward, false, ''); } catch(e) {}
+
+  _currentStep += 1;
+
+  if (_currentStep >= _missionSteps.length) {
+    // Mission complete — show celebration, then dismiss the coach after a beat
+    _missionActive = false;
+    showMissionCoach(
+      '✅ MISSION 01 COMPLETE',
+      `<div style="font-size:13px;color:#22d3ee;line-height:1.5">
+        Nice work, operator. You've completed your first recon.
+        You now know the target's attack surface — every path you found is a
+        potential entry point.
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#888">
+        Ready for more? Try <code style="color:#a855f7">teach sqli</code>
+        to start Mission 02, or just ask ERR0RS anything in the terminal.
+      </div>`
+    );
+    return true;
+  }
+
+  // Advance to the next step
+  showCurrentMissionStep();
+  return true;
+}
+
+// Expose mission API to the inline handler in index.html
+window.advanceMission         = advanceMission;
+window.showCurrentMissionStep = showCurrentMissionStep;
 
 function showMissionCoach(title, text) {
   document.getElementById('mc-title').textContent = title;

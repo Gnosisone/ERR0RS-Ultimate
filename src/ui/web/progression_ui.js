@@ -649,16 +649,23 @@ async function checkEthicsGate() {
     const clauses = document.getElementById('ethics-gate-clauses');
     clauses.innerHTML = (a.clauses || []).map(c => `<li>${c}</li>`).join('');
 
-    // Wire the checkbox → button enable/disable
+    // Wire the checkbox → button enable/disable.
+    // Use BOTH onchange and onclick to maximize reliability across browsers
+    // (Firefox sometimes fires only one, depending on input scaling and
+    // event ordering with click-on-label).
     const cb  = document.getElementById('ethics-gate-check');
     const btn = document.getElementById('ethics-gate-agree-btn');
     cb.checked = false;
     btn.disabled = true;
     btn.style.opacity = 0.4;
-    cb.onchange = () => {
+    const syncBtnState = () => {
       btn.disabled = !cb.checked;
       btn.style.opacity = cb.checked ? 1.0 : 0.4;
     };
+    cb.onchange = syncBtnState;
+    cb.onclick  = syncBtnState;   // belt + suspenders
+    // Also sync on any keyboard interaction with the label (space toggles)
+    cb.parentElement.onclick = () => setTimeout(syncBtnState, 0);
 
     document.getElementById('ethics-gate').classList.remove('hidden');
     return false;   // gate is now shown; resolved via acceptEthics()

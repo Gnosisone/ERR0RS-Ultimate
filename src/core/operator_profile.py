@@ -155,7 +155,16 @@ def get_lesson_state() -> Dict:
         "last_lesson":       state["last_lesson"],
         "total_topics":      len(all_topics),
         "topics":            topics_view,
-        "next_unread":       next((t for t in all_topics if t not in completed_set), None),
+        # next_unread = first topic the user has neither completed NOR started.
+        # Excluding "started" too is important — without it, clicking
+        # "Continue Lessons" returns the SAME topic forever because
+        # alphabetically it's still the first non-completed one. Including
+        # started_set means each click advances to a fresh topic.
+        # If the user explicitly wants to resume a started lesson, that's
+        # tracked separately in last_lesson.
+        "next_unread":       next((t for t in all_topics
+                                   if t not in completed_set
+                                   and t not in started_set), None),
     }
 
 

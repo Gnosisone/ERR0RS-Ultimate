@@ -261,6 +261,29 @@ class Operator:
                 self.say(f"  {sev_icon} [{f.kind}] {f.value}", "intel",
                          {"kind": f.kind, "severity": f.severity})
 
+        # ── Award XP for the tool run ────────────────────────────────────────
+        # Critical: this path (Operator Brain → phoenix_run) was previously
+        # bypassing the XP/tools_used counter entirely. Every nmap, nikto,
+        # gobuster, sqlmap etc. invoked through the Brain (which is most of
+        # them — mission stepper, kill chain, suggestion-card clicks all
+        # route here) added zero to "Tools Used" and zero domain XP.
+        # The tool_executor.py path was the only one awarding correctly,
+        # but the Brain doesn't use it.
+        #
+        # award_xp("run_<tool>") increments tools_used[<tool>] in
+        # progression.py:170, fires achievement checks (recon_master at 10
+        # nmaps, web_hunter at 5 sqlmaps, etc.), and updates skill domain XP.
+        # found_vuln/found_creds add bonus XP when findings are present.
+        try:
+            from src.core.progression import award_xp
+            if run.success:
+                award_xp(f"run_{tool}", target or "")
+                if findings:
+                    award_xp("found_vuln", f"{tool}: {len(findings)} findings")
+        except Exception as _xpe:
+            # XP failures must NEVER block tool execution flow
+            log.warning(f"award_xp failed for {tool}: {_xpe}")
+
         suggestions = next_step_engine.suggest(
             tool=tool, findings=findings, state=self.state,
         )

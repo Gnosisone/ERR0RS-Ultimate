@@ -62,6 +62,13 @@ async function loadSkillPanel() {
   } catch(e) {
     document.getElementById('sp-level-name').textContent = 'ERR0RS offline';
   }
+  // Always pull the new operator profile section too (separate fetch so
+  // a /api/progression failure doesn't block /api/profile and vice versa).
+  try {
+    if (typeof loadOperatorProfileSection === 'function') {
+      await loadOperatorProfileSection();
+    }
+  } catch(e) {}
 }
 
 // Auto-refresh skill panel every 30s if open
@@ -428,17 +435,16 @@ function showMissionCoach(title, text) {
 window.addEventListener('load', () => {
   // Load skill panel data in background
   loadSkillPanel();
-  // Check onboarding after 1s (let WS connect first). If it's NOT the first
-  // run, checkOnboarding silently returns and we instead refresh mission
-  // state — restoring the Mission Coach for users who had an active mission
-  // before their last reboot/refresh.
+  // Per-launch ethics gate fires first. If acknowledged, runPostGateBoot
+  // runs onboarding/mission/welcome-back. If not, the gate blocks the UI
+  // and the user clicking I AGREE will call runPostGateBoot itself.
   setTimeout(async () => {
-    await checkOnboarding();
-    // Always pull mission state from server. If a mission is active, the
-    // Mission Coach renders. If not, the coach stays hidden (or shows the
-    // invite when triggered from the dashboard "Start Mission" button).
-    await refreshMissionState();
-  }, 1200);
+    const gatePassed = await checkEthicsGate();
+    if (gatePassed) {
+      await runPostGateBoot();
+    }
+    // If gate not passed, acceptEthics() will call runPostGateBoot when ready.
+  }, 1000);
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -618,3 +624,353 @@ function syncAgentTarget() {
 // Poll every 3s when panel is open
 setInterval(() => { if (_agentPanelOpen && _agentRunning) refreshAgentStatus(); }, 3000);
 // ════════════════════════════════════════════════════════════════════════════
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ══ ETHICS GATE — per-launch agreement, blocks UI until acknowledged
+// ════════════════════════════════════════════════════════════════════════════
+// Architecture: on every page load, fetch /api/ethics/status. If not
+// acknowledged for THIS launcher PID, show the gate modal blocking the UI
+// until the user checks the box and clicks I AGREE. On agreement, POST to
+// /api/ethics/agree and hide the modal. Once agreed, proceeds to onboarding
+// (if first run) or welcome-back card (if returning).
+
+async function checkEthicsGate() {
+  try {
+    const r = await fetch('/api/ethics/status');
+    const d = await r.json();
+    if (d.acknowledged) return true;   // gate not needed, fall through
+
+    // Populate the agreement text from server (FE doesn't hardcode legal copy)
+    const a = d.agreement || {};
+    document.getElementById('ethics-gate-title').textContent    = a.title || 'ETHICS AGREEMENT';
+    document.getElementById('ethics-gate-preamble').textContent = a.preamble || '';
+    document.getElementById('ethics-gate-footer').textContent   = a.footer || '';
+    const clauses = document.getElementById('ethics-gate-clauses');
+    clauses.innerHTML = (a.clauses || []).map(c => `<li>${c}</li>`).join('');
+
+    // Wire the checkbox → button enable/disable
+    const cb  = document.getElementById('ethics-gate-check');
+    const btn = document.getElementById('ethics-gate-agree-btn');
+    cb.checked = false;
+    btn.disabled = true;
+    btn.style.opacity = 0.4;
+    cb.onchange = () => {
+      btn.disabled = !cb.checked;
+      btn.style.opacity = cb.checked ? 1.0 : 0.4;
+    };
+
+    document.getElementById('ethics-gate').classList.remove('hidden');
+    return false;   // gate is now shown; resolved via acceptEthics()
+  } catch(e) {
+    // Network/server unreachable — fail SAFE by showing the gate, not by
+    // letting the user bypass it. Better to deny on error than allow on error.
+    document.getElementById('ethics-gate').classList.remove('hidden');
+    return false;
+  }
+}
+
+async function acceptEthics() {
+  const cb = document.getElementById('ethics-gate-check');
+  if (!cb || !cb.checked) return;
+  try {
+    await fetch('/api/ethics/agree', {method: 'POST'});
+  } catch(e) {}
+  document.getElementById('ethics-gate').classList.add('hidden');
+  // After agreeing, run the post-gate sequence (onboarding or welcome-back)
+  await runPostGateBoot();
+}
+
+window.acceptEthics = acceptEthics;
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ══ WELCOME-BACK CARD — returning users see this after ethics gate
+// ════════════════════════════════════════════════════════════════════════════
+// Tone calibration: friendly for beginners (skill_level 0-1), terse for
+// advanced (2-3). Voice matches the user's wizard-declared skill level so
+// onboarding nuance carries through the whole experience.
+
+async function showWelcomeBack(profile) {
+  if (!profile) return;
+  const tone = (profile.skill_level || 0) <= 1 ? 'guided' : 'pro';
+
+  // Find continue points: active mission or next unread lesson
+  const continueBits = [];
+  if (profile.active_mission) {
+    continueBits.push(`<div style="margin-top:8px">
+      <button onclick="document.getElementById('welcome-back').classList.add('hidden');
+                       window.refreshMissionState && window.refreshMissionState()"
+              style="background:#7b2fbe;border:none;color:#fff;padding:6px 12px;
+                     border-radius:5px;font-family:'Share Tech Mono',monospace;
+                     font-size:11px;font-weight:700;letter-spacing:0.08em;cursor:pointer">
+        ▶ CONTINUE MISSION
+      </button>
+    </div>`);
+  } else if (profile.next_lesson) {
+    continueBits.push(`<div style="margin-top:8px">
+      <button onclick="continueLessons();document.getElementById('welcome-back').classList.add('hidden')"
+              style="background:#0d001a;border:1px solid #7b2fbe66;color:#e8d5ff;
+                     padding:6px 12px;border-radius:5px;
+                     font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer">
+        📚 NEXT LESSON: ${profile.next_lesson}
+      </button>
+    </div>`);
+  }
+
+  const greeting = tone === 'guided'
+    ? `Welcome back, <strong style="color:#a855f7">${profile.name}</strong>.`
+    : `${profile.name}.`;
+
+  const body = `
+    <div>${greeting}</div>
+    <div style="margin-top:6px;color:#888;font-size:11px">
+      ${profile.skill_name} &nbsp;•&nbsp; Level ${profile.level} &nbsp;•&nbsp; ${profile.xp} XP
+    </div>
+    <div style="margin-top:6px;color:#666;font-size:10px">
+      Missions: ${profile.missions_completed}
+      &nbsp;•&nbsp;
+      Lessons: ${profile.lessons_completed_count}/${profile.lessons_total}
+      &nbsp;•&nbsp;
+      Sessions: ${profile.sessions || 0}
+    </div>
+    ${continueBits.join('')}
+  `;
+  document.getElementById('welcome-back-content').innerHTML = body;
+  document.getElementById('welcome-back').classList.remove('hidden');
+
+  // Auto-dismiss after 15s if the user doesn't interact
+  setTimeout(() => {
+    document.getElementById('welcome-back').classList.add('hidden');
+  }, 15000);
+}
+
+// ── Post-gate boot orchestrator ─────────────────────────────────────────────
+// Called once the ethics gate passes. Decides between:
+//   - First-time user → fire onboarding wizard
+//   - Returning user → show welcome-back card + refresh mission state
+async function runPostGateBoot() {
+  try {
+    // Check onboarding (will fire the wizard if first_run)
+    await checkOnboarding();
+    // Refresh mission state (will render Mission Coach if active)
+    if (window.refreshMissionState) await window.refreshMissionState();
+    // Show welcome-back card for returning users
+    const r = await fetch('/api/profile');
+    const profile = await r.json();
+    if (profile && profile.agreed_to_tos) {
+      // Only show welcome-back if user has previously onboarded
+      showWelcomeBack(profile);
+    }
+  } catch(e) {
+    console.error('Post-gate boot failed:', e);
+  }
+}
+
+window.runPostGateBoot = runPostGateBoot;
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ══ OPERATOR PROFILE PANEL — populates the new sections of the skill panel
+// ════════════════════════════════════════════════════════════════════════════
+
+async function loadOperatorProfileSection() {
+  try {
+    const r = await fetch('/api/profile');
+    const p = await r.json();
+    if (p.error) return;
+    window._opProfile = p;   // cache for other functions
+
+    // ── OPERATOR stats ───────────────────────────────────────────────────
+    const stats = document.getElementById('sp-profile-stats');
+    if (stats) {
+      stats.innerHTML = `
+        <div><strong style="color:#a855f7">${p.name}</strong></div>
+        <div style="color:#888;font-size:10px;margin-top:2px">${p.skill_name}</div>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;font-size:10px;color:#888">
+          <span>Missions:</span><span style="color:#22d3ee">${p.missions_completed}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#888">
+          <span>Sessions:</span><span style="color:#22d3ee">${p.sessions || 0}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#888">
+          <span>Achievements:</span><span style="color:#22d3ee">${(p.achievements || []).length}</span>
+        </div>
+      `;
+    }
+
+    // ── MODES toggles ────────────────────────────────────────────────────
+    const tog = document.getElementById('sp-toggles');
+    if (tog) {
+      tog.innerHTML = _renderToggle('teach_mode',    p.teach_mode,    '🎓 Teach Mode',    'Explain every tool as it runs')
+                    + _renderToggle('auto_coach',    p.auto_coach,    '🤝 Auto-Coach',    'Proactive tips during scans');
+    }
+
+    // ── LESSON badge on Continue Lessons button ──────────────────────────
+    const badge = document.getElementById('sp-lesson-badge');
+    if (badge) {
+      badge.textContent = `${p.lessons_completed_count}/${p.lessons_total}`;
+    }
+
+    // ── Show/hide Restart Mission button based on whether one is active ──
+    const restartBtn = document.getElementById('sp-act-restart-mission');
+    if (restartBtn) {
+      restartBtn.style.display = p.active_mission ? 'block' : 'none';
+    }
+  } catch(e) {
+    console.error('loadOperatorProfileSection:', e);
+  }
+}
+
+// Helper — renders a styled toggle row
+function _renderToggle(key, value, label, sublabel) {
+  return `
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;
+                  padding:6px 8px;border:1px solid #7b2fbe33;border-radius:5px;
+                  background:#0d001a">
+      <input type="checkbox" ${value ? 'checked' : ''}
+             onchange="setProfileToggle('${key}', this.checked)"
+             style="accent-color:#7b2fbe;cursor:pointer">
+      <div style="flex:1">
+        <div style="font-size:11px;color:#e8d5ff">${label}</div>
+        <div style="font-size:9px;color:#666">${sublabel}</div>
+      </div>
+    </label>
+  `;
+}
+
+async function setProfileToggle(key, value) {
+  try {
+    await fetch('/api/profile/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: key, value: !!value}),
+    });
+    // No re-fetch needed — the checkbox state IS the new state. But we DO
+    // want to sync the in-memory teachMode var if that's what toggled, so
+    // commands sent through the terminal use the new value.
+    if (key === 'teach_mode' && typeof teachMode !== 'undefined') {
+      window.teachMode = !!value;
+    }
+  } catch(e) {
+    console.error('toggle failed:', e);
+  }
+}
+
+window.setProfileToggle = setProfileToggle;
+window.loadOperatorProfileSection = loadOperatorProfileSection;
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ══ ACTION BUTTON HANDLERS — Continue Lessons / Restart Mission / Reset
+// ════════════════════════════════════════════════════════════════════════════
+
+// Continue Lessons: opens the next unread topic via the existing teach
+// command path. Marks the topic as "started" so the next press picks the
+// one after that.
+async function continueLessons() {
+  try {
+    const r = await fetch('/api/lessons/state');
+    const ls = await r.json();
+    const topic = ls.next_unread;
+    if (!topic) {
+      // All lessons done — celebrate
+      if (typeof addIntel === 'function') {
+        addIntel('🎓 LESSONS', 'All 23 topics complete. You\'re a verified ERR0RS scholar.', 'win');
+      }
+      return;
+    }
+    // Mark as started so next press picks a different topic
+    await fetch('/api/lessons/mark', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({topic: topic, status: 'started'}),
+    });
+    // Refresh the badge
+    await loadOperatorProfileSection();
+    // Send the teach command through the existing terminal path
+    if (typeof sendToLive === 'function') {
+      sendToLive(`teach ${topic}`);
+    } else if (typeof ws !== 'undefined' && ws.readyState === 1) {
+      ws.send(JSON.stringify({type: 'run', command: `teach ${topic}`, teach: true}));
+    }
+  } catch(e) {
+    console.error('continueLessons:', e);
+  }
+}
+
+// Restart Active Mission: resets to step 0 of whichever mission is active.
+async function restartActiveMission() {
+  if (!window._opProfile || !window._opProfile.active_mission) return;
+  if (!confirm('Restart the current mission from step 1? (Your XP from completed steps stays.)')) return;
+  try {
+    const missionId = window._opProfile.active_mission;
+    await fetch('/api/mission/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mission_id: missionId}),
+    });
+    if (window.refreshMissionState) await window.refreshMissionState();
+    await loadOperatorProfileSection();
+  } catch(e) {
+    console.error('restartActiveMission:', e);
+  }
+}
+
+// ── Reset Profile — two-click confirmation flow ─────────────────────────────
+// First click: button swaps to red "ARE YOU SURE?" with a 5-second timeout
+// that reverts if the user doesn't click again. Second click: actually fires.
+let _resetConfirmTimeout = null;
+
+function confirmResetProfile() {
+  const btn = document.getElementById('sp-act-reset-profile');
+  if (!btn) return;
+
+  if (btn.dataset.armed === '1') {
+    // Second click — execute the reset
+    doResetProfile();
+    return;
+  }
+
+  // First click — arm the button
+  btn.dataset.armed = '1';
+  btn.style.background = '#330000';
+  btn.style.borderColor = '#ff3366';
+  btn.style.color = '#ff3366';
+  btn.innerHTML = '⚠️ ARE YOU SURE? Click again to wipe (backup saved)';
+
+  // Auto-disarm after 5 seconds
+  _resetConfirmTimeout = setTimeout(() => {
+    btn.dataset.armed = '';
+    btn.style.background = '#0d001a';
+    btn.style.borderColor = '#ff336699';
+    btn.style.color = '#ffaaaa';
+    btn.innerHTML = '⚠️ Reset Profile';
+  }, 5000);
+}
+
+async function doResetProfile() {
+  if (_resetConfirmTimeout) clearTimeout(_resetConfirmTimeout);
+  try {
+    const r = await fetch('/api/profile/reset', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirm: true}),
+    });
+    const d = await r.json();
+    if (d.success) {
+      // Brief confirmation, then reload the page so the user re-onboards
+      alert(`Profile reset.\n\nBackup saved to:\n${d.backup_path}\n\nThe page will reload to start fresh.`);
+      location.reload();
+    } else {
+      alert('Reset failed: ' + (d.error || 'unknown error'));
+    }
+  } catch(e) {
+    alert('Reset request failed: ' + e.message);
+  }
+}
+
+window.continueLessons      = continueLessons;
+window.restartActiveMission = restartActiveMission;
+window.confirmResetProfile  = confirmResetProfile;
+window.doResetProfile       = doResetProfile;

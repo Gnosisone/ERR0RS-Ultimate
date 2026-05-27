@@ -3392,6 +3392,111 @@ const SNIPPETS = {
     <span style="color:#a855f7">• what is CIS Control 5</span><br>
     <span style="color:#a855f7">• how do I read nmap output</span>
   </div>
+
+  <!-- ── OPERATOR PROFILE STATS (server-driven) ─────────────────────────── -->
+  <div class="sp-header" style="margin-top:4px">OPERATOR</div>
+  <div id="sp-profile-stats" style="font-size:11px;color:#ccc;line-height:1.6">
+    <em style="color:#666">loading…</em>
+  </div>
+
+  <!-- ── MODES (toggles) ────────────────────────────────────────────────── -->
+  <div class="sp-header" style="margin-top:4px">MODES</div>
+  <div id="sp-toggles" style="display:flex;flex-direction:column;gap:6px">
+    <em style="color:#666;font-size:11px">loading…</em>
+  </div>
+
+  <!-- ── ACTIONS (lesson continue, restart mission, reset) ──────────────── -->
+  <div class="sp-header" style="margin-top:4px">ACTIONS</div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button id="sp-act-continue-lesson" onclick="continueLessons()"
+            style="background:#0d001a;border:1px solid #7b2fbe66;color:#e8d5ff;
+                   padding:8px 10px;border-radius:6px;cursor:pointer;
+                   font-family:'Share Tech Mono',monospace;font-size:11px;
+                   text-align:left">
+      📚 Continue Lessons <span id="sp-lesson-badge" style="color:#7b2fbe;float:right">—</span>
+    </button>
+    <button id="sp-act-restart-mission" onclick="restartActiveMission()"
+            style="background:#0d001a;border:1px solid #7b2fbe66;color:#e8d5ff;
+                   padding:8px 10px;border-radius:6px;cursor:pointer;
+                   font-family:'Share Tech Mono',monospace;font-size:11px;
+                   text-align:left">
+      🔄 Restart Active Mission
+    </button>
+    <button id="sp-act-reset-profile" onclick="confirmResetProfile()"
+            style="background:#0d001a;border:1px solid #ff336699;color:#ffaaaa;
+                   padding:8px 10px;border-radius:6px;cursor:pointer;
+                   font-family:'Share Tech Mono',monospace;font-size:11px;
+                   text-align:left">
+      ⚠️ Reset Profile
+    </button>
+  </div>
+</div>
+
+<!-- ══ ETHICS GATE — blocks UI on launch until acknowledged ═════════════════ -->
+<div id="ethics-gate" class="hidden" style="
+  position:fixed; inset:0; z-index:9999;
+  background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center;
+">
+  <div style="
+    max-width:560px; width:90%;
+    background:linear-gradient(180deg, #0d0220 0%, #08001a 100%);
+    border:2px solid #ff3366; border-radius:12px;
+    padding:24px 28px;
+    box-shadow:0 0 40px #ff336644;
+    font-family:'Share Tech Mono',monospace; color:#e8d5ff;
+  ">
+    <div id="ethics-gate-title" style="
+      font-size:18px; font-weight:700; color:#ff3366;
+      letter-spacing:0.08em; margin-bottom:12px; text-align:center;
+    ">ERR0RS ETHICAL USE AGREEMENT</div>
+    <div id="ethics-gate-preamble" style="
+      font-size:12px; color:#ccc; line-height:1.6; margin-bottom:16px;
+    "></div>
+    <ol id="ethics-gate-clauses" style="
+      font-size:12px; color:#e8d5ff; line-height:1.7;
+      padding-left:24px; margin:0 0 18px 0;
+    "></ol>
+    <label style="
+      display:flex; align-items:flex-start; gap:10px;
+      font-size:12px; color:#ff8899; margin-bottom:16px; cursor:pointer;
+    ">
+      <input type="checkbox" id="ethics-gate-check" style="
+        margin-top:3px; accent-color:#ff3366; transform:scale(1.2);
+      ">
+      <span>I have read, understood, and agree to abide by all of the terms above. I confirm I will only use ERR0RS against systems I am authorized to test.</span>
+    </label>
+    <button id="ethics-gate-agree-btn" onclick="acceptEthics()" disabled style="
+      width:100%; background:#7b2fbe; border:none; color:#fff;
+      padding:12px; border-radius:6px;
+      font-family:'Share Tech Mono',monospace; font-size:13px; font-weight:700;
+      letter-spacing:0.1em; cursor:pointer;
+      opacity:0.4; transition:opacity 0.2s;
+    ">I AGREE — CONTINUE TO ERR0RS</button>
+    <div style="
+      font-size:10px; color:#666; text-align:center; margin-top:10px;
+    " id="ethics-gate-footer"></div>
+  </div>
+</div>
+
+<!-- ══ WELCOME-BACK CARD — appears after ethics gate ═══════════════════════ -->
+<div id="welcome-back" class="hidden" style="
+  position:fixed; top:60px; right:14px; z-index:300;
+  width:300px; max-width:90vw;
+  background:linear-gradient(180deg, #0d0220 0%, #08001a 100%);
+  border:1px solid #7b2fbe88; border-radius:10px;
+  padding:14px 16px;
+  box-shadow:0 4px 24px #7b2fbe22;
+  font-family:'Share Tech Mono',monospace; color:#e8d5ff;
+">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div style="font-size:11px;color:#7b2fbe;font-weight:700;letter-spacing:0.1em">
+      WELCOME BACK
+    </div>
+    <div onclick="document.getElementById('welcome-back').classList.add('hidden')"
+         style="cursor:pointer;color:#7b2fbe;padding:0 4px">✕</div>
+  </div>
+  <div id="welcome-back-content" style="margin-top:8px;font-size:12px;line-height:1.6"></div>
 </div>
 
 <!-- ══ ONBOARDING OVERLAY ════════════════════════════════════════════════ -->

@@ -2161,6 +2161,41 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json({"missions": list_available_missions()})
                 except Exception as _me:
                     self._json({"missions": [], "error": str(_me)})
+
+            elif self.path == "/api/profile":
+                # Consolidated operator profile — name, skill, XP, level,
+                # mission stats, lesson counts, toggle values. One call,
+                # everything the Operator Profile panel needs.
+                try:
+                    from src.core.operator_profile import get_full_profile
+                    self._json(get_full_profile())
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
+
+            elif self.path == "/api/ethics/status":
+                # Per-launch ethics gate check. Returns whether THIS launcher
+                # process has been acknowledged. Cleared on every restart so
+                # the gate fires on every launch.
+                try:
+                    import os as _os
+                    from src.core.operator_profile import is_ethics_ack_current, get_ethics_agreement_text
+                    self._json({
+                        "acknowledged":     is_ethics_ack_current(_os.getpid()),
+                        "agreement":        get_ethics_agreement_text(),
+                    })
+                except Exception as _pe:
+                    self._json({"acknowledged": False, "error": str(_pe)})
+
+            elif self.path == "/api/lessons/state":
+                # Lesson progress with full topic list joined in. Used by
+                # the "Continue Lessons" button and the lessons-completed
+                # badge in the Operator Profile panel.
+                try:
+                    from src.core.operator_profile import get_lesson_state
+                    self._json(get_lesson_state())
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
+
             elif self.path == "/api/narrator/feed":
                 try:
                     with open("/tmp/err0rs_live.log") as _lf:
@@ -2288,6 +2323,53 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json(reset_state())
                 except Exception as _me:
                     self._json({"error": str(_me)})
+
+            elif self.path == "/api/ethics/agree":
+                # Record per-launch ethics ack for the current launcher PID.
+                # No payload needed — clicking the gate's button is the act
+                # of agreement. Returns ack record for the FE to confirm.
+                try:
+                    import os as _os
+                    from src.core.operator_profile import record_ethics_ack
+                    self._json(record_ethics_ack(_os.getpid()))
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
+
+            elif self.path == "/api/lessons/mark":
+                # payload: {"topic": "sqli", "status": "started|completed"}
+                # Updates lesson progress. Returns the new full state so the
+                # FE can refresh the "X/23 lessons" badge without a second call.
+                try:
+                    from src.core.operator_profile import mark_lesson
+                    topic  = payload.get("topic", "")
+                    status = payload.get("status", "started")
+                    self._json(mark_lesson(topic, status))
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
+
+            elif self.path == "/api/profile/toggle":
+                # payload: {"key": "teach_mode|auto_coach|beginner_mode", "value": bool}
+                # Whitelisted setter — refuses arbitrary keys to keep prefs
+                # tamper-resistant. Returns {ok, key, value} or {error}.
+                try:
+                    from src.core.operator_profile import set_toggle
+                    key   = payload.get("key", "")
+                    value = bool(payload.get("value", False))
+                    self._json(set_toggle(key, value))
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
+
+            elif self.path == "/api/profile/reset":
+                # Destructive. payload: {"confirm": true} required. Auto-backs
+                # up the entire ~/.err0rs/ dir before wiping. Returns the
+                # backup path so the FE can show it to the user (and so a
+                # power user can restore manually if needed).
+                try:
+                    from src.core.operator_profile import reset_profile
+                    confirm = bool(payload.get("confirm", False))
+                    self._json(reset_profile(confirm))
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
 
             elif self.path == "/api/progression/award":
                 try:

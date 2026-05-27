@@ -499,9 +499,14 @@ class OperatorTerminal:
             return
 
         tool_label = tool.upper() if tool else "TOOL"
-        announce_line = (
-            f"echo -e '\\n\\033[1;33m[ERR0RS] ▶ Calling {tool_label}\\033[0m'; "
-        )
+        # Announce line: plain text only, NO escape sequences. The previous
+        # version typed literal "\033[1;33m" through xdotool which gave the
+        # X server long runs of identical chars ("[[[[" from the escape) that
+        # the keyboard-repeat handler mistook for held-down keys, producing
+        # output like "[[[[[[[[[[[[[[[[ERR0RS]". Plain text avoids the issue
+        # and the web UI's Live Term already carries the colored narration —
+        # the xterm announce is purely a "what's running next" hint.
+        announce_line = f"# ▶ {tool_label}"
 
         try:
             # ── Pre-clear any held keys before grabbing focus ──────────────────
@@ -520,24 +525,29 @@ class OperatorTerminal:
             subprocess.run(["xdotool", "windowfocus", "--sync", self._wid], capture_output=True)
             time.sleep(0.30)   # longer settle so X server fully processes focus shift
 
-            # Type the announce line then the real command. Leading space on
-            # the actual command absorbs any residual stuck-key as a harmless
-            # leading whitespace (the shell trims it).
+            # Type the announce line then the real command. The --delay is
+            # bumped to 60ms (from 25) because Pi 5 + X11 was producing
+            # repeated-character glitches at 25ms — letters in "wordlists"
+            # would come out "worrrrdllllists". 60ms is a safe envelope that
+            # still types fast enough to feel responsive (~17 chars/sec).
+            #
+            # Leading space on the command absorbs any residual stuck-key
+            # into harmless whitespace the shell ignores.
             for i, text in enumerate(([announce_line] if announce else []) + [command]):
-                # Only prefix the real command, not the announce line which
-                # already starts with echo.
+                # Only prefix the real command, not the announce line.
                 if i == (1 if announce else 0) and not text.startswith(" "):
                     text = " " + text
                 subprocess.run(
                     ["xdotool", "type", "--window", self._wid,
-                     "--clearmodifiers", "--delay", "25", text],
+                     "--clearmodifiers", "--delay", "60", text],
                     capture_output=True
                 )
-            # Press Enter to execute
-            subprocess.run(
-                ["xdotool", "key", "--window", self._wid, "Return"],
-                capture_output=True
-            )
+                # Press Enter after each line (announce gets executed as a
+                # bash comment which is a no-op, then the real command runs)
+                subprocess.run(
+                    ["xdotool", "key", "--window", self._wid, "Return"],
+                    capture_output=True
+                )
         except Exception as e:
             print(f"[OperatorTerminal] xdotool error: {e}")
 

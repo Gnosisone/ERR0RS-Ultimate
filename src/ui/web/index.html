@@ -552,6 +552,10 @@
       backdrop-filter: blur(4px);
     }
     #onboarding-overlay.hidden { display: none; }
+    /* Generic .hidden helper — used by ethics-gate, welcome-back, and any
+       new elements that need a JS-toggleable hide. !important so inline
+       display:flex on the gate doesn't win over the hide. */
+    .hidden { display: none !important; }
     .ob-card {
       background: #0a0012;
       border: 1px solid #7b2fbe;

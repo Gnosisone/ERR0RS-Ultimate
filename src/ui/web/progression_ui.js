@@ -273,16 +273,27 @@ async function refreshMissionState() {
   }
 }
 
-// Decide what to render based on current server state. Three cases:
-//   1. No active mission → show invite card so user can opt in
-//   2. Active mission, not complete → show current step
-//   3. Active mission, complete → show celebration
-// The Mission Coach card is hidden in any other case.
+// Decide what to render based on current server state.
+//   1. just_completed set → show celebration ONCE, then dismiss
+//   2. No active mission → no Mission Coach (the invite is shown from
+//      completeOnboarding only, not auto on every load)
+//   3. Active mission, not complete → show current step
+//   4. Active mission, complete → show celebration (legacy path; cleared
+//      state migration will handle this on next mission completion)
 function renderMissionCoach(state) {
-  if (!state || !state.active_mission) {
-    // No active mission — show invite (if onboarded) or hide
+  if (!state) return;
+
+  // Just-completed celebration (one-shot)
+  if (state.just_completed) {
+    showMissionComplete({
+      mission_def: { title: state.just_completed.mission_id.replace(/_/g, ' ') }
+    });
+    // Don't bug the user every reload — fire-and-forget clear of the flag
+    fetch('/api/mission/clear-celebration', { method: 'POST' }).catch(() => {});
     return;
   }
+
+  if (!state.active_mission) return;
   if (state.is_complete) {
     showMissionComplete(state);
     return;
@@ -329,7 +340,8 @@ function showCurrentMissionStep(state) {
   showMissionCoach(`${mtitle} — STEP ${stepNum}: ${shortTitle}`, html);
 }
 
-// Mission completed — celebration card with pointer to next mission.
+// Mission completed — celebration card with accurate "what's next" pointers
+// based on what actually exists in the lesson DB and the future mission list.
 function showMissionComplete(state) {
   const mtitle = (state.mission_def && state.mission_def.title) || 'Mission';
   showMissionCoach(
@@ -339,9 +351,24 @@ function showMissionComplete(state) {
       You now know the target's attack surface — every path you found is a
       potential entry point.
     </div>
-    <div style="margin-top:10px;font-size:11px;color:#888">
-      Ready for more? Try <code style="color:#a855f7">teach sqli</code>
-      to start the next mission, or just ask ERR0RS anything in the terminal.
+    <div style="margin-top:10px;font-size:11px;color:#888;line-height:1.6">
+      Ready for more? Try one of these:
+    </div>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+      <button onclick="continueLessons()"
+              style="background:#0d001a;border:1px solid #7b2fbe66;color:#e8d5ff;
+                     padding:6px 10px;border-radius:5px;cursor:pointer;
+                     font-family:'Share Tech Mono',monospace;font-size:11px;
+                     text-align:left">
+        📚 Continue learning — open the next lesson
+      </button>
+      <button onclick="document.getElementById('mission-coach').classList.remove('visible')"
+              style="background:#0d001a;border:1px solid #22d3ee66;color:#22d3ee;
+                     padding:6px 10px;border-radius:5px;cursor:pointer;
+                     font-family:'Share Tech Mono',monospace;font-size:11px;
+                     text-align:left">
+        🎯 Explore on your own — close this card
+      </button>
     </div>`
   );
 }
@@ -702,9 +729,22 @@ async function showWelcomeBack(profile) {
   if (!profile) return;
   const tone = (profile.skill_level || 0) <= 1 ? 'guided' : 'pro';
 
-  // Find continue points: active mission or next unread lesson
+  // Determine the right "next action" for this user. We have to check the
+  // ACTUAL mission state — profile.active_mission could be a leftover from
+  // before mission_state cleared it on completion. Fetching /api/mission/state
+  // gives us the authoritative truth.
   const continueBits = [];
-  if (profile.active_mission) {
+  let missionState = null;
+  try {
+    const mr = await fetch('/api/mission/state');
+    missionState = await mr.json();
+  } catch(e) {}
+
+  const hasActive = missionState && missionState.active_mission
+                    && !missionState.is_complete;
+
+  if (hasActive) {
+    // Real in-progress mission — show Continue button
     continueBits.push(`<div style="margin-top:8px">
       <button onclick="document.getElementById('welcome-back').classList.add('hidden');
                        window.refreshMissionState && window.refreshMissionState()"
@@ -715,6 +755,7 @@ async function showWelcomeBack(profile) {
       </button>
     </div>`);
   } else if (profile.next_lesson) {
+    // No active mission — point to next unread lesson
     continueBits.push(`<div style="margin-top:8px">
       <button onclick="continueLessons();document.getElementById('welcome-back').classList.add('hidden')"
               style="background:#0d001a;border:1px solid #7b2fbe66;color:#e8d5ff;
@@ -724,6 +765,8 @@ async function showWelcomeBack(profile) {
       </button>
     </div>`);
   }
+  // If neither active mission nor next lesson, no button — user is done with
+  // available guided content and the card stays as a pure greeting.
 
   const greeting = tone === 'guided'
     ? `Welcome back, <strong style="color:#a855f7">${profile.name}</strong>.`

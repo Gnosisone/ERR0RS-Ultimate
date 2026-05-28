@@ -160,10 +160,35 @@ def advance_mission(completed_tool: str) -> Dict:
     state["last_advance_at"] = _now_iso()
 
     if state["current_step"] >= len(steps):
+        # Mission complete. Record it in history and clear active_mission
+        # so the user isn't perpetually "in" a finished mission. The FE's
+        # next refresh will see active_mission=None and offer the next
+        # available mission via showMissionInvite.
+        #
+        # We keep current_step at len(steps) so a single get_full_state
+        # call right after completion (e.g. from the frontend's advance
+        # response handler) still shows is_complete=true, letting the
+        # celebration card render. On the NEXT call (page reload or
+        # explicit refresh) the cleared state takes over.
         state["completion_history"].append({
             "mission_id":   state["active_mission"],
             "completed_at": _now_iso(),
         })
+        # Save the celebration-rendering state first
+        save_state(state)
+        # Then immediately clear active_mission so subsequent loads
+        # know to offer a new mission, not re-show the celebration.
+        # We use a 'just_completed' field to signal one-shot celebration.
+        cleared = load_state()
+        cleared["active_mission"] = None
+        cleared["just_completed"] = {
+            "mission_id":  state["completion_history"][-1]["mission_id"],
+            "completed_at": state["completion_history"][-1]["completed_at"],
+        }
+        cleared["current_step"] = 0
+        cleared["steps_completed"] = []
+        save_state(cleared)
+        return get_full_state()
 
     save_state(state)
     return get_full_state()
@@ -176,6 +201,19 @@ def reset_state() -> Dict:
     fresh = _default_state()
     fresh["completion_history"] = history
     save_state(fresh)
+    return get_full_state()
+
+
+def clear_celebration() -> Dict:
+    """
+    Clear the one-shot just_completed flag after the FE has rendered the
+    celebration. Without this, every page load would re-show the celebration
+    indefinitely. Idempotent — no-op if just_completed isn't set.
+    """
+    state = load_state()
+    if "just_completed" in state:
+        state.pop("just_completed", None)
+        save_state(state)
     return get_full_state()
 
 

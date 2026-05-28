@@ -2324,6 +2324,16 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as _me:
                     self._json({"error": str(_me)})
 
+            elif self.path == "/api/mission/clear-celebration":
+                # Frontend signals it has rendered the one-shot completion
+                # celebration. Clears the just_completed flag so subsequent
+                # page loads don't re-show the same celebration card.
+                try:
+                    from src.core.mission_state import clear_celebration
+                    self._json(clear_celebration())
+                except Exception as _me:
+                    self._json({"error": str(_me)})
+
             elif self.path == "/api/ethics/agree":
                 # Record per-launch ethics ack for the current launcher PID.
                 # No payload needed — clicking the gate's button is the act

@@ -2196,6 +2196,22 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as _pe:
                     self._json({"error": str(_pe)})
 
+            elif self.path == "/api/host/local_ip":
+                # Outbound interface IP — what to substitute for ATTACKER_IP
+                # in BadUSB / reverse-shell payload templates. Uses the
+                # UDP-socket trick (no packet actually sent) so it works
+                # on whichever interface routes outbound (wlan0/eth0/tun0).
+                attacker_ip = "127.0.0.1"
+                try:
+                    import socket as _sock
+                    s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+                    s.connect(("1.1.1.1", 80))
+                    attacker_ip = s.getsockname()[0]
+                    s.close()
+                except Exception:
+                    pass
+                self._json({"ip": attacker_ip})
+
             elif self.path == "/api/narrator/feed":
                 try:
                     with open("/tmp/err0rs_live.log") as _lf:
@@ -3431,13 +3447,33 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 start_new_session=True,
             )
             _ACTIVE_SERVERS[server_type] = proc
+
+            # Resolve our outbound IP so the FE can substitute ATTACKER_IP
+            # in the payload editor with a real value. Uses a UDP socket
+            # trick — no packet is actually sent, the kernel just picks
+            # the interface that WOULD reach the upstream IP. Works on Pi
+            # whether on wlan0, eth0, or tun0 without us needing to know
+            # which. Falls back to 127.0.0.1 if everything fails.
+            attacker_ip = "127.0.0.1"
+            try:
+                import socket as _sock
+                s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+                # 1.1.1.1 is just a routable address — no real connection
+                # is opened with SOCK_DGRAM + no sendto.
+                s.connect(("1.1.1.1", 80))
+                attacker_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                pass
+
             return {
-                "status": "ok",
-                "type":   server_type,
-                "port":   port,
-                "pid":    proc.pid,
-                "label":  cfg["label"],
-                "cmd":    " ".join(cfg["cmd"]),
+                "status":      "ok",
+                "type":        server_type,
+                "port":        port,
+                "pid":         proc.pid,
+                "label":       cfg["label"],
+                "cmd":         " ".join(cfg["cmd"]),
+                "attacker_ip": attacker_ip,   # FE substitutes in editor
             }
         except FileNotFoundError:
             return {"status": "error", "error": f"'{cfg['cmd'][0]}' not found — is it installed?"}

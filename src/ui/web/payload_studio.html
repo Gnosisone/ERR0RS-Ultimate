@@ -869,6 +869,25 @@ function spinUpServer() {
       btn.className    = 'srv-btn running';
       stat.style.color = 'var(--green)';
       stat.textContent = `${d.cmd}`;
+
+      // ── Auto-substitute ATTACKER_IP in the editor ────────────────────
+      // The backend resolved our outbound interface IP. If the current
+      // payload has ATTACKER_IP placeholders, replace them with the real
+      // value now that we know it. This is the feature the user expected:
+      // listener fires → IP gets baked in → payload is deploy-ready.
+      if (d.attacker_ip && editor.value.indexOf('ATTACKER_IP') !== -1) {
+        const before = editor.value;
+        editor.value = before.replace(/ATTACKER_IP/g, d.attacker_ip);
+        syncHighlightLayer();
+        updateLineNumbers();
+        updateMeta();
+        // Show the user what we did so they know it wasn't magic
+        stat.style.color = 'var(--neon)';
+        stat.textContent = `${d.cmd}  •  ATTACKER_IP → ${d.attacker_ip}`;
+      } else if (d.attacker_ip) {
+        // No placeholders to replace, but tell the user the IP they need
+        stat.textContent = `${d.cmd}  •  Your IP: ${d.attacker_ip}`;
+      }
     } else {
       btn.textContent  = '⚡ SPIN UP SERVER';
       btn.className    = 'srv-btn';

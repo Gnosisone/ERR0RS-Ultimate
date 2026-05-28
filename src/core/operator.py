@@ -203,6 +203,16 @@ class Operator:
             self.say(q, "narrator")
             return {"status": "question", "reply": q}
 
+        # ── Persist target into operator state ─────────────────────────────
+        # Bug from live test: each tool run extracted target from the intent
+        # parser but never wrote it back to self.state.target. Result: the
+        # next_step_engine and LLM prompts all saw target=null even after
+        # nmap had clearly been run against localhost. Persisting here means
+        # subsequent suggestions, replays, and auto-chains all share the
+        # same target context until the user changes it.
+        if target:
+            self.state.target = target
+
 
         if not args:
             cmd_str = build_command(tool, target)

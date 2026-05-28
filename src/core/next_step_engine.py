@@ -154,7 +154,7 @@ State:
 
 JSON array:"""
         proc = subprocess.run(["ollama","run","gemma3:1b",prompt],
-                              capture_output=True, text=True, timeout=20)
+                              capture_output=True, text=True, timeout=45)
         m = re.search(r"\[[\s\S]+\]", proc.stdout)
         if not m: return []
         arr = json.loads(m.group(0))

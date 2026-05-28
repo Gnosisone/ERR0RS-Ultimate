@@ -1990,6 +1990,13 @@ async def ws_terminal_handler(websocket):
 
                 # Spawn with PTY if available (Linux/Kali)
                 if LIVE_TERMINAL:
+                    # Capture tool name in a closure so on_output can award XP
+                    # when the process completes. We award here (not in
+                    # LiveProcess itself) because LiveProcess is reused by
+                    # other code paths that may not want progression effects.
+                    _tool_for_xp = intent.get("tool") or (final_cmd.split()[0] if final_cmd.strip() else "")
+                    _target_for_xp = intent.get("target") or ""
+
                     def on_output(event):
                         # Thread-safe send back to websocket
                         try:
@@ -1998,6 +2005,23 @@ async def ws_terminal_handler(websocket):
                             loop.close()
                         except Exception:
                             pass
+                        # ── Award XP on completion ─────────────────────────────
+                        # LiveProcess emits {"type":"system","data":"[ERR0RS] Process complete."}
+                        # when the tool exits. We hook that signal to fire the
+                        # progression event — same approach as the mission
+                        # stepper trigger in the frontend. Only award if we
+                        # have a known tool name (skip shell one-liners).
+                        try:
+                            if (event.get("type") == "system"
+                                and "Process complete" in str(event.get("data", ""))
+                                and _tool_for_xp):
+                                from src.core.progression import award_xp
+                                # Only award for tools we know the engine
+                                # tracks (run_nmap, run_nikto, etc.). Unknown
+                                # tools no-op silently in award_xp.
+                                award_xp(f"run_{_tool_for_xp}", _target_for_xp)
+                        except Exception:
+                            pass  # XP failures never break the user's tool flow
 
                     proc = LiveProcess(
                         command=final_cmd,

@@ -8,7 +8,16 @@ let _skillPanelOpen = false;
 function toggleSkillPanel() {
   _skillPanelOpen = !_skillPanelOpen;
   document.getElementById('skill-panel').classList.toggle('open', _skillPanelOpen);
-  if (_skillPanelOpen) loadSkillPanel();
+  if (_skillPanelOpen) {
+    loadSkillPanel();
+    // Dismiss the welcome-back card if it's still onscreen — it physically
+    // overlaps the skill panel's content area (top:60px right:14px width:300px
+    // vs. panel right:0 width:280px) and would silently intercept clicks on
+    // the buttons in the OPERATOR / MODES / ACTIONS sections. Either of
+    // these wants the user's attention, not both at once.
+    const wb = document.getElementById('welcome-back');
+    if (wb) wb.classList.add('hidden');
+  }
 }
 
 async function loadSkillPanel() {

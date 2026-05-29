@@ -2451,12 +2451,33 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                                 tool, args, target,
                                 reason=f"Mission step: {step.get('instruction', '')[:60]}"
                             )
+                            # _run_tool returns {"status": "ok"/"question", "reply": ...}
+                            # but it also appends to operator.state.history. Pull the
+                            # latest ToolRun so the FE can see success/stderr/duration
+                            # and decide whether to advance the mission step.
+                            last_run = None
+                            try:
+                                hist = get_operator().state.history
+                                if hist:
+                                    lr = hist[-1]
+                                    last_run = {
+                                        "tool":       lr.tool,
+                                        "success":    bool(lr.success),
+                                        "returncode": lr.returncode,
+                                        "duration":   round(lr.duration, 2),
+                                        "stderr_tail": (lr.stderr or "")[-300:],
+                                        "stdout_tail": (lr.stdout or "")[-300:],
+                                        "findings_n": len(lr.findings or []),
+                                    }
+                            except Exception:
+                                pass
                             self._json({
-                                "status": "ok",
-                                "tool":   tool,
-                                "args":   args,
-                                "target": target,
-                                "result": result,
+                                "status":   "ok",
+                                "tool":     tool,
+                                "args":     args,
+                                "target":   target,
+                                "result":   result,
+                                "last_run": last_run,
                             })
                 except Exception as _me:
                     import traceback

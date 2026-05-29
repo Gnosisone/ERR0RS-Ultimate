@@ -481,22 +481,102 @@ window.showMissionInvite      = showMissionInvite;
 // the intent parser — guarantees the mission's exact args reach the tool
 // without the Brain replacing them with its own defaults. Triggered by the
 // "▶ RUN STEP" button on the Mission Coach card.
+//
+// Flow:
+//   1. Open Live Term panel so user SEES the narration arrive
+//   2. Disable RUN STEP button so user can't double-click while it's running
+//   3. POST /api/mission/run-current-step (long — waits for tool to finish)
+//   4. On success → advance via /api/mission/advance, refresh card to next step
+//   5. On failure → STAY on this step, show error inline on the Coach card
+//                    with a retry button. User can also type the command
+//                    themselves in the chat input — both paths supported.
 async function runCurrentMissionStep() {
+  const btn = document.querySelector('#mission-coach button[onclick="runCurrentMissionStep()"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ RUNNING...';
+    btn.style.opacity = 0.6;
+  }
+
+  // CRITICAL: open Live Term BEFORE firing the request so the WS-broadcast
+  // narration ("✅ nmap rc=0 in 2.4s", "📋 2 items of interest", etc.)
+  // from operator._run_tool actually has a visible panel to render into.
+  // Without this, the broadcasts fire into a hidden panel and the user
+  // sees nothing happening even though the tool ran.
+  if (typeof window.openLiveTerm === 'function') {
+    window.openLiveTerm();
+  }
+
   try {
     const r = await fetch('/api/mission/run-current-step', {method: 'POST'});
     const d = await r.json();
+
     if (d.error) {
-      console.error('runCurrentMissionStep:', d.error);
+      _showStepError(d.error);
+      _resetRunStepButton(btn);
       return;
     }
-    // The operator._run_tool call already broadcasts narration + findings
-    // via the WS, so the Live Term and xterm will show progress in real
-    // time. We just need to refresh mission state to advance the Coach
-    // card if the step completed successfully.
-    setTimeout(refreshMissionState, 1500);
+
+    const lr = d.last_run;
+    const success = lr && lr.success;
+
+    if (success) {
+      // Step succeeded — advance the mission. The tool name we use must
+      // match what _tool_from_command extracts on the server side so the
+      // step counter increments correctly.
+      await fetch('/api/mission/advance', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tool: d.tool || ''}),
+      });
+      // Refresh mission state from server → Coach card re-renders with
+      // next step's data (or celebration if mission is now complete).
+      await refreshMissionState();
+    } else {
+      // Step failed (non-zero exit, connection refused, etc.).
+      // Stay on the same step, show inline error + retry guidance.
+      // User can either click RUN STEP again or type the command in chat.
+      const tail = (lr && (lr.stderr_tail || lr.stdout_tail)) || 'no output';
+      const rc = lr ? lr.returncode : '?';
+      _showStepError(
+        `Step failed (rc=${rc}). Output tail:\n${tail.slice(-200)}`
+      );
+      _resetRunStepButton(btn);
+    }
   } catch(e) {
     console.error('runCurrentMissionStep failed:', e);
+    _showStepError(`Request failed: ${e.message}`);
+    _resetRunStepButton(btn);
   }
+}
+
+// Reset the RUN STEP button to its idle clickable state. Called from the
+// failure paths so user can retry without refreshing.
+function _resetRunStepButton(btn) {
+  if (!btn) return;
+  btn.disabled = false;
+  btn.textContent = '▶ RUN STEP';
+  btn.style.opacity = 1.0;
+}
+
+// Inject an error banner into the Mission Coach card without re-rendering
+// the whole card (preserves the step instructions + command box). Inserts
+// above the button row so it's the first thing the user sees.
+function _showStepError(msg) {
+  const mc = document.getElementById('mc-text');
+  if (!mc) return;
+  // Remove any previous error banner so repeated failures don't stack
+  const old = mc.querySelector('.mc-error-banner');
+  if (old) old.remove();
+  const banner = document.createElement('div');
+  banner.className = 'mc-error-banner';
+  banner.style.cssText = 'background:#330a0a;border:1px solid #ff336688;'
+    + 'border-radius:6px;padding:8px 10px;margin:8px 0;'
+    + "font-family:'Share Tech Mono',monospace;font-size:11px;"
+    + 'color:#ffaaaa;white-space:pre-wrap;word-break:break-word';
+  banner.innerHTML = `<strong style="color:#ff3366">⚠ STEP FAILED</strong>\n${msg.replace(/</g, '&lt;')}\n\n<em style="color:#888">Fix the issue (start the service, check connectivity, etc.) then click RUN STEP again — or type the command yourself in the chat input below.</em>`;
+  // Insert at the top of the Coach body
+  mc.insertBefore(banner, mc.firstChild);
 }
 window.runCurrentMissionStep  = runCurrentMissionStep;
 

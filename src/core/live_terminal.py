@@ -553,19 +553,22 @@ class OperatorTerminal:
             time.sleep(0.30)   # longer settle so X server fully processes focus shift
 
             # Type the announce line then the real command. With auto-repeat
-            # OFF (above), --delay can be lower without stuck-key risk. We
-            # keep it at 30ms — fast enough to feel snappy, slow enough that
-            # xterm reliably ingests each character.
+            # OFF (xset r off above), the X server CAN'T emit stuck repeats —
+            # but each keystroke is also a discrete one-shot event with no
+            # forgiveness. At --delay 30ms, xterm sometimes drops chars
+            # (Eros's gobuster: "/usr/share/wordlist/dirb/..." vs source
+            # truth "/usr/share/wordlists/dirb/...").
             #
-            # Leading space on the command absorbs any residual stuck-key
-            # into harmless whitespace the shell ignores.
+            # --delay 50ms is the goldilocks: slow enough that xterm latches
+            # every key-down → key-up cycle, fast enough to type a typical
+            # command in ~1.5s (still feels responsive).
             for i, text in enumerate(([announce_line] if announce else []) + [command]):
                 # Only prefix the real command, not the announce line.
                 if i == (1 if announce else 0) and not text.startswith(" "):
                     text = " " + text
                 subprocess.run(
                     ["xdotool", "type", "--window", self._wid,
-                     "--clearmodifiers", "--delay", "30", text],
+                     "--clearmodifiers", "--delay", "50", text],
                     capture_output=True
                 )
                 # Press Enter after each line (announce gets executed as a

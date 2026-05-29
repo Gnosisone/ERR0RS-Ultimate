@@ -357,6 +357,21 @@ class OperatorTerminal:
         "-geometry", "120x32",     # default — overridden by dynamic probe
         "-sl", "10000",            # scrollback lines
         "-b",  "4",                # inner border
+        # ── Sane clipboard bindings ─────────────────────────────────────
+        # Default xterm: Ctrl+left-click for menu, no Ctrl+C copy.
+        # Eros couldn't right-click to copy — let's wire modern desktop
+        # conventions:
+        #   - Select text with mouse → auto-copies to CLIPBOARD selection
+        #   - Ctrl+Shift+C copies the selection to CLIPBOARD
+        #   - Ctrl+Shift+V pastes from CLIPBOARD
+        # Right-click (Button3) opens the VT Options menu.
+        "-xrm", "XTerm.vt100.translations: #override "
+                "<Btn1Up>: select-end(PRIMARY, CLIPBOARD, CUT_BUFFER0)\\n"
+                "Ctrl Shift <Key>C: copy-selection(CLIPBOARD)\\n"
+                "Ctrl Shift <Key>V: insert-selection(CLIPBOARD)\\n"
+                "<Btn3Down>: popup-menu(mainMenu)",
+        # Enable the selectToClipboard resource so PRIMARY auto-copies
+        "-xrm", "XTerm.vt100.selectToClipboard: true",
     ]
 
     @staticmethod
@@ -514,22 +529,33 @@ class OperatorTerminal:
             # browser may still be releasing keys when xdotool starts typing.
             # Explicitly release common stuck-key culprits before focus shift
             # so we don't end up with output like "hhhhhhhhhydra ...".
-            # The space prefix on the typed command also absorbs any residual
-            # stuck-key into a harmless leading space the shell ignores.
             for stuck_key in ("h", "shift", "ctrl", "alt", "super"):
                 subprocess.run(["xdotool", "keyup", stuck_key],
                                capture_output=True, timeout=1)
+
+            # ── Disable X auto-repeat during synthetic typing ──────────────────
+            # The ROOT cause of repeated-character glitches ("nnnikto",
+            # "worrrrdllllists", "[[[[[[") is the X server's keyboard-repeat
+            # handler treating xdotool's fast key-down/key-up pairs as a
+            # held-down key. Bumping --delay only masked it; even 60ms still
+            # got us 'nnnikto'.
+            #
+            # The real fix: turn off X auto-repeat for the duration of the
+            # synthetic typing, then restore it. xset is part of the base
+            # x11-xserver-utils package on Kali/Debian. Restoring `r on`
+            # after gives the human operator their normal key-repeat back
+            # for interactive use of xterm.
+            subprocess.run(["xset", "r", "off"], capture_output=True, timeout=1)
 
             # Raise & focus the window
             subprocess.run(["xdotool", "windowraise",  self._wid], capture_output=True)
             subprocess.run(["xdotool", "windowfocus", "--sync", self._wid], capture_output=True)
             time.sleep(0.30)   # longer settle so X server fully processes focus shift
 
-            # Type the announce line then the real command. The --delay is
-            # bumped to 60ms (from 25) because Pi 5 + X11 was producing
-            # repeated-character glitches at 25ms — letters in "wordlists"
-            # would come out "worrrrdllllists". 60ms is a safe envelope that
-            # still types fast enough to feel responsive (~17 chars/sec).
+            # Type the announce line then the real command. With auto-repeat
+            # OFF (above), --delay can be lower without stuck-key risk. We
+            # keep it at 30ms — fast enough to feel snappy, slow enough that
+            # xterm reliably ingests each character.
             #
             # Leading space on the command absorbs any residual stuck-key
             # into harmless whitespace the shell ignores.
@@ -539,7 +565,7 @@ class OperatorTerminal:
                     text = " " + text
                 subprocess.run(
                     ["xdotool", "type", "--window", self._wid,
-                     "--clearmodifiers", "--delay", "60", text],
+                     "--clearmodifiers", "--delay", "30", text],
                     capture_output=True
                 )
                 # Press Enter after each line (announce gets executed as a
@@ -550,6 +576,13 @@ class OperatorTerminal:
                 )
         except Exception as e:
             print(f"[OperatorTerminal] xdotool error: {e}")
+        finally:
+            # ── ALWAYS restore X auto-repeat ───────────────────────────────────
+            # Critical: this is in `finally` so even if an exception bombs
+            # mid-typing, the user's keyboard isn't left in no-repeat mode
+            # (which would break holding Backspace, arrow keys, etc. in EVERY
+            # X11 app, not just xterm).
+            subprocess.run(["xset", "r", "on"], capture_output=True, timeout=1)
 
     # ── Print a plain status/info line (no Enter) ─────────────────────────────
     def print_status(self, message: str):

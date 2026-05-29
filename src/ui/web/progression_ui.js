@@ -900,8 +900,9 @@ async function loadOperatorProfileSection() {
     // ── MODES toggles ────────────────────────────────────────────────────
     const tog = document.getElementById('sp-toggles');
     if (tog) {
-      tog.innerHTML = _renderToggle('teach_mode',    p.teach_mode,    '🎓 Teach Mode',    'Explain every tool as it runs')
-                    + _renderToggle('auto_coach',    p.auto_coach,    '🤝 Auto-Coach',    'Proactive tips during scans');
+      tog.innerHTML = _renderToggle('teach_mode',     p.teach_mode,     '🎓 Teach Mode',         'Explain every tool as it runs')
+                    + _renderToggle('auto_coach',     p.auto_coach,     '🤝 Auto-Coach',         'Proactive tips during scans')
+                    + _renderToggle('mentor_context', p.mentor_context, '👁️ Mentor Context',     'Lessons reference your current engagement');
     }
 
     // ── LESSON badge on Continue Lessons button ──────────────────────────

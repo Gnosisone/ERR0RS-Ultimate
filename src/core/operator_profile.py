@@ -258,6 +258,7 @@ def get_full_profile() -> Dict:
         # Toggles (read from prefs)
         "teach_mode":         prefs_data.get("show_explanations", True),
         "auto_coach":         prefs_data.get("auto_coach", True),
+        "mentor_context":     prefs_data.get("mentor_context", False),
     }
 
 
@@ -270,7 +271,7 @@ def set_toggle(key: str, value: bool) -> Dict:
     Update a toggle in preferences.json. Whitelisted keys only — refuses to
     write arbitrary keys so a malicious request can't poison the prefs file.
     """
-    allowed = {"teach_mode", "auto_coach", "beginner_mode"}
+    allowed = {"teach_mode", "auto_coach", "beginner_mode", "mentor_context"}
     if key not in allowed:
         return {"error": f"unknown toggle key '{key}'"}
 
@@ -279,10 +280,14 @@ def set_toggle(key: str, value: bool) -> Dict:
 
     # Map our public toggle names to the actual preference keys used elsewhere.
     # show_explanations is the legacy name for teach_mode in onboarding.py.
+    # mentor_context controls the "In your current context" section appended
+    # to lessons — opt-in because it reads operator state and some users
+    # prefer pristine lesson output without engagement-specific framing.
     pref_key_map = {
-        "teach_mode":    "show_explanations",
-        "auto_coach":    "auto_coach",
-        "beginner_mode": "beginner_mode",
+        "teach_mode":     "show_explanations",
+        "auto_coach":     "auto_coach",
+        "beginner_mode":  "beginner_mode",
+        "mentor_context": "mentor_context",
     }
     prefs[pref_key_map[key]] = bool(value)
     _write_json(prefs_file, prefs)

@@ -2220,6 +2220,41 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as _pe:
                     self._json({"error": str(_pe)})
 
+            elif self.path.startswith("/api/mentor/"):
+                # SOC mentor JSON for a topic. Returns next_steps + opsec_tips
+                # in structured form so the FE can render them as clickable
+                # buttons / collapsible sections without re-parsing the
+                # text-format lesson. Path: /api/mentor/<topic>
+                try:
+                    from src.core.soc_mentor import (
+                        get_mentor, list_mentor_topics
+                    )
+                    topic = self.path.rsplit("/", 1)[-1].lower()
+                    if topic == "":
+                        # No topic = list all covered topics
+                        self._json({"covered_topics": list_mentor_topics()})
+                    else:
+                        m = get_mentor(topic)
+                        if not m:
+                            self._json({
+                                "topic": topic,
+                                "has_mentor": False,
+                                "covered_topics": list_mentor_topics(),
+                            })
+                        else:
+                            self._json({
+                                "topic":              topic,
+                                "has_mentor":         True,
+                                "tldr":               m["tldr"],
+                                "noise_level":        m["noise_level"],
+                                "noise_explanation":  m["noise_explanation"],
+                                "prerequisites":      m.get("prerequisites", []),
+                                "logical_next":       m["logical_next"],
+                                "opsec_tips":         m["opsec_tips"],
+                            })
+                except Exception as _pe:
+                    self._json({"error": str(_pe)})
+
             elif self.path == "/api/host/local_ip":
                 # Outbound interface IP — what to substitute for ATTACKER_IP
                 # in BadUSB / reverse-shell payload templates. Uses the

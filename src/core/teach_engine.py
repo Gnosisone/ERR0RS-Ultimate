@@ -674,5 +674,20 @@ def format_lesson(topic: str) -> str:
     lines.append(f"\n  LOGICAL NEXT STEPS:  {', '.join(lesson['next'])}")
     if lesson.get('caution'):
         lines.append(f"\n  ⚠️  {lesson['caution']}")
-    lines.append(f"{'═'*62}\n")
+    lines.append(f"{'═'*62}")
+
+    # ── Append SOC-mentor coaching layer if available for this topic ─────────
+    # The SOC mentor block adds noise-level rating, contextual next-step
+    # recommendations (ordered quietest first), and OPSEC tips. Lives in
+    # src/core/soc_mentor.py — separate file so teach_engine stays focused
+    # on tool reference data. format_mentor_block returns "" for topics
+    # without mentor data yet (graceful skip during the rollout).
+    try:
+        from src.core.soc_mentor import format_mentor_block
+        mentor = format_mentor_block(topic)
+        if mentor:
+            lines.append(mentor)
+    except Exception:
+        pass  # Mentor failure must never break a regular lesson
+
     return "\n".join(lines)

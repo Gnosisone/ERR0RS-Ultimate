@@ -613,14 +613,23 @@
     /* ─────────────────────────────────────────────────────────── */
     /* ── Mission Coach Panel ─────────────────────────────────── */
     #mission-coach {
+      /* Mission Coach card — dock to TOP-LEFT below the topbar so it doesn't
+         cover the chat input row at the bottom of the dashboard, AND doesn't
+         cover the Live Term panel when it's open. Width is constrained
+         (380px) so the dashboard tool grid + intel feed remain readable
+         alongside it. Internal scrolling for long step instructions. */
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 340px;
+      top: 60px;
+      left: 12px;
+      width: 380px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
       background: #0d001a;
-      border-top: 2px solid #7b2fbe;
-      padding: 12px 16px;
-      z-index: 100;
+      border: 1px solid #7b2fbe;
+      border-radius: 8px;
+      box-shadow: 0 0 24px rgba(123,47,190,0.25);
+      padding: 14px 16px;
+      z-index: 250;       /* above dashboard, below modals (welcome-back=300, ethics=9999) */
       display: none;
     }
     #mission-coach.visible { display: flex; gap: 12px; align-items: flex-start; }
@@ -1411,45 +1420,14 @@
         border-radius:3px;">MANUAL</span>
     </div>
 
-    <!-- ══ KILL CHAIN LAUNCHER BAR ══ -->
-    <div id="kc-bar" style="
-      display:flex; align-items:center; gap:10px; padding:6px 12px 4px;
-      background:rgba(123,47,190,.13); border-bottom:1px solid var(--purple-lo);
-      flex-wrap:wrap;">
-      <span style="font-size:.65rem;color:var(--purple-hi);font-family:'Orbitron',monospace;letter-spacing:.08em;">
-        🎯 JUICE SHOP KILL CHAIN
-      </span>
-      <input id="kc-target" value="localhost:3000"
-        style="background:#08001a;border:1px solid var(--purple);color:var(--cyan);
-               font-family:'Share Tech Mono',monospace;font-size:.72rem;
-               padding:3px 8px;border-radius:3px;width:170px;"/>
-      <button onclick="launchKillChain()" data-help-pos="below" data-help="Run the Juice Shop kill chain — Executes a pre-built 6-phase attack sequence (recon → enumeration → exploit → post-ex) against OWASP Juice Shop at the target above. Lab use only." style="
-        background:linear-gradient(135deg,#7b2fbe,#c084fc);
-        border:none;color:#fff;font-family:'Orbitron',monospace;
-        font-size:.62rem;letter-spacing:.1em;padding:4px 14px;
-        border-radius:3px;cursor:pointer;font-weight:700;">
-        🔥 RUN KILL CHAIN
-      </button>
-      <button id="op-pause-btn" onclick="pauseResumeAuto()" data-help="Pause or resume the auto-pilot — Halts the active kill chain or agent between steps. Resume picks up where it left off. Use this when you want to inspect findings before the next phase." style="
-        background:transparent;border:1px solid var(--amber);color:var(--amber);
-        font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
-        border-radius:3px;cursor:pointer;display:none;">
-        ⏸ PAUSE
-      </button>
-      <button onclick="sendToOperator('report')" data-help-pos="below" data-help="Generate an engagement report — Produces a Markdown summary of every tool run, finding, and credential captured in this session. Saves to your reports directory." style="
-        background:transparent;border:1px solid var(--green);color:var(--green);
-        font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
-        border-radius:3px;cursor:pointer;">
-        📄 REPORT
-      </button>
-      <button onclick="window.open('juice_tracker.html','_blank')" data-help-pos="below" data-help="Open the Juice Shop challenge tracker — Live progress board for the 100+ Juice Shop CTF challenges. Shows which ones the current run has solved, attempted, or skipped." style="
-        background:transparent;border:1px solid var(--cyan);color:var(--cyan);
-        font-family:'Orbitron',monospace;font-size:.58rem;padding:3px 10px;
-        border-radius:3px;cursor:pointer;">
-        📊 TRACKER
-      </button>
-      <span id="kc-status" style="font-size:.62rem;color:var(--text-dim);margin-left:auto;"></span>
-    </div>
+    <!-- ══ KILL CHAIN LAUNCHER BAR ══
+         REMOVED FROM DASHBOARD 2026-05-29 — moved to inside #agent-panel.
+         The kill chain is an agent capability (pre-built attack sequence)
+         so the controls live alongside the autonomous agent panel now.
+         The kc-target input, launchKillChain, pauseResumeAuto, kc-status,
+         and tracker/report buttons are all still wired by their original
+         IDs; they just render inside the agent panel slide-in instead of
+         cluttering the dashboard top bar. -->
 
     <div class="bb-header">
       <span class="bb-label">TOOL GRID // QUICK LAUNCH</span>
@@ -3578,6 +3556,47 @@ const SNIPPETS = {
     <span style="color:#a855f7">agent 192.168.1.0/24 network</span><br>
     <span style="color:#a855f7">stop agent</span>
   </div>
+
+  <!-- ══ JUICE SHOP KILL CHAIN — moved here from the dashboard top-bar ══
+       The kill chain is fundamentally an agent capability (pre-built attack
+       sequence) so it belongs alongside the agent controls, not cluttering
+       the dashboard above the tool grid. Same handlers (launchKillChain,
+       pauseResumeAuto) are still on window; just relocated UI. -->
+  <div class="ag-header" style="margin-top:10px">🎯 JUICE SHOP KILL CHAIN</div>
+  <input id="kc-target" value="localhost:3000"
+    class="ag-input"
+    style="font-family:'Share Tech Mono',monospace;"
+    placeholder="kill-chain target (e.g. localhost:3000)" />
+  <button onclick="launchKillChain()"
+    class="ag-btn"
+    style="background:linear-gradient(135deg,#7b2fbe,#c084fc);margin-top:4px;"
+    data-help="Run the Juice Shop kill chain — Executes a pre-built 6-phase attack sequence (recon → enumeration → exploit → post-ex) against OWASP Juice Shop at the target above. Lab use only.">
+    🔥 RUN KILL CHAIN
+  </button>
+  <div style="display:flex; gap:6px; margin-top:4px;">
+    <button id="op-pause-btn" onclick="pauseResumeAuto()"
+      style="flex:1;background:transparent;border:1px solid var(--amber);color:var(--amber);
+             font-family:'Orbitron',monospace;font-size:.58rem;padding:5px 0;
+             border-radius:3px;cursor:pointer;display:none;letter-spacing:.08em;"
+      data-help="Pause or resume the auto-pilot — Halts the active kill chain or agent between steps. Resume picks up where it left off.">
+      ⏸ PAUSE
+    </button>
+    <button onclick="sendToOperator('report')"
+      style="flex:1;background:transparent;border:1px solid var(--green);color:var(--green);
+             font-family:'Orbitron',monospace;font-size:.58rem;padding:5px 0;
+             border-radius:3px;cursor:pointer;letter-spacing:.08em;"
+      data-help="Generate an engagement report — Markdown summary of every tool run, finding, and credential.">
+      📄 REPORT
+    </button>
+    <button onclick="window.open('juice_tracker.html','_blank')"
+      style="flex:1;background:transparent;border:1px solid var(--cyan);color:var(--cyan);
+             font-family:'Orbitron',monospace;font-size:.58rem;padding:5px 0;
+             border-radius:3px;cursor:pointer;letter-spacing:.08em;"
+      data-help="Open the Juice Shop challenge tracker — Live progress board for 100+ challenges.">
+      📊 TRACKER
+    </button>
+  </div>
+  <div id="kc-status" style="font-size:.62rem;color:var(--text-dim);margin-top:4px;text-align:center;"></div>
 </div>
 
 </body></html>",

@@ -945,13 +945,27 @@ async function continueLessons() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({topic: topic, status: 'started'}),
     });
-    // Refresh the badge
+    // Refresh the badge in the skill panel
     await loadOperatorProfileSection();
-    // Send the teach command through the existing terminal path
-    if (typeof sendToLive === 'function') {
-      sendToLive(`teach ${topic}`);
-    } else if (typeof ws !== 'undefined' && ws.readyState === 1) {
-      ws.send(JSON.stringify({type: 'run', command: `teach ${topic}`, teach: true}));
+
+    // ── Send the teach command via the operator chat path ────────────────
+    // Earlier version called sendToLive() which doesn't exist anywhere —
+    // both buttons (skill panel + welcome-back card) fired but the lesson
+    // never appeared. sendToOperator(msg) is the actual public function
+    // at index.html:2459: it opens the Live Term panel and POSTs to
+    // /api/operator/receive, which routes 'teach <topic>' to teach_engine.
+    if (typeof window.sendToOperator === 'function') {
+      window.sendToOperator(`teach ${topic}`);
+    } else {
+      // Fallback: hit the API directly so the lesson still loads even if
+      // the chat UI helper isn't available (e.g. embedded mode).
+      await fetch('/api/operator/receive', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({msg: `teach ${topic}`}),
+      });
+      // And try to open the Live Term so the user actually SEES the lesson
+      if (typeof window.openLiveTerm === 'function') window.openLiveTerm();
     }
   } catch(e) {
     console.error('continueLessons:', e);

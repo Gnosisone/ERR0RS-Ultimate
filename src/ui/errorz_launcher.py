@@ -2374,6 +2374,59 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as _me:
                     self._json({"error": str(_me)})
 
+            elif self.path == "/api/mission/run-current-step":
+                # Fire the active mission's CURRENT step verbatim, bypassing
+                # the intent parser. Critical so the mission's carefully
+                # crafted args (-sV -p 80,443,3000,8080 for nmap, full
+                # wordlist path for gobuster) reach the tool unchanged
+                # instead of being replaced by the Brain's generic defaults.
+                #
+                # Calls operator._run_tool directly with the parsed command:
+                #   tool   = first token of command
+                #   args   = remaining tokens
+                #   target = mission_def.target or last token (best-effort)
+                try:
+                    from src.core.mission_state import get_full_state
+                    from src.core.operator import get_operator
+                    state = get_full_state()
+                    step = state.get("current_step_data")
+                    if not step:
+                        self._json({"error": "no active mission step"})
+                    else:
+                        cmd_str = step.get("command", "")
+                        parts = cmd_str.split()
+                        if not parts:
+                            self._json({"error": "empty mission command"})
+                        else:
+                            tool = parts[0]
+                            args = parts[1:]
+                            # Target: prefer mission_def.target, else last
+                            # arg looking like a hostname/IP/URL
+                            target = ""
+                            mdef = state.get("mission_def") or {}
+                            target = mdef.get("target") or ""
+                            if not target:
+                                # Best-effort: pick the last arg that doesn't
+                                # start with '-' as the target
+                                for a in reversed(args):
+                                    if not a.startswith("-"):
+                                        target = a
+                                        break
+                            result = get_operator()._run_tool(
+                                tool, args, target,
+                                reason=f"Mission step: {step.get('instruction', '')[:60]}"
+                            )
+                            self._json({
+                                "status": "ok",
+                                "tool":   tool,
+                                "args":   args,
+                                "target": target,
+                                "result": result,
+                            })
+                except Exception as _me:
+                    import traceback
+                    self._json({"error": str(_me), "traceback": traceback.format_exc()[:500]})
+
             elif self.path == "/api/ethics/agree":
                 # Record per-launch ethics ack for the current launcher PID.
                 # No payload needed — clicking the gate's button is the act

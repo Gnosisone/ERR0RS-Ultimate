@@ -335,6 +335,22 @@ function showCurrentMissionStep(state) {
          title="Click to copy">
       ${step.command}
     </div>
+    <div style="display:flex;gap:6px;margin:8px 0 4px 0">
+      <button onclick="runCurrentMissionStep()"
+              style="flex:1;background:#7b2fbe;border:none;color:#fff;
+                     padding:8px 12px;border-radius:6px;cursor:pointer;
+                     font-family:'Share Tech Mono',monospace;font-size:11px;
+                     font-weight:700;letter-spacing:0.05em">
+        ▶ RUN STEP
+      </button>
+      <button onclick="document.getElementById('mission-coach').classList.remove('visible')"
+              style="background:#0d001a;border:1px solid #7b2fbe66;color:#888;
+                     padding:8px 12px;border-radius:6px;cursor:pointer;
+                     font-family:'Share Tech Mono',monospace;font-size:11px"
+              title="Close \u2014 reopen via the skill panel">
+        ✕
+      </button>
+    </div>
     <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5">
       <strong style="color:#22d3ee">What it does:</strong> ${step.what_it_does}
     </div>
@@ -342,7 +358,7 @@ function showCurrentMissionStep(state) {
       <strong style="color:#f59e0b">What to look for:</strong> ${step.what_to_look_for}
     </div>
     <div style="margin-top:10px;font-size:10px;color:#7b2fbe;letter-spacing:.08em">
-      ▶ Run the command in the terminal — ERR0RS will advance when it completes.
+      ▶ Click RUN STEP \u2014 ERR0RS fires the command with the mission's exact args.
     </div>
   `;
   const shortTitle = step.instruction.split('.')[0].slice(0, 60);
@@ -460,6 +476,29 @@ window.startMission           = startMission;
 window.advanceMission         = advanceMission;
 window.refreshMissionState    = refreshMissionState;
 window.showMissionInvite      = showMissionInvite;
+
+// Run the current mission step VERBATIM via the new backend route. Bypasses
+// the intent parser — guarantees the mission's exact args reach the tool
+// without the Brain replacing them with its own defaults. Triggered by the
+// "▶ RUN STEP" button on the Mission Coach card.
+async function runCurrentMissionStep() {
+  try {
+    const r = await fetch('/api/mission/run-current-step', {method: 'POST'});
+    const d = await r.json();
+    if (d.error) {
+      console.error('runCurrentMissionStep:', d.error);
+      return;
+    }
+    // The operator._run_tool call already broadcasts narration + findings
+    // via the WS, so the Live Term and xterm will show progress in real
+    // time. We just need to refresh mission state to advance the Coach
+    // card if the step completed successfully.
+    setTimeout(refreshMissionState, 1500);
+  } catch(e) {
+    console.error('runCurrentMissionStep failed:', e);
+  }
+}
+window.runCurrentMissionStep  = runCurrentMissionStep;
 
 function showMissionCoach(title, text) {
   document.getElementById('mc-title').textContent = title;

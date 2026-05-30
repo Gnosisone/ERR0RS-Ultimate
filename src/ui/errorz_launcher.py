@@ -3921,6 +3921,17 @@ def check_ws_deps():
         print("[ERR0RS] Install WebSocket support → pip3 install websockets")
         return False
     print(f"[ERR0RS] WebSocket ready → ws://{HOST}:{WS_PORT}")
+
+    # ── Bump the sessions counter ──────────────────────────────────────────
+    # Once per launcher boot, increment profile.json's sessions field.
+    # Creates the file on first run / after a profile reset. Wrapped in
+    # try/except so a profile-storage failure doesn't block startup.
+    try:
+        from src.core.operator_profile import bump_session_counter
+        _p = bump_session_counter()
+        print(f"[ERR0RS] Operator profile: session #{_p.get('sessions', 1)}")
+    except Exception as _spe:
+        print(f"[ERR0RS] Session counter bump failed: {_spe}")
     return True
 
 

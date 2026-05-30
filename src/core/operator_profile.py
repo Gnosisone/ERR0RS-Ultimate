@@ -90,6 +90,26 @@ def record_ethics_ack(current_launcher_pid: int) -> Dict:
     return state
 
 
+def bump_session_counter() -> Dict:
+    """
+    Increment profile.json's sessions counter. Called once per launcher
+    boot. Creates profile.json if it doesn't exist (e.g. fresh install
+    or post-reset). Returns the updated profile dict.
+
+    The 'sessions' field powers the "Sessions: N" badge in the Operator
+    Profile panel — useful for users to see ERR0RS's role in their
+    routine (10+ sessions = real daily-driver status). It also gates
+    achievement triggers later (e.g. 'Centurion' at 100 sessions).
+    """
+    profile_path = os.path.join(ERR0RS_DIR, "profile.json")
+    profile = _read_json(profile_path, {})
+    profile["sessions"]      = int(profile.get("sessions", 0)) + 1
+    profile["last_login_at"] = _now_iso()
+    profile.setdefault("joined", _now_iso())   # first launch sets joined
+    _write_json(profile_path, profile)
+    return profile
+
+
 def get_ethics_agreement_text() -> Dict:
     """The exact text shown in the gate. Kept here so legal can review it."""
     return {

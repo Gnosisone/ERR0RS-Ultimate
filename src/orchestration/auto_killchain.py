@@ -528,6 +528,25 @@ class AutoKillChain:
                 result.tools_run += 1
                 # Make this output visible to native tools later in this phase
                 prior_outputs[tool_id] = output[:3000]
+
+                # ── Award XP for the kill-chain tool run ──────────────────────
+                # Same pattern as operator._run_tool (commit 23f1212) and
+                # LiveProcess on_output (commit 7ba1cdd). The kill chain was
+                # the LAST tool-execution path bypassing progression — every
+                # nmap/nikto/sqlmap fired during a kill chain incremented
+                # zero XP and zero tools_used. Lazy import so a missing
+                # progression module never breaks the kill chain, wrapped
+                # in try/except so even an XP failure doesn't disrupt the
+                # phase. run_<tool> events are no-op for tools the engine
+                # doesn't know — safe to call broadly.
+                try:
+                    from src.core.progression import award_xp
+                    award_xp(f"run_{tool_id}", self.target or "")
+                    if found:
+                        award_xp("found_vuln",
+                                 f"{tool_id}: {len(found)} findings")
+                except Exception:
+                    pass  # XP must never block the kill chain
                 # ── ProfessorEngine: emit FINDING events ──
                 if self.professor is not None:
                     try:

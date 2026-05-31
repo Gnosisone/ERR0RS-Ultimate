@@ -204,6 +204,13 @@ def _fast_parse(text, state=None):
     tool = _match_tool(text)
     target = _extract_target(text)
 
+    # Bare scan/recon verbs with no specific tool keyword default to nmap —
+    # the most common student intent. Previously "scan localhost" matched no
+    # alias, fell through to the LLM, and hung ~45s for nothing. A leading
+    # scan/recon/enumerate verb plus a target is unambiguously a port scan.
+    if not tool and target and re.match(r"^\s*(scan|recon|enumerate|enum|probe)\b", low):
+        tool = "nmap"
+
     if tool:
         if tool == "nmap":
             # CRITICAL: only auto-derive nmap args when the user did NOT type
@@ -325,7 +332,7 @@ def _ollama_parse(text, state=None):
         prompt = OLLAMA_SYSTEM_PROMPT + f"\n\nOperator message: {text}\n\nJSON intent:"
         proc = subprocess.run(
             ["ollama","run","gemma3:1b",prompt],
-            capture_output=True, text=True, timeout=45,
+            capture_output=True, text=True, timeout=30,
         )
         raw = proc.stdout.strip()
         m = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw, re.DOTALL)

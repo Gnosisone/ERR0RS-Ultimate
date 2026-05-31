@@ -116,9 +116,21 @@ def _extract_target(text):
 
 def _build_nmap_args(text, target):
     flags = []
+    # Word-boundary matching so short phrases like "os" don't match as a
+    # substring inside the target ("os" inside "localh-os-t" was injecting
+    # -O on every localhost scan). Strip the target out of the text first,
+    # then match phrases only against whole words.
+    import re as _re
     low = text.lower()
+    if target:
+        low = low.replace(target.lower(), " ")
+    words = set(_re.findall(r"[a-z0-9\-]+", low))
     for phrase, flag in NMAP_SCAN_FLAGS.items():
-        if phrase in low:
+        # Multi-word phrases: substring check on the cleaned text.
+        # Single-word phrases: must match a whole word (no substring traps).
+        phrase_l = phrase.lower()
+        matched = (phrase_l in words) if " " not in phrase_l else (phrase_l in low)
+        if matched:
             for f in flag.split():
                 if f not in flags:
                     flags.append(f)
@@ -194,15 +206,27 @@ def _fast_parse(text, state=None):
 
     if tool:
         if tool == "nmap":
-            effective_target = target or (state.target if state else None)
-            if not effective_target:
-                return {"action":"ask_user",
-                        "question":"What's the target for nmap? IP, CIDR, or hostname?",
-                        "question_key":"need_target","confidence":0.98}
-            args = _build_nmap_args(text, effective_target)
-            return {"action":"run_tool","tool":"nmap","args":args,
-                    "target":effective_target,"confidence":0.95,
-                    "reason":f"Port scan to map attack surface of {effective_target}"}
+            # CRITICAL: only auto-derive nmap args when the user did NOT type
+            # explicit flags. If they typed "nmap -sV -p 80,443 localhost" we
+            # MUST honor it verbatim — students type the lesson's exact command
+            # and have to see THAT run, not a paraphrase. When flags are present
+            # we fall through to the shared verbatim pass-through below.
+            #
+            # This also dodges the _build_nmap_args substring bug where "os"
+            # inside "localhost" matched the OS-detection phrase and injected
+            # -O, turning "nmap -sV -p ... localhost" into "nmap -O localhost".
+            nmap_has_flags = any(tok.startswith("-") for tok in text.split())
+            if not nmap_has_flags:
+                effective_target = target or (state.target if state else None)
+                if not effective_target:
+                    return {"action":"ask_user",
+                            "question":"What's the target for nmap? IP, CIDR, or hostname?",
+                            "question_key":"need_target","confidence":0.98}
+                args = _build_nmap_args(text, effective_target)
+                return {"action":"run_tool","tool":"nmap","args":args,
+                        "target":effective_target,"confidence":0.95,
+                        "reason":f"Port scan to map attack surface of {effective_target}"}
+            # else: user supplied flags → fall through to verbatim pass-through
 
         # Check if text already contains flags (user gave full command)
         has_flags = any(tok.startswith("-") for tok in text.split())

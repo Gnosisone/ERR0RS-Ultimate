@@ -525,13 +525,26 @@ class OperatorTerminal:
 
         try:
             # ── Pre-clear any held keys before grabbing focus ──────────────────
-            # If the user clicked a UI button that triggered this call, the
-            # browser may still be releasing keys when xdotool starts typing.
-            # Explicitly release common stuck-key culprits before focus shift
-            # so we don't end up with output like "hhhhhhhhhydra ...".
+            # Belt-and-suspenders only — the real stuck-key fix is `xset r off`
+            # below. Each keyup is individually fault-tolerant: on Pi 5 under
+            # load, `xdotool keyup shift` can block waiting for an X reply and
+            # blow past a 1s timeout. Previously that TimeoutExpired propagated
+            # to the outer except and ABORTED THE ENTIRE TYPING OPERATION — the
+            # command never reached the xterm (this is the "RUN STEP errored and
+            # sent nothing" bug). Now a timeout on any single key is swallowed
+            # and we move on. Fire-and-forget via Popen so we never block at all.
             for stuck_key in ("h", "shift", "ctrl", "alt", "super"):
-                subprocess.run(["xdotool", "keyup", stuck_key],
-                               capture_output=True, timeout=1)
+                try:
+                    p = subprocess.Popen(
+                        ["xdotool", "keyup", stuck_key],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                    try:
+                        p.wait(timeout=0.5)
+                    except subprocess.TimeoutExpired:
+                        p.kill()  # don't leave a hung xdotool around
+                except Exception:
+                    pass  # a keyup failure must NEVER block the real typing
 
             # ── Disable X auto-repeat during synthetic typing ──────────────────
             # The ROOT cause of repeated-character glitches ("nnnikto",
@@ -547,9 +560,26 @@ class OperatorTerminal:
             # for interactive use of xterm.
             subprocess.run(["xset", "r", "off"], capture_output=True, timeout=1)
 
-            # Raise & focus the window
-            subprocess.run(["xdotool", "windowraise",  self._wid], capture_output=True)
-            subprocess.run(["xdotool", "windowfocus", "--sync", self._wid], capture_output=True)
+            # Raise & focus the window. --sync waits for the WM to confirm,
+            # which can hang on Pi 5 if the compositor is busy — give it a
+            # timeout and treat focus failure as non-fatal (the window is
+            # usually already focused; typing still lands).
+            try:
+                subprocess.run(["xdotool", "windowraise", self._wid],
+                               capture_output=True, timeout=2)
+            except Exception:
+                pass
+            try:
+                subprocess.run(["xdotool", "windowfocus", "--sync", self._wid],
+                               capture_output=True, timeout=2)
+            except Exception:
+                # Fall back to non-sync focus — fire and forget
+                try:
+                    subprocess.Popen(["xdotool", "windowfocus", self._wid],
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
             time.sleep(0.30)   # longer settle so X server fully processes focus shift
 
             # Type the announce line then the real command. With auto-repeat
@@ -566,17 +596,26 @@ class OperatorTerminal:
                 # Only prefix the real command, not the announce line.
                 if i == (1 if announce else 0) and not text.startswith(" "):
                     text = " " + text
-                subprocess.run(
-                    ["xdotool", "type", "--window", self._wid,
-                     "--clearmodifiers", "--delay", "50", text],
-                    capture_output=True
-                )
+                # 15s timeout: a long command at 50ms/char is ~2.5s; 15s is
+                # generous headroom but prevents a hung xdotool from blocking
+                # the whole launcher forever.
+                try:
+                    subprocess.run(
+                        ["xdotool", "type", "--window", self._wid,
+                         "--clearmodifiers", "--delay", "50", text],
+                        capture_output=True, timeout=15
+                    )
+                except subprocess.TimeoutExpired:
+                    print(f"[OperatorTerminal] type timed out for: {text[:40]}")
                 # Press Enter after each line (announce gets executed as a
                 # bash comment which is a no-op, then the real command runs)
-                subprocess.run(
-                    ["xdotool", "key", "--window", self._wid, "Return"],
-                    capture_output=True
-                )
+                try:
+                    subprocess.run(
+                        ["xdotool", "key", "--window", self._wid, "Return"],
+                        capture_output=True, timeout=3
+                    )
+                except subprocess.TimeoutExpired:
+                    pass
         except Exception as e:
             print(f"[OperatorTerminal] xdotool error: {e}")
         finally:

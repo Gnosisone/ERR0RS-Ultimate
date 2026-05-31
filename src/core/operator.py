@@ -294,6 +294,59 @@ class Operator:
             # XP failures must NEVER block tool execution flow
             log.warning(f"award_xp failed for {tool}: {_xpe}")
 
+        # ── Target-down detection: coach instead of hanging the LLM ──────────
+        # When a tool can't reach the target (Juice Shop not started, wrong
+        # port, service down), the raw output is just "Unable to connect" and
+        # the LLM next-step suggester would spend ~30-45s trying to reason
+        # about an empty result set. A SOC mentor recognizes "your target
+        # isn't up" instantly and tells the student how to fix it — then
+        # SKIPS the pointless LLM call. This is the constitution in action:
+        # teach the fix, don't dump a raw error.
+        _out_low = (run.stdout + " " + run.stderr).lower()
+        _conn_fail_markers = (
+            "unable to connect", "connection refused", "failed to connect",
+            "could not connect", "no route to host", "connection timed out",
+            "couldn't connect to server", "name or service not known",
+        )
+        if any(m in _out_low for m in _conn_fail_markers):
+            tgt = target or "the target"
+            self.say(f"🎯 {tool} couldn't reach {tgt} — the target isn't responding.",
+                     "narrator")
+            # Tailored guidance for the Juice Shop lab (the default mission target)
+            if "3000" in str(tgt) or "localhost" in str(tgt) or "juice" in str(tgt).lower():
+                self.say("   This usually means OWASP Juice Shop isn't running yet.",
+                         "narrator")
+                self.say("   Start the lab, then re-run this step:", "narrator")
+                self.say("     bash scripts/start_lab.sh", "suggestion",
+                         {"tool": "shell", "args": ["bash", "scripts/start_lab.sh"],
+                          "confidence": 0.95,
+                          "reason": "Start OWASP Juice Shop + lab targets"})
+                self.say("   Or directly with Docker:", "narrator")
+                self.say("     docker run -d -p 3000:3000 bkimminich/juice-shop",
+                         "suggestion",
+                         {"tool": "shell",
+                          "args": ["docker","run","-d","-p","3000:3000","bkimminich/juice-shop"],
+                          "confidence": 0.9,
+                          "reason": "Launch Juice Shop container directly"})
+                self.say("   Give it ~20-30s to boot, confirm with: curl -s localhost:3000 | head",
+                         "narrator")
+            else:
+                self.say(f"   Check: is the service up? Is {tgt} the right host/port?",
+                         "narrator")
+                self.say("   Verify reachability first with: nmap -p <port> <host>",
+                         "narrator")
+            # Record the run, award nothing extra, and return WITHOUT the
+            # expensive LLM next-step call — there's nothing to suggest until
+            # the target is reachable.
+            return {
+                "status": "target_down",
+                "reply": f"{tool} could not reach {tgt} — target appears down",
+                "tool": tool, "returncode": run.returncode, "duration": run.duration,
+                "findings":    [asdict(f) for f in findings],
+                "suggestions": [],
+                "coaching": "target_unreachable",
+            }
+
         suggestions = next_step_engine.suggest(
             tool=tool, findings=findings, state=self.state,
         )

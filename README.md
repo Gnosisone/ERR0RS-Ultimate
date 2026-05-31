@@ -73,6 +73,16 @@ This release lands the **operator-progression layer** that turns ERR0RS from a t
 - **Phoenix Arsenal page linked** in the topbar. `arsenal.html` (789-line tool grid, 92 curated + 2000+ BlackArch) is now reachable via a cyan 🔱 ARSENAL pill — was previously a finished feature with zero links to it from anywhere.
 - **Payload Studio: ATTACKER_IP auto-substitution.** When listener spins up, backend resolves the Pi's outbound interface IP via UDP-socket trick (no nmap needed), and the editor replaces `ATTACKER_IP` placeholders with the real value. Snippet library (21 BadUSB/BadKB payloads across 4 platforms) restored after fixing same string-literal truncation bug class as v3.6.
 
+### v3.7.0 field-hardening (post-launch, live-repo fixes)
+
+After the first cohort of students started running ERR0RS live, a round of field fixes hardened the lesson path end to end:
+
+- **Verbatim command honoring.** Typed commands now run exactly as entered. Previously `nmap -sV -p 80,443,3000,8080 localhost` was silently rewritten to `nmap -O localhost` — the intent parser re-derived its own flags and a substring bug matched `os` inside `localhost`. The parser now passes operator-supplied flags through untouched for every tool, and tool/flag matching is whole-word so short aliases never fire inside ordinary words.
+- **SOC-mentor target-down coaching.** When a tool can't reach its target (lab not started, wrong port), ERR0RS recognizes the connection failure, tells the student *why* and *how to fix it* (with a one-click `start_lab.sh` suggestion), and skips the expensive LLM next-step call instead of freezing. Teach the recovery, don't dump a raw error.
+- **Arsenal RUN / INFO buttons + rich usage cards.** Tool cards in the Phoenix Arsenal are now click-reliable (index-based handlers replaced fragile JSON-in-attribute markup), and the INFO panel renders a real usage card per tool: summary, 2–4 example invocations with plain-English explanations, and OPSEC tips. Clicking an example loads it into the args box. Backed by `src/core/tool_usage.py`.
+- **Resilient operator terminal.** Every `xdotool` call in the synthetic-typing path is individually timeout-guarded so one slow X11 call on a loaded Pi can never abort the whole command (the cause of "RUN STEP errored and typed nothing").
+- **Lab + hardware reliability.** `start_lab.sh` detects the docker-group permission gap and falls back to sudo or guides the one-time fix; `pyserial` is pinned in requirements and installed in the venv so the Flipper Evolution Engine loads cleanly.
+
 See [CHANGELOG.md](CHANGELOG.md) for the complete commit-by-commit changelist.
 
 ---

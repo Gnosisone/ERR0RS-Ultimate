@@ -84,6 +84,40 @@ topics with noise-rated next-step coaching.
 
 ### Fixed
 
+#### Field-hardening (2026-05-31, post-launch live-repo fixes)
+- **Verbatim command honoring** — typed commands run exactly as entered.
+  `nmap -sV -p 80,443,3000,8080 localhost` was being rewritten to
+  `nmap -O localhost`: the nmap branch re-derived flags from NL phrase
+  matching and a substring bug matched "os" inside "localhost". Fix:
+  operator-supplied flags pass through verbatim for every tool; tool/flag
+  matching is whole-word so short aliases ("cme", "os") never fire inside
+  ordinary words ("outcome", "localhost").
+- **SOC-mentor target-down coaching** — when a tool can't reach its target,
+  ERR0RS detects the connection failure, explains why + how to fix it (with
+  a one-click start_lab.sh suggestion), and skips the LLM next-step call
+  instead of hanging ~30-45s on an empty result.
+- **Arsenal RUN/INFO buttons** — tool cards embedded JSON in onclick
+  attributes, which broke on any description containing an apostrophe
+  (e.g. msfconsole "world's most used"). Replaced with index-based
+  handlers (data-idx -> shownTools[idx]); robust against any character.
+- **Arsenal rich usage cards** — new src/core/tool_usage.py + GET
+  /api/tool_usage/<tool>. INFO panel now shows summary + 2-4 example
+  commands with explanations + OPSEC tips for 12 core tools; clicking an
+  example loads it into the args box.
+- **Resilient operator terminal** — every xdotool call in the typing path
+  is individually timeout-guarded (keyup fire-and-forget, windowfocus
+  --sync fallback, type 15s / Return 3s caps) so one slow X11 call on a
+  loaded Pi can't abort the whole command.
+- **LLM latency** — bare scan/recon/enumerate verbs fast-path to nmap
+  instead of falling through to the LLM; LLM intent timeout 45s -> 30s.
+- **start_lab.sh docker permissions** — detects the docker-group gap,
+  falls back to sudo, or prints the one-time usermod fix instead of dying.
+- **pyserial venv fix** — pinned pyserial>=3.5 in requirements and
+  installed into the venv; Flipper Evolution Engine now loads cleanly
+  (was "unavailable: No module named serial" on every boot).
+
+#### Initial v3.7.0 (2026-05-30)
+
 - **xterm stuck-keys / dropped chars** — `xset r off` during synthetic
   typing makes the X server architecturally unable to emit repeats;
   `--delay 50ms` is the goldilocks for no-repeat + no-drop

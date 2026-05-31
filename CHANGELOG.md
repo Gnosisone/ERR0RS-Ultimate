@@ -5,6 +5,124 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) · Versioning: 
 
 ---
 
+## [3.7.0] - 2026-05-30 — The SOC Mentor Release
+
+The release that turns ERR0RS from a tool reference into a guided learning
+environment. Lands the operator-progression layer end-to-end: persistent
+mission state, per-launch ethics gate, operator profile panel, XP awards
+on every tool path, and the SOC mentor lesson layer covering all 23 teach
+topics with noise-rated next-step coaching.
+
+### Added
+
+#### SOC Mentor lesson layer — `src/core/soc_mentor.py`
+- 23/23 teach topics now ship with a structured mentor block:
+  TL;DR strategic value, 🟢/🟡/🔴 noise rating with explanation,
+  ordered next-best-steps (quietest first), 4 OPSEC tips per tool
+- Noise taxonomy: quiet (passive/single-probe) → medium (active probing,
+  human pace) → loud (high-volume signature, triggers SOC alerts)
+- Constitution this implements (from Eros 2026-05-29): "ERR0RS is the
+  ultimate SOC mentor. He should teach his SOC apprentice how to be as
+  stealthy and quiet as possible, as to not expose the test until the
+  operator is ready for the client to know that they are in."
+- API: `get_mentor(topic)`, `format_mentor_block(topic)`,
+  `get_next_steps_json(topic)`, `list_mentor_topics()`
+- Hooked into `teach_engine.format_lesson()` so every lesson auto-appends
+  the mentor block when one exists; graceful skip for any topic not yet
+  covered (zero-impact rollout)
+
+#### Persistent mission state — `src/core/mission_state.py`
+- Server-authoritative store in `~/.err0rs/mission_state.json`
+- Survives launcher reboots, browser refreshes, and tab close
+- 5 HTTP routes: GET state, GET list, POST start, POST advance, POST reset
+- Auto-clear active_mission on completion + one-shot `just_completed`
+  flag so the celebration card renders exactly once
+- New endpoint POST `/api/mission/clear-celebration` for FE to dismiss
+  the flag after rendering
+
+#### Operator Profile — `src/core/operator_profile.py`
+- `get_full_profile()` joins profile.json, progression.json,
+  preferences.json, mission_state.json, and lesson_progress.json in
+  one HTTP response — single fetch from the FE
+- Per-launch ethics gate: 5-clause agreement, PID-based ack invalidation
+  (`session_ethics_ack.json`)
+- Lesson progress tracking: which topics started, which completed,
+  next_unread for the Continue Lessons button
+- Toggle setter: whitelisted keys only (teach_mode, auto_coach,
+  beginner_mode, mentor_context) so malicious requests can't poison prefs
+- Profile reset with automatic backup of `~/.err0rs/` to
+  `~/.err0rs.backup_YYYYMMDD_HHMMSS/` before wipe
+- Sessions counter that bumps once per launcher boot
+
+#### Mission content
+- **Mission 01: Your First Recon** — 3 steps, +100 XP, against OWASP
+  Juice Shop. nmap → nikto → gobuster
+- **Mission 02: SQL Injection Fundamentals** — 4 steps, +175 XP.
+  Manual curl recon → classic `' OR 1=1--` payload → JWT decode →
+  sqlmap automation. Teaches the SOC-mentor approach throughout
+
+#### Frontend
+- Ethics gate modal blocks UI on launch until acknowledged
+- Welcome-back greeting card with tone calibrated to skill level
+- Operator Profile panel: extends existing skill panel with OPERATOR /
+  MODES / ACTIONS sections
+- Mission Coach card (top-left dock, scrollable) with ▶ RUN STEP button
+- Two-click confirmation for destructive reset (5s auto-disarm)
+- Phoenix Arsenal link added to topbar pills (was hidden previously)
+- Kill chain controls moved into Autonomous Agent panel (dashboard
+  declutter)
+- Mission Coach auto-shows next step on success; stays on failed steps
+  with red error banner + retry button
+
+#### Payload Studio
+- ATTACKER_IP auto-substitution: backend resolves outbound IP via
+  UDP-socket trick (no nmap), FE replaces placeholders in editor when
+  listener spins up
+- New endpoint GET `/api/host/local_ip` for standalone IP queries
+- Snippet library restored: 21 BadUSB/BadKB payloads across
+  windows/macos/android/ios (was 1 due to string-literal truncation bug)
+
+### Fixed
+
+- **xterm stuck-keys / dropped chars** — `xset r off` during synthetic
+  typing makes the X server architecturally unable to emit repeats;
+  `--delay 50ms` is the goldilocks for no-repeat + no-drop
+- **xterm clipboard** — drag-select auto-copies to CLIPBOARD,
+  Ctrl+Shift+C/V wired, right-click opens VT Options menu
+- **XP awards on every tool path** — Brain `_run_tool`, LiveProcess
+  `on_output`, and AutoKillChain phase loop all now fire `run_<tool>`
+  events. Tools Used counter and skill domains finally populate
+- **Lesson completion signal** — `teach <topic>` auto-marks completed,
+  awards 30 XP via `complete_lesson` event; Continue Lessons advances
+  through all 23 topics
+- **Mission step args preserved** — RUN STEP fires mission command
+  verbatim, bypassing intent parser that was substituting Brain defaults
+- **Operator state target persistence** — `_run_tool` now writes target
+  back to `self.state.target` so next_step_engine sees the right context
+- **LLM timeouts 20s → 45s** — gemma3:1b on Pi 5 needs the headroom
+- **Continue Lessons button silently broken** — `sendToLive` didn't
+  exist; switched to `sendToOperator` which is the actual chat-send
+  function exposed on window
+- **Welcome-back card blocking skill-panel clicks** — auto-dismisses
+  when skill panel opens (mutually exclusive overlays)
+- **Mission Coach overlap with chat inputs** — re-anchored from bottom
+  bar to top-left dock so it doesn't cover op-chat-input or Live Term
+- **`.hidden` CSS helper** — added generic rule so ethics-gate and
+  welcome-back actually hide (was only scoped to #onboarding-overlay)
+- **Ethics checkbox** — wired via onchange + onclick + label parent
+  click for Firefox scaled-checkbox edge case
+- **Profile data not duplicated** — `get_full_profile` reads existing
+  files instead of introducing a new state file (no fragmentation)
+
+### Removed
+
+- Dashboard top-bar `#kc-bar` (kill chain launcher) — moved into the
+  Autonomous Agent panel where it belongs alongside agent controls
+- Hardcoded `teach sqli` suggestion on Mission 01 completion (the
+  topic didn't exist; replaced with Continue learning / Explore buttons)
+
+---
+
 ## [3.5.0] - 2026-05-15 — The Teacher Release
 
 The release that gave ERR0RS its voice. Adds the canonical system prompt

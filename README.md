@@ -15,7 +15,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Kali%20%7C%20Parrot%20%7C%20Pi5-557C94?style=flat-square&logo=linux&logoColor=white)](https://kali.org)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v3.6.0-7c3aed?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-v3.7.0-7c3aed?style=flat-square)](CHANGELOG.md)
 [![Tool Registry](https://img.shields.io/badge/Tool%20Registry-5036%20tools%20%7C%2067%20fully%20taught-0ea5e9?style=flat-square)](src/tools/tool_registry.v3.json)
 [![Arsenal](https://img.shields.io/badge/Phoenix%20Arsenal-2172%20Tools-ff6b00?style=flat-square)]()
 [![Backends](https://img.shields.io/badge/LLM-Claude%20%E2%86%92%20DeepSeek%20%E2%86%92%20Ollama-f97316?style=flat-square)](docs/BACKEND_STRATEGY.md)
@@ -53,6 +53,27 @@ Commercial AI security platforms cost $10,000–$50,000+ annually. Meanwhile, cr
 ERR0RS closes that gap. It is built on a simple belief: **security knowledge belongs to everyone who needs it to protect systems and people.** Not just to organizations with enterprise budgets.
 
 Every technique in ERR0RS is paired with its defensive countermeasure. Every command is explained before it runs. Every finding is analyzed and contextualized. The platform is designed to produce security professionals, not just tool operators.
+
+---
+
+## What's New in v3.7.0 — "SOC Mentor"
+
+This release lands the **operator-progression layer** that turns ERR0RS from a tool dictionary into a guided learning environment. The headline feature: every lesson now teaches the *strategic* and *OPSEC* dimensions of a tool, not just its flags.
+
+- **🥷 SOC Mentor lesson layer — 23/23 topics covered.** Every `teach <topic>` now ends with a noise-rated coaching block: TL;DR strategic value, 🟢/🟡/🔴 noise level with explanation, ordered next-best-steps (quietest first), and 4 concrete OPSEC tips per tool. The constitution this implements: *"ERR0RS is the ultimate SOC mentor. He should teach his SOC apprentice how to be as stealthy and quiet as possible, as to not expose the test until the operator is ready for the client to know that they are in."* Lives in `src/core/soc_mentor.py`.
+- **Persistent server-authoritative mission state.** `~/.err0rs/mission_state.json` is the single source of truth. Survives reboots, browser refreshes, and tab close. Auto-clears on completion with a one-shot `just_completed` flag so the celebration card fires exactly once.
+- **Mission 01: Your First Recon — fully playable.** 3-step nmap → nikto → gobuster walkthrough against OWASP Juice Shop. Each step has rich coaching fields (instruction, what_it_does, what_to_look_for, xp_reward). ▶ RUN STEP button fires the command verbatim, bypassing the intent parser so the mission's exact args reach the tool.
+- **Mission 02: SQL Injection Fundamentals — shipped.** 4 steps, +175 XP. Manual curl → classic `' OR 1=1--` payload → JWT decode → sqlmap automation. Teaches the SOC-mentor approach: harvest server error messages before guessing payloads; prefer offline cracking over online brute.
+- **Per-launch ethics gate.** Every launcher boot re-fires the 5-clause ethical use agreement (red-bordered fullscreen modal, checkbox + I AGREE). PID-based invalidation: relaunch = new PID = gate re-fires. No bypasses.
+- **Operator Profile panel.** Extends the existing skill panel with three new sections: OPERATOR (name, skill, sessions, achievements), MODES (Teach Mode / Auto-Coach / Mentor Context toggles), ACTIONS (Continue Lessons, Restart Mission, Reset Profile). Reset is two-click with automatic backup of `~/.err0rs/` before wipe.
+- **Welcome-back greeting card** on every launch after ethics-gate, with tone calibrated to skill level (`Welcome back, NAME.` for guided / `NAME.` for pro), and a "next action" button — Continue Mission if active, Next Lesson if not, just a greeting if both are clear.
+- **XP awards on EVERY tool execution path.** Brain `_run_tool`, LiveProcess terminal-box runs, and AutoKillChain phase loops all now fire `award_xp('run_<tool>')` and `found_vuln` events. Skill domains and achievements finally populate from real activity.
+- **Lesson completion tracking.** Each `teach <topic>` automatically marks the topic completed, awards 30 XP via `complete_lesson` event, and advances the lesson counter on the skill panel. Continue Lessons now actually progresses through all 23 topics instead of re-serving the first one.
+- **Architectural xterm typing fix.** `xset r off` disables X11 keyboard auto-repeat during synthetic typing so the X server can't emit stuck-key repeats, then `xset r on` restores in a `finally` block. Combined with a goldilocks 50ms delay, gobuster commands type as `wordlists` (correctly) instead of `worrrrdllllists` or `wordlist`.
+- **Phoenix Arsenal page linked** in the topbar. `arsenal.html` (789-line tool grid, 92 curated + 2000+ BlackArch) is now reachable via a cyan 🔱 ARSENAL pill — was previously a finished feature with zero links to it from anywhere.
+- **Payload Studio: ATTACKER_IP auto-substitution.** When listener spins up, backend resolves the Pi's outbound interface IP via UDP-socket trick (no nmap needed), and the editor replaces `ATTACKER_IP` placeholders with the real value. Snippet library (21 BadUSB/BadKB payloads across 4 platforms) restored after fixing same string-literal truncation bug class as v3.6.
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete commit-by-commit changelist.
 
 ---
 

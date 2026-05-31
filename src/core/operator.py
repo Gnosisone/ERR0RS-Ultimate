@@ -415,6 +415,26 @@ class Operator:
         # Broadcast line-by-line so the live terminal renders it cleanly
         for line in lesson_text.splitlines():
             self.say(line, "narrator")
+
+        # ── Mark the lesson as completed ────────────────────────────────────
+        # The user has now SEEN the lesson — that's "completion" for our
+        # progress tracker. Without this, Continue Lessons just stockpiles
+        # "started" topics forever and never advances the X/23 counter on
+        # the skill panel. mark_lesson is idempotent (re-firing is a no-op),
+        # so re-running 'teach <topic>' for review is safe.
+        try:
+            from src.core.operator_profile import mark_lesson
+            mark_lesson(topic, "completed")
+            # Award lesson XP. progression.py has 'lesson_completed' = 15 XP
+            # mapped to whatever skill domain the topic belongs to.
+            # progression.XP_AWARDS has 'complete_lesson' at 30 XP — use that
+            # canonical event name so the XP fires correctly.
+            from src.core.progression import award_xp
+            award_xp("complete_lesson", topic)
+        except Exception as _le:
+            # Lesson tracking must NEVER block the user seeing the lesson
+            pass
+
         # Summary return for HTTP caller
         first_line = lesson_text.splitlines()[0] if lesson_text else "no lesson"
         return {"status": "ok", "reply": first_line, "lesson": lesson_text}

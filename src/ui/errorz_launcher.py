@@ -2220,6 +2220,23 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                 except Exception as _pe:
                     self._json({"error": str(_pe)})
 
+            elif self.path.startswith("/api/tool_usage/"):
+                # Real usage examples for the Arsenal INFO cards: summary,
+                # 2-4 example invocations with explanations, and practical
+                # OPSEC tips. Returns has_usage:false for tools not yet in
+                # the KB so the FE can fall back to the tool's docs string.
+                try:
+                    from src.core.tool_usage import get_usage, list_usage_tools
+                    tname = self.path.rsplit("/", 1)[-1].lower()
+                    u = get_usage(tname)
+                    if u:
+                        self._json({"tool": tname, "has_usage": True, **u})
+                    else:
+                        self._json({"tool": tname, "has_usage": False,
+                                    "covered": list_usage_tools()})
+                except Exception as _ue:
+                    self._json({"error": str(_ue)})
+
             elif self.path.startswith("/api/mentor/"):
                 # SOC mentor JSON for a topic. Returns next_steps + opsec_tips
                 # in structured form so the FE can render them as clickable

@@ -264,7 +264,24 @@ body::after {
   font-style:italic; word-break:break-all;
 }
 
-/* output terminal */
+/* usage / examples cards (INFO panel) */
+.usage-ex {
+  background:rgba(255,255,255,.02); border:1px solid var(--border);
+  border-left:2px solid var(--orange);
+  border-radius:4px; padding:7px 9px; margin-bottom:6px; cursor:pointer;
+  transition:border-color .15s, background .15s;
+}
+.usage-ex:hover { background:rgba(255,136,0,.08); border-left-color:var(--cyan); }
+.usage-cmd {
+  font-family:'JetBrains Mono','Courier New',monospace; font-size:11px;
+  color:var(--orange); word-break:break-all; margin-bottom:3px;
+}
+.usage-ex:hover .usage-cmd { color:var(--cyan); }
+.usage-explain { font-size:10px; color:var(--text-dim); line-height:1.45; }
+.usage-tips { margin:4px 0 0; padding-left:16px; }
+.usage-tips li {
+  font-size:10px; color:var(--text-dim); line-height:1.5; margin-bottom:3px;
+}
 .rp-output { flex:1; display:flex; flex-direction:column; overflow:hidden; }
 .rp-output-header {
   padding:8px 16px; border-top:1px solid var(--border);
@@ -455,6 +472,7 @@ a prebuilt attack sequence.
 // ── State ──────────────────────────────────────────────────────────────
 let allTools   = [];
 let filtered   = [];
+let shownTools = [];   // the currently-rendered slice; cards index into this
 let currentCat = 'all';
 let currentQ   = '';
 let selectedTool = null;
@@ -581,11 +599,17 @@ function renderGrid(tools) {
     grid.innerHTML = '<div class="empty"><div class="e-icon">🔍</div>No tools match — try a different query</div>';
     return;
   }
-  // Render in chunks for performance
+  // Render in chunks for performance. We keep the rendered slice in
+  // shownTools and reference each card by ARRAY INDEX (data-idx) instead
+  // of embedding JSON in the onclick attribute. The old approach —
+  // onclick="selectTool('{...json...}')" — broke silently whenever a
+  // tool's description contained an apostrophe (e.g. msfconsole's
+  // "world's most used"), terminating the HTML attribute early so the
+  // handler never fired. Index lookup is robust against any character
+  // in the data and fixes id collisions for names with dots/spaces.
   const CHUNK = 80;
-  let html = '';
-  tools.slice(0, CHUNK).forEach(t => { html += toolCardHTML(t); });
-  grid.innerHTML = html;
+  shownTools = tools.slice(0, CHUNK);
+  grid.innerHTML = shownTools.map((t, i) => toolCardHTML(t, i)).join('');
   if (tools.length > CHUNK) {
     const msg = document.createElement('div');
     msg.style.cssText = 'grid-column:1/-1;text-align:center;padding:20px;color:var(--text-muted);font-size:11px;';
@@ -594,16 +618,17 @@ function renderGrid(tools) {
   }
 }
 
-function toolCardHTML(t) {
+function toolCardHTML(t, idx) {
   const src    = (t.source||'blackarch').includes('phoenix') ? 'phoenix' : 'blackarch';
   const srcLbl = src === 'phoenix' ? '◈ CURATED' : '◆ BLACKARCH';
   const srcCls = src === 'phoenix' ? 'src-phoenix' : 'src-blackarch';
   const phase  = t.phase || t.category || 'unknown';
   const col    = phaseColor(phase);
-  const desc   = (t.description||'BlackArch security tool').replace(/[<>]/g,'').slice(0,90);
-  const name   = (t.name||'').replace(/[<>]/g,'');
+  const esc    = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const desc   = esc((t.description||'BlackArch security tool').slice(0,90));
+  const name   = esc(t.name||'');
   return `
-<div class="tool-card" onclick="selectTool(${JSON.stringify(JSON.stringify(t))})" id="tc-${name}">
+<div class="tool-card" data-idx="${idx}" onclick="selectTool(${idx})">
   <div class="tc-name">
     ${name}
     <span class="tc-source ${srcCls}">${srcLbl}</span>
@@ -611,46 +636,100 @@ function toolCardHTML(t) {
   <div class="tc-desc">${desc}${desc.length>=90?'…':''}</div>
   <div class="tc-phase">
     <div class="phase-dot" style="background:${col}"></div>
-    ${phase.replace(/_/g,' ')}
+    ${esc(phase.replace(/_/g,' '))}
   </div>
   <div class="tc-actions">
-    <button class="tc-btn run" onclick="event.stopPropagation();quickRun(${JSON.stringify(JSON.stringify(t))})">▶ RUN</button>
-    <button class="tc-btn info" onclick="event.stopPropagation();selectTool(${JSON.stringify(JSON.stringify(t))})">INFO</button>
+    <button class="tc-btn run" onclick="event.stopPropagation();quickRun(${idx})">▶ RUN</button>
+    <button class="tc-btn info" onclick="event.stopPropagation();selectTool(${idx})">INFO</button>
   </div>
 </div>`;
 }
 
 // ── Tool selection ──────────────────────────────────────────────────────
-function selectTool(tJson) {
-  const t = JSON.parse(tJson);
+function selectTool(idx) {
+  const t = shownTools[idx];
+  if (!t) return;
   selectedTool = t;
   document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('selected'));
-  const el = document.getElementById(`tc-${t.name}`);
+  const el = document.querySelector(`.tool-card[data-idx="${idx}"]`);
   if (el) el.classList.add('selected');
 
   const docs  = t.docs || t.command || `${t.name} --help`;
   const phase = t.phase || t.category || '?';
+  const esc   = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   document.getElementById('rp-tool-info').innerHTML = `
-    <div class="rp-tool-name">${t.name}</div>
-    <div class="rp-tool-desc">${(t.description||'').slice(0,180)}</div>
+    <div class="rp-tool-name">${esc(t.name)}</div>
+    <div class="rp-tool-desc">${esc((t.description||'').slice(0,180))}</div>
     <div class="rp-field-label">PHASE / CATEGORY</div>
     <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px">
-      ${phase.replace(/_/g,' ')} · ${t.category||''} · ${t.source||'blackarch'}
+      ${esc(phase.replace(/_/g,' '))} · ${esc(t.category||'')} · ${esc(t.source||'blackarch')}
     </div>
     <div class="rp-field-label">ARGUMENTS</div>
     <textarea class="rp-args" id="rp-args-input" rows="2" placeholder="e.g. --version or -h"></textarea>
     <button class="rp-run-btn" onclick="runSelected()" ${running?'disabled':''}>
-      ▶ EXECUTE ${t.name.toUpperCase()}
+      ▶ EXECUTE ${esc(t.name.toUpperCase())}
     </button>
-    <div class="rp-docs">${docs}</div>
+    <div class="rp-docs">${esc(docs)}</div>
+    <div id="rp-usage"></div>
   `;
+  // Fetch the rich usage card (summary + real examples + opsec tips).
+  // Falls back gracefully — if the tool isn't in the usage KB, the panel
+  // just shows the basic docs string above. Clicking an example command
+  // loads it into the args box so the student can run or edit it.
+  loadUsageInfo(t.name);
+}
+
+// Pull real usage examples for the selected tool and render them as
+// clickable example commands with explanations + OPSEC tips. This is the
+// "informative INFO card" layer — teach proper use with examples.
+async function loadUsageInfo(toolName) {
+  const box = document.getElementById('rp-usage');
+  if (!box) return;
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  try {
+    const r = await fetch(`${API}/api/tool_usage/${encodeURIComponent(toolName.toLowerCase())}`);
+    const d = await r.json();
+    if (!d.has_usage) { box.innerHTML = ''; return; }
+    let html = `<div class="rp-field-label" style="margin-top:14px">HOW TO USE — ${esc(toolName.toUpperCase())}</div>`;
+    html += `<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;line-height:1.5">${esc(d.summary)}</div>`;
+    html += `<div class="rp-field-label">EXAMPLES <span style="color:var(--text-muted);font-weight:400">(click to load)</span></div>`;
+    d.examples.forEach(ex => {
+      const cmdAttr = ex.cmd.replace(/'/g, "\\'");
+      html += `
+        <div class="usage-ex" onclick="loadExample('${cmdAttr}')" title="Click to load into args">
+          <div class="usage-cmd">${esc(ex.cmd)}</div>
+          <div class="usage-explain">${esc(ex.explain)}</div>
+        </div>`;
+    });
+    if (d.tips && d.tips.length) {
+      html += `<div class="rp-field-label" style="margin-top:10px">🥷 OPSEC TIPS</div><ul class="usage-tips">`;
+      d.tips.forEach(tip => { html += `<li>${esc(tip)}</li>`; });
+      html += `</ul>`;
+    }
+    box.innerHTML = html;
+  } catch(e) {
+    box.innerHTML = '';
+  }
+}
+
+// Load an example command's ARGS (everything after the tool name) into the
+// args input so the student can run it as-is or tweak it first.
+function loadExample(fullCmd) {
+  const parts = fullCmd.trim().split(/\s+/);
+  // Drop the leading tool name (and sudo if present) to leave just args
+  let i = 0;
+  if (parts[i] === 'sudo') i++;
+  i++; // skip the tool binary itself
+  const args = parts.slice(i).join(' ');
+  const inp = document.getElementById('rp-args-input');
+  if (inp) { inp.value = args; inp.focus(); }
 }
 
 // ── Run tool ────────────────────────────────────────────────────────────
-function quickRun(tJson) {
-  selectTool(tJson);
+function quickRun(idx) {
+  selectTool(idx);
   // small delay so UI updates first
-  setTimeout(() => runSelected(), 100);
+  setTimeout(() => runSelected(), 120);
 }
 
 async function runSelected() {

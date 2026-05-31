@@ -50,3 +50,7 @@ src/tools/tool_registry.v3.json.bak.*
 ollama/Modelfile.err0rs.built
 tools/_quality_gates.json
 tools/_debug/
+
+# Compiled Python
+*.pyc
+*.pyo

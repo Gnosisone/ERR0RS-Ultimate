@@ -96,10 +96,19 @@ CONTROL_PATTERNS = [
 
 def _match_tool(text):
     low = text.lower()
+    words = set(re.findall(r"[a-z0-9\-]+", low))
     hits = []
     for tool, aliases in TOOL_ALIASES.items():
         for a in aliases:
-            if a in low:
+            al = a.lower()
+            # Multi-word aliases ("port scan", "sql injection"): substring is
+            # fine — they're distinctive enough not to collide. Single-word
+            # aliases ("cme", "msf", "fuzz", "dirb"): require a WHOLE-WORD
+            # match so short tokens don't fire inside ordinary words
+            # (e.g. "cme" inside "outcome" was launching crackmapexec). Same
+            # bug class as the nmap "os"-in-"localhost" -O injection.
+            matched = (al in low) if " " in al else (al in words)
+            if matched:
                 hits.append((len(a), tool))
     if hits:
         hits.sort(reverse=True)

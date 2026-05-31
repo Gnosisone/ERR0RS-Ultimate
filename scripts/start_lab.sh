@@ -49,13 +49,32 @@ if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null | gr
 else
     # Try Docker
     if command -v docker &> /dev/null; then
-        EXISTING=$(docker ps -aq --filter name=juice-shop 2>/dev/null)
-        if [ -n "$EXISTING" ]; then
-            docker start juice-shop > /dev/null 2>&1 && echo -e "  ${GREEN}✓ Juice Shop container restarted${NC}"
-        else
-            docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop > /dev/null 2>&1 && \
-                echo -e "  ${GREEN}✓ Juice Shop container started — waiting for startup...${NC}" && \
+        # Detect docker permission problem up front — on a fresh Kali the
+        # user often isn't in the docker group, so every docker call needs
+        # sudo. Pick the right invocation (or tell the user how to fix it)
+        # instead of silently failing with a permission-denied.
+        DOCKER="docker"
+        if ! docker info > /dev/null 2>&1; then
+            if sudo -n docker info > /dev/null 2>&1; then
+                DOCKER="sudo docker"
+            else
+                echo -e "  ${YELLOW}⚠ Docker needs elevated permissions.${NC}"
+                echo -e "     One-time fix (then re-run this script):"
+                echo -e "       ${BOLD}sudo usermod -aG docker \$USER${NC}  then log out/in"
+                echo -e "     Or start Juice Shop now with:"
+                echo -e "       ${BOLD}sudo docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop${NC}"
+                DOCKER=""
+            fi
+        fi
+        if [ -n "$DOCKER" ]; then
+            EXISTING=$($DOCKER ps -aq --filter name=juice-shop 2>/dev/null)
+            if [ -n "$EXISTING" ]; then
+                $DOCKER start juice-shop > /dev/null 2>&1 && echo -e "  ${GREEN}✓ Juice Shop container restarted${NC}"
+            else
+                $DOCKER run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop > /dev/null 2>&1 && \
+                    echo -e "  ${GREEN}✓ Juice Shop container started — waiting for startup...${NC}" && \
                 sleep 8
+            fi
         fi
     # Try Node.js install
     elif command -v node &> /dev/null && [ -d "$HOME/juice-shop" ]; then

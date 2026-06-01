@@ -3237,11 +3237,26 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
             body = json.dumps(data, default=_safe).encode()
         except Exception as e:
             body = json.dumps({"status": "error", "error": f"Serialization failed: {e}"}).encode()
-        self.send_response(code)
-        self.send_header("Content-Type","application/json")
-        self.send_header("Content-Length",str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        # Guard the whole write: if the client already closed the socket
+        # (e.g. the browser gave up during a slow 30s LLM call, or the user
+        # navigated away), the send_* / write calls raise BrokenPipeError /
+        # ConnectionResetError. That's not a server fault — the response just
+        # has nowhere to go. Swallow it so the handler thread doesn't crash
+        # with a traceback in the log on every abandoned request.
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type","application/json")
+            self.send_header("Content-Length",str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client hung up before we could respond — nothing to do
+        except Exception as _we:
+            # Any other write failure: log quietly, don't propagate
+            try:
+                log.debug(f"_json write failed: {_we}")
+            except Exception:
+                pass
 
     # ── Payload Studio helpers ────────────────────────
     def _payload_snippets(self):

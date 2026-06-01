@@ -363,7 +363,61 @@ def parse(text, state=None):
     fast = _fast_parse(text, state)
     if fast and fast.get("confidence", 0) >= 0.7:
         return fast
+    # Known-binary verbatim fast-path — BEFORE the slow LLM.
+    # Lesson "Typical use" lines and advanced tools often start with a real
+    # binary the fast parser's alias list doesn't cover (bloodhound-python,
+    # impacket-secretsdump, recon-ng, crackmapexec, etc.). Rather than burn
+    # 30s in the LLM only to time out and fall to "chat" (the exact failure
+    # in the field logs), recognize the leading token as a known security
+    # binary and run it verbatim. The CFAA safety gate still vets execution
+    # downstream — this only affects intent classification, not authorization.
+    verbatim = _known_binary_passthrough(text, state)
+    if verbatim:
+        return verbatim
     slow = _ollama_parse(text, state)
     if slow:
         return slow
     return {"action":"chat","confidence":0.3}
+
+
+# Security binaries that may appear as the first token of a typed command
+# but aren't in the fast parser's primary alias map. Includes hyphenated
+# and suite-prefixed tools. Used only to route a verbatim command to
+# run_tool instead of hanging the LLM. Not an authorization list — the
+# safety gate still applies.
+_KNOWN_BINARIES = {
+    "bloodhound-python", "sharphound", "impacket-secretsdump",
+    "impacket-getuserspns", "impacket-getnpusers", "impacket-psexec",
+    "impacket-smbserver", "impacket-wmiexec", "recon-ng", "spiderfoot",
+    "theharvester", "subfinder", "amass", "dnsrecon", "dnsenum", "sublist3r",
+    "fierce", "sherlock", "holehe", "httpx", "assetfinder", "katana",
+    "feroxbuster", "wfuzz", "dirsearch", "masscan", "rustscan", "naabu",
+    "wpscan", "joomscan", "nikto", "whatweb", "wafw00f", "testssl",
+    "sslscan", "responder", "ntlmrelayx", "evil-winrm", "kerbrute",
+    "certipy", "ldapsearch", "smbclient", "smbmap", "rpcclient",
+    "enum4linux-ng", "linpeas", "winpeas", "pspy", "chisel", "ligolo",
+    "proxychains", "socat", "searchsploit", "msfvenom", "john",
+    "hashcat", "hydra", "medusa", "patator", "cewl", "crunch",
+}
+
+def _known_binary_passthrough(text, state=None):
+    """If text starts with a known security binary, return a verbatim
+    run_tool intent. Returns None if the leading token isn't recognized."""
+    import shlex
+    try:
+        tokens = shlex.split(text)
+    except ValueError:
+        tokens = text.split()
+    if not tokens:
+        return None
+    binary = tokens[0].lower()
+    if binary not in _KNOWN_BINARIES:
+        return None
+    return {
+        "action": "run_tool",
+        "tool": binary,
+        "args": tokens[1:],
+        "target": (state.target if state else None),
+        "confidence": 0.9,
+        "reason": f"{binary} with operator-supplied flags (verbatim)",
+    }

@@ -206,6 +206,132 @@ USAGE: Dict[str, Dict] = {
             "Reverse shells beat bind shells — outbound is usually allowed.",
         ],
     },
+
+    # ── OSINT tools ─────────────────────────────────────────────────────────
+    "subfinder": {
+        "summary": "Passive subdomain discovery from 30+ public sources. Never touches the target.",
+        "examples": [
+            {"cmd": "subfinder -d example.com -silent",
+             "explain": "Clean list of subdomains, no banner. The standard first run."},
+            {"cmd": "subfinder -d example.com -all -silent -o subs.txt",
+             "explain": "Use all sources, save to a file for the next tool in the chain."},
+            {"cmd": "subfinder -d example.com -silent | httpx -silent",
+             "explain": "Pipe straight into httpx to find which subdomains are actually live."},
+        ],
+        "tips": [
+            "Fully passive — pulls from cert logs / passive DNS, the target sees nothing.",
+            "Validate every subdomain against your authorized scope before active scanning.",
+            "Add API keys in ~/.config/subfinder/provider-config.yaml for more sources.",
+        ],
+    },
+    "amass": {
+        "summary": "Deep attack-surface mapping — subdomains, ASNs, infrastructure relationships.",
+        "examples": [
+            {"cmd": "amass enum -passive -d example.com",
+             "explain": "Passive subdomain enumeration — undetectable, safe any time."},
+            {"cmd": "amass intel -org 'Example Inc'",
+             "explain": "Find every domain and IP block the organization owns. Scoping gold."},
+            {"cmd": "amass enum -active -d example.com -o assets.txt",
+             "explain": "Active mode does DNS/cert resolution — more accurate but touches target."},
+        ],
+        "tips": [
+            "Default to -passive; -active and -brute send packets to the target.",
+            "amass viz builds a relationship graph of the discovered infrastructure.",
+            "Slower but deeper than subfinder — run both and merge results.",
+        ],
+    },
+    "dnsrecon": {
+        "summary": "DNS enumeration — records, zone transfers, subdomain brute, reverse lookups.",
+        "examples": [
+            {"cmd": "dnsrecon -d example.com",
+             "explain": "Standard record enumeration (A, MX, NS, TXT, SOA). Light and quick."},
+            {"cmd": "dnsrecon -d example.com -t axfr",
+             "explain": "Attempt a zone transfer — if it works, you get the entire DNS map."},
+            {"cmd": "dnsrecon -r 10.0.0.0/24",
+             "explain": "Reverse lookups across an IP range to find neighboring hosts."},
+        ],
+        "tips": [
+            "Always try -t axfr — zone transfers are rare wins but cost one query.",
+            "Queries hit the target's name servers, so treat it as semi-active.",
+            "TXT records (SPF/DMARC) reveal mail infra and third-party services.",
+        ],
+    },
+    "theharvester": {
+        "summary": "Harvests emails, names, and subdomains from public search engines and datasets.",
+        "examples": [
+            {"cmd": "theHarvester -d example.com -b all",
+             "explain": "Sweep every source for emails, names, and subdomains."},
+            {"cmd": "theHarvester -d example.com -b bing,crtsh,duckduckgo",
+             "explain": "Target specific sources when you want speed over breadth."},
+            {"cmd": "theHarvester -d example.com -b all -f report.html",
+             "explain": "Save a formatted report of everything found."},
+        ],
+        "tips": [
+            "Email format (first.last@ vs flast@) is the prize — it feeds password spraying.",
+            "Passive — scrapes third parties, the target's infra is never contacted.",
+            "Harvested names/emails are PII — authorized engagements only.",
+        ],
+    },
+    "sherlock": {
+        "summary": "Hunts a username across 400+ social networks to map a person's online presence.",
+        "examples": [
+            {"cmd": "sherlock johndoe",
+             "explain": "Search every supported site for the username 'johndoe'."},
+            {"cmd": "sherlock johndoe --timeout 10",
+             "explain": "Lower per-site timeout to speed up the search."},
+            {"cmd": "sherlock user1 user2 --csv",
+             "explain": "Check multiple usernames, export results to CSV."},
+        ],
+        "tips": [
+            "A reused username links accounts together — those are pivot points.",
+            "Always manually verify a hit; sherlock produces false positives.",
+            "Queries the sites, not your target's infra — the target sees nothing.",
+        ],
+    },
+    "holehe": {
+        "summary": "Checks which of 120+ sites an email is registered on — without alerting the owner.",
+        "examples": [
+            {"cmd": "holehe target@example.com",
+             "explain": "Check the email across all supported sites."},
+            {"cmd": "holehe target@example.com --only-used",
+             "explain": "Show only sites where the email is actually registered."},
+        ],
+        "tips": [
+            "Uses reset/registration flows that don't notify the account owner.",
+            "Pairs with sherlock: holehe by email, sherlock by username.",
+            "Account enumeration of real people is sensitive — authorized use only.",
+        ],
+    },
+    "recon-ng": {
+        "summary": "Modular OSINT framework with a Metasploit-style console for automated recon.",
+        "examples": [
+            {"cmd": "recon-ng -w example_engagement",
+             "explain": "Start in a named workspace (isolated DB for this engagement)."},
+            {"cmd": "marketplace install all",
+             "explain": "Inside the console — install every available module."},
+            {"cmd": "modules load recon/domains-hosts/hackertarget",
+             "explain": "Load a module that finds hosts for a domain, then 'run'."},
+        ],
+        "tips": [
+            "Results persist in the workspace DB — modules feed each other.",
+            "Check if a module is passive or active before running it on a scoped target.",
+            "Reporting modules export client-ready HTML/CSV from the workspace.",
+        ],
+    },
+    "spiderfoot": {
+        "summary": "Automated OSINT engine that correlates 200+ data sources into a relationship graph.",
+        "examples": [
+            {"cmd": "spiderfoot -l 127.0.0.1:5001",
+             "explain": "Launch the web UI, then drive scans from the browser."},
+            {"cmd": "spiderfoot -s example.com -t EMAILADDR,DOMAIN_NAME -q",
+             "explain": "CLI scan restricted to specific data types, quiet output."},
+        ],
+        "tips": [
+            "Use Passive scan mode to stay undetectable; Footprint mode touches the target.",
+            "Constrain modules (-m / -t) so it doesn't wander out of scope.",
+            "Best when you want breadth without manually chaining single tools.",
+        ],
+    },
 }
 
 

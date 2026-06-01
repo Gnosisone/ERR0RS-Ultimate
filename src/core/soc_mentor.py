@@ -788,6 +788,230 @@ MENTOR = {
             "Threat models age fast — re-run yours after every major finding. New info = new branches worth exploring.",
         ],
     },
+
+    # ── OSINT tools — passive-first external footprinting ───────────────────
+    "subfinder": {
+        "tldr": (
+            "Passive subdomain discovery from public sources. The target never "
+            "sees a packet — this is the quietest way to expand your scope."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "subfinder queries third-party data (cert transparency, passive DNS, "
+            "search APIs) — never the target's own infrastructure. Zero packets "
+            "to the target means zero detection. Truly passive."
+        ),
+        "prerequisites": ["root_domain_in_scope"],
+        "logical_next": [
+            {"tool": "amass", "noise": "quiet",
+             "why": "amass passive finds subdomains subfinder misses — run both, merge."},
+            {"tool": "whatweb", "noise": "quiet",
+             "why": "Fingerprint each live subdomain's tech stack, still passive-ish."},
+            {"tool": "nmap", "noise": "medium",
+             "why": "Once you have a validated in-scope subdomain list, scan for services."},
+        ],
+        "opsec_tips": [
+            "All sources are public — safe to run any time without touching the target.",
+            "Pipe -silent output straight into httpx to find which subdomains are live.",
+            "Validate every result against your authorized scope before any active step.",
+            "Add API keys in ~/.config/subfinder/ to unlock more passive sources.",
+        ],
+    },
+
+    "amass": {
+        "tldr": (
+            "Deep attack-surface mapping — subdomains, ASNs, infra relationships. "
+            "Passive mode is undetectable; active/brute modes touch the target."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "amass enum -passive is third-party-only — silent. But -active does "
+            "DNS resolution + cert grabbing against the target, and -brute hammers "
+            "their DNS. The mode you pick determines the noise. Default to passive."
+        ),
+        "prerequisites": ["root_domain_in_scope"],
+        "logical_next": [
+            {"tool": "subfinder", "noise": "quiet",
+             "why": "Quick passive pass to complement amass's deeper enumeration."},
+            {"tool": "nmap", "noise": "medium",
+             "why": "Scan the consolidated in-scope host list for live services."},
+            {"tool": "whatweb", "noise": "quiet",
+             "why": "Fingerprint discovered web hosts before active scanning."},
+        ],
+        "opsec_tips": [
+            "amass intel -org 'Company' maps owned domains + ASNs — pure scoping gold.",
+            "-passive for stealth; only go -active/-brute when scope explicitly allows.",
+            "amass viz builds a relationship graph — great for spotting shared infra.",
+            "Active modes are logged on the target's DNS — treat them as medium-noise.",
+        ],
+    },
+
+    "dnsrecon": {
+        "tldr": (
+            "DNS enumeration — records, zone transfers, reverse lookups. Light "
+            "but semi-active: queries hit the target's name servers."
+        ),
+        "noise_level": "medium",
+        "noise_explanation": (
+            "Standard record enumeration is light, but it queries the target's "
+            "authoritative DNS, which can be logged. Zone-transfer (axfr) and "
+            "brute (brt) attempts are clearly visible to an attentive defender. "
+            "Not as silent as third-party passive tools."
+        ),
+        "prerequisites": ["domain_in_scope"],
+        "logical_next": [
+            {"tool": "subfinder", "noise": "quiet",
+             "why": "Passive subdomain discovery to cross-reference DNS findings."},
+            {"tool": "amass", "noise": "quiet",
+             "why": "Map the broader infrastructure around the DNS records you found."},
+            {"tool": "nmap", "noise": "medium",
+             "why": "Scan hosts revealed by reverse lookups / zone data."},
+        ],
+        "opsec_tips": [
+            "Always try -t axfr first — a zone transfer dumps everything and costs one query.",
+            "std enumeration (A/MX/NS/TXT) is the lightest footprint — start there.",
+            "Brute-force (-t brt) is the loudest mode — many queries to their DNS.",
+            "Use a public resolver for record lookups when you don't need their authoritative server.",
+        ],
+    },
+
+    "theharvester": {
+        "tldr": (
+            "Harvests emails, names, and subdomains from public search engines. "
+            "Passive — pulls from third parties, not the target."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "theHarvester scrapes search engines and public datasets. The target's "
+            "infrastructure is never contacted (unless you enable -s Shodan host "
+            "lookups or -r reverse DNS). Core email/name harvesting is silent."
+        ),
+        "prerequisites": ["domain_or_org_in_scope"],
+        "logical_next": [
+            {"tool": "sherlock", "noise": "quiet",
+             "why": "Take harvested usernames and map them across social platforms."},
+            {"tool": "holehe", "noise": "quiet",
+             "why": "Check which sites each harvested email is registered on."},
+            {"tool": "subfinder", "noise": "quiet",
+             "why": "Cross-reference the subdomains theHarvester surfaced via crtsh."},
+        ],
+        "opsec_tips": [
+            "Email FORMAT (first.last@, flast@) is the prize — it feeds password spraying.",
+            "-b all then dedupe: each source finds different data.",
+            "Found emails → HaveIBeenPwned for breach exposure, still fully passive.",
+            "Harvested PII is privacy-regulated — authorized engagements only.",
+        ],
+    },
+
+    "sherlock": {
+        "tldr": (
+            "Hunts a username across 400+ sites to map a person's online presence. "
+            "Hits the SITES, never your target's infrastructure."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "sherlock queries public social/web platforms for a username. Your "
+            "target's own systems see nothing. The only footprint is on the "
+            "third-party sites themselves, not the engagement target."
+        ),
+        "prerequisites": ["username_seed"],
+        "logical_next": [
+            {"tool": "holehe", "noise": "quiet",
+             "why": "Pivot from username to email-based account discovery."},
+            {"tool": "theharvester", "noise": "quiet",
+             "why": "Correlate found handles with harvested employee names/emails."},
+        ],
+        "opsec_tips": [
+            "A reused username links accounts together — those are your pivot points.",
+            "Always manually verify a hit — sherlock has false positives.",
+            "Read found profiles for more seed data (other handles, employer, location).",
+            "Profiling real people is privacy-sensitive — stay strictly in scope.",
+        ],
+    },
+
+    "holehe": {
+        "tldr": (
+            "Checks which of 120+ sites an email is registered on — without "
+            "notifying the account owner. Passive identity mapping."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "holehe uses registration / password-reset flows that DON'T send a "
+            "notification to the target email. Queries go to the third-party "
+            "sites, not your engagement target. Quiet identity enumeration."
+        ),
+        "prerequisites": ["email_seed"],
+        "logical_next": [
+            {"tool": "sherlock", "noise": "quiet",
+             "why": "Cross-map: holehe finds accounts by email, sherlock by username."},
+            {"tool": "theharvester", "noise": "quiet",
+             "why": "Feed more emails from theHarvester into holehe for full coverage."},
+        ],
+        "opsec_tips": [
+            "Registered-account list informs phishing pretext + credential-stuffing.",
+            "--only-used trims output to sites where the email actually exists.",
+            "Spread checks out if doing many emails — some sites rate-limit.",
+            "Account enumeration of real people is sensitive — authorized use only.",
+        ],
+    },
+
+    "recon-ng": {
+        "tldr": (
+            "Modular OSINT framework (Metasploit-style console). Noise depends "
+            "entirely on which modules you load — some passive, some active."
+        ),
+        "noise_level": "medium",
+        "noise_explanation": (
+            "The framework is neutral; modules vary. Passive modules (cert logs, "
+            "search APIs) are silent. Active modules (DNS resolution, port checks, "
+            "host probing) touch the target and get logged. Know each module's "
+            "behavior before you run it against a scoped target."
+        ),
+        "prerequisites": ["domain_or_org_in_scope"],
+        "logical_next": [
+            {"tool": "spiderfoot", "noise": "medium",
+             "why": "When you want automated correlation instead of manual module chaining."},
+            {"tool": "theharvester", "noise": "quiet",
+             "why": "Quick passive email/name sweep to seed recon-ng workspaces."},
+            {"tool": "amass", "noise": "quiet",
+             "why": "Dedicated deep subdomain/ASN mapping to complement recon-ng."},
+        ],
+        "opsec_tips": [
+            "Workspaces isolate engagements — one DB per client keeps data clean.",
+            "Check whether a module is passive or active BEFORE running it.",
+            "API keys (keys add ...) unlock the powerful passive sources.",
+            "Reporting modules export client-ready HTML/CSV straight from the DB.",
+        ],
+    },
+
+    "spiderfoot": {
+        "tldr": (
+            "Automated OSINT engine correlating 200+ sources. Pick the scan mode "
+            "deliberately — Passive is silent, Footprint/Investigate go active."
+        ),
+        "noise_level": "medium",
+        "noise_explanation": (
+            "Passive mode is third-party-only and undetectable. But Investigate "
+            "and Footprint modes make direct connections to the target (DNS, web, "
+            "ports), which are logged. The automation is powerful but can get "
+            "loud fast if you don't constrain the modules."
+        ),
+        "prerequisites": ["target_seed_in_scope"],
+        "logical_next": [
+            {"tool": "recon-ng", "noise": "medium",
+             "why": "Drill into specific findings with targeted recon-ng modules."},
+            {"tool": "amass", "noise": "quiet",
+             "why": "Dedicated subdomain/ASN depth on the infra spiderfoot surfaced."},
+            {"tool": "nmap", "noise": "medium",
+             "why": "Actively scan the in-scope hosts spiderfoot discovered."},
+        ],
+        "opsec_tips": [
+            "Use Passive scan mode to stay undetectable; Footprint mode touches the target.",
+            "Constrain modules (-m / -t) so it doesn't wander out of scope.",
+            "The relationship graph reveals shared infra manual recon misses.",
+            "Heavy tool — run it when you want breadth without manual chaining.",
+        ],
+    },
 }
 
 

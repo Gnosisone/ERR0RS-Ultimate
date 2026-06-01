@@ -630,6 +630,311 @@ LESSONS = {
         "caution": "Threat models go stale — update when architecture changes significantly.",
     },
 
+    # ════════════════════════════════════════════════════════════════════
+    #  ENGAGEMENT THEORY — the full lifecycle, beginning to end
+    #  These teach the METHODOLOGY a professional follows, not a tool.
+    #  Ordered: lifecycle → scoping → target-id → recon-theory → reporting
+    # ════════════════════════════════════════════════════════════════════
+    "engagement-lifecycle": {
+        "summary": "The 7 phases of a professional security engagement, start to finish",
+        "typical": "Pre-Engagement → Recon → Scanning/Enum → Exploitation → Post-Ex → Reporting → Remediation Retest",
+        "flags": {
+            "1. Pre-Engagement":   "Scope, rules of engagement, authorization, contracts. NO testing happens yet.",
+            "2. Reconnaissance":   "OSINT + footprinting. Mostly passive. Build the target picture before touching it.",
+            "3. Scanning/Enum":    "Active discovery — ports, services, versions, users, shares. First noisy phase.",
+            "4. Exploitation":     "Turn a vulnerability into access. Where detection risk spikes.",
+            "5. Post-Exploitation":"Privesc, lateral movement, persistence, data access. Prove business impact.",
+            "6. Reporting":        "The actual deliverable. Findings, evidence, risk ratings, remediation steps.",
+            "7. Remediation Retest":"Verify the client fixed what you found. Closes the loop.",
+        },
+        "read": [
+            "Most beginners rush to phase 4 — pros spend the most time in 1, 2, and 6",
+            "The report is what the client PAYS for — the hacking is just how you fill it",
+            "Each phase feeds the next: recon scopes scanning, scanning scopes exploitation",
+            "You can loop back — post-ex findings often trigger more recon on newly-found hosts",
+            "PTES and the OSSTMM are the formal methodology standards worth reading",
+        ],
+        "next": ["scoping", "target-identification", "recon-theory", "reporting"],
+        "caution": "Skipping phase 1 (authorization) isn't a methodology shortcut — it's a federal crime (CFAA).",
+    },
+
+    "scoping": {
+        "summary": "Defining WHAT you're allowed to test, HOW, and WHEN — the contract that makes it legal",
+        "typical": "Signed authorization + IP/domain scope list + ROE + testing window + emergency contacts",
+        "flags": {
+            "Authorization":     "Written permission from someone who OWNS the assets. Verbal isn't enough.",
+            "Scope (in/out)":    "Explicit list of IPs, domains, apps that ARE and ARE NOT fair game.",
+            "Rules of Engagement":"Allowed techniques. Is social engineering ok? DoS testing? Physical?",
+            "Testing window":    "When you may test. Business hours? After-hours? Blackout dates?",
+            "Data handling":     "What you may access, exfil, store, and how you destroy it after.",
+            "Emergency contact": "Who to call if you break something or find an active breach.",
+            "Get-out-of-jail":   "A signed authorization letter you carry — proves you're not a criminal.",
+        },
+        "read": [
+            "Scope creep is the #1 way pentesters get in legal trouble — stay inside the lines",
+            "If you find a vuln that leads OUT of scope, STOP and ask before following it",
+            "Cloud assets need the PROVIDER's permission too (AWS/Azure have their own rules)",
+            "'Out of scope' findings can still be reported as observations — just don't test them",
+            "The scope document protects YOU as much as the client",
+        ],
+        "next": ["target-identification", "engagement-lifecycle", "recon-theory"],
+        "caution": "No signed authorization = no testing. Ever. This is the line between pentester and criminal.",
+    },
+
+    "target-identification": {
+        "summary": "Going from 'a company name' to a concrete, in-scope list of assets to test",
+        "typical": "Company → domains → subdomains → IP ranges (ASN) → live hosts → services → attack surface",
+        "flags": {
+            "Seed data":      "Start from what scope gives you: a domain, a company name, an IP block.",
+            "Domain expansion":"Find all domains the org owns (whois, reverse-whois, cert transparency).",
+            "Subdomain enum": "subfinder/amass turn one domain into dozens of subdomains.",
+            "ASN / IP ranges":"Find the org's owned IP blocks via ASN lookup (bgp.he.net, whois).",
+            "Live host detection":"Which of those IPs/hosts actually respond? (the in-scope ones only)",
+            "Attack surface mapping":"Catalog every service, app, and entry point you found.",
+            "Asset validation":"Confirm each asset is IN SCOPE before you touch it actively.",
+        },
+        "read": [
+            "Cert transparency logs (crt.sh) are gold — they leak subdomains for free, passively",
+            "An ASN lookup tells you every IP block a company owns — huge for scoping",
+            "Acquisitions matter: BigCorp may own SmallCo's domains too — check whois history",
+            "Shadow IT (forgotten dev/staging boxes) is where the easy wins usually hide",
+            "Always cross-check found assets against your authorized scope before scanning",
+        ],
+        "next": ["subfinder", "amass", "theHarvester", "recon-theory"],
+        "caution": "Finding an asset doesn't mean it's in scope. Validate ownership + authorization before active testing.",
+    },
+
+    "recon-theory": {
+        "summary": "The discipline of gathering intel — passive vs active, and why you always start passive",
+        "typical": "Passive OSINT (no target contact) → Semi-passive → Active recon (direct contact, logged)",
+        "flags": {
+            "Passive recon":  "Zero packets to the target. Public data: search engines, certs, DNS, social media. Undetectable.",
+            "Semi-passive":   "Light, normal-looking traffic: visiting their website, public DNS lookups. Blends in.",
+            "Active recon":   "Direct probing: port scans, service enum. Effective but LOGGED on the target side.",
+            "Attribution":    "Can the target trace recon back to you? Passive = no. Active = yes, unless proxied.",
+            "OSINT-first":    "Exhaust passive sources BEFORE going active — you often won't need to make noise.",
+            "Footprinting":   "Building the complete external picture: people, tech, infra, exposure.",
+        },
+        "read": [
+            "Every active packet is potential evidence — passive recon leaves none",
+            "A good OSINT phase means you arrive at active recon already knowing the answers",
+            "Email formats + employee names (from LinkedIn) feed password spraying later",
+            "Leaked credentials (HaveIBeenPwned, dumps) are passive AND devastating",
+            "Tech stack fingerprints (whatweb, builtwith) tell you what exploits to prep",
+        ],
+        "next": ["subfinder", "theHarvester", "sherlock", "target-identification"],
+        "caution": "Passive recon is undetectable BUT still bound by scope and privacy law. Public ≠ permission to harass.",
+    },
+
+    "reporting": {
+        "summary": "Turning findings into the deliverable the client actually pays for",
+        "typical": "Executive summary → methodology → findings (with evidence + risk) → remediation → retest plan",
+        "flags": {
+            "Executive summary":  "1 page for leadership: what you found, the business risk, what to do. No jargon.",
+            "Methodology":        "What you tested and how — proves thoroughness and scope adherence.",
+            "Findings":           "Each: title, severity, affected assets, evidence (screenshots), reproduction steps.",
+            "Risk rating":        "CVSS score + business context. A 'high' on a dev box may be a 'low' in practice.",
+            "Remediation":        "Specific, actionable fixes. Not 'patch it' — exactly WHAT and HOW.",
+            "Evidence":           "Screenshots, request/response pairs, command output. Reproducible proof.",
+            "Retest plan":        "How you'll verify the fix worked. Closes the engagement loop.",
+        },
+        "read": [
+            "The report outlives the engagement — it's the only artifact the client keeps",
+            "Map every finding to CIA impact and a CVSS score for defensible severity",
+            "Reproduction steps must be exact — a dev has to be able to follow them",
+            "Lead with business risk, not technical detail — execs fund fixes, not CVEs",
+            "ERR0RS has a Professional Reporter — type 'report' to generate one from your session",
+        ],
+        "next": ["cvss scoring", "engagement-lifecycle", "remediation retest"],
+        "caution": "A finding with no evidence is an opinion. Always capture reproducible proof as you go.",
+    },
+
+    # ════════════════════════════════════════════════════════════════════
+    #  OSINT TOOLS — passive-first external footprinting
+    #  Domain/infra: subfinder, amass, dnsrecon, theHarvester
+    #  People/identity: sherlock, holehe, recon-ng, spiderfoot
+    # ════════════════════════════════════════════════════════════════════
+    "subfinder": {
+        "summary": "Fast passive subdomain discovery — queries 30+ public sources, never touches the target",
+        "typical": "subfinder -d example.com -all -silent",
+        "flags": {
+            "-d":      "Target domain to enumerate subdomains for",
+            "-all":    "Use ALL sources (slower, more thorough) vs the fast default set",
+            "-silent": "Only print subdomains, no banner — clean for piping to other tools",
+            "-o":      "Output to file: -o subs.txt",
+            "-recursive":"Recursively find subdomains of discovered subdomains",
+            "-dL":     "Read a LIST of domains from a file instead of one -d",
+            "-cs":     "Include the source that found each subdomain (provenance)",
+        },
+        "read": [
+            "Every result comes from PUBLIC data (cert logs, passive DNS) — the target sees nothing",
+            "Pipe straight into httpx or nmap: subfinder -d x.com -silent | httpx",
+            "More sources = more results but slower — start with default, add -all if thin",
+            "Cross-check with amass for coverage neither tool has alone",
+            "Configure API keys (~/.config/subfinder/) to unlock premium sources",
+        ],
+        "next": ["amass", "httpx", "nmap", "whatweb"],
+        "caution": "Subdomains found ≠ in scope. Validate each against authorization before active scanning.",
+    },
+
+    "amass": {
+        "summary": "Deep attack-surface mapping — subdomains, ASNs, and infra relationships (passive or active)",
+        "typical": "amass enum -passive -d example.com",
+        "flags": {
+            "enum":      "The enumeration subcommand (amass has intel/enum/viz/db modes)",
+            "-passive":  "Passive only — no direct target contact, undetectable",
+            "-active":   "Active — does DNS resolution + cert grabbing (touches target, more accurate)",
+            "-d":        "Target domain",
+            "-brute":    "Brute-force subdomains with a wordlist (active, noisier)",
+            "-o":        "Output file",
+            "-df":       "Domains-from-file for multi-domain enum",
+            "intel":     "amass intel -org 'Company' finds domains/ASNs an org owns",
+        },
+        "read": [
+            "amass intel -org 'Acme' maps every domain + IP block a company owns — huge for scoping",
+            "-passive is safe for any phase; -active and -brute are louder and touch the target",
+            "Deeper than subfinder but slower — use both, merge results",
+            "amass viz generates a relationship graph of the discovered infrastructure",
+            "Results persist in a local DB — amass db lets you query past enums",
+        ],
+        "next": ["subfinder", "target-identification", "nmap", "httpx"],
+        "caution": "-active / -brute send packets to the target. Confirm scope before using them.",
+    },
+
+    "dnsrecon": {
+        "summary": "DNS enumeration — records, zone transfers, subdomain brute, reverse lookups",
+        "typical": "dnsrecon -d example.com",
+        "flags": {
+            "-d":      "Target domain",
+            "-t":      "Enumeration type: std, axfr (zone transfer), brt (brute), rvl (reverse)",
+            "-t axfr": "Attempt zone transfer — a misconfig that dumps the ENTIRE DNS zone",
+            "-t brt":  "Brute-force subdomains with a dictionary (-D wordlist.txt)",
+            "-D":      "Dictionary file for brute-force mode",
+            "-r":      "Reverse lookup over an IP range: -r 10.0.0.0/24",
+            "-n":      "Use a specific name server",
+        },
+        "read": [
+            "A successful zone transfer (axfr) is a jackpot — the whole DNS map, instantly",
+            "std enumeration (A, MX, NS, TXT, SOA) is light and quick — start there",
+            "SPF/DMARC TXT records reveal mail infra + sometimes third-party services",
+            "Reverse lookups on a found IP range surface neighboring hosts",
+            "Zone transfers rarely work on modern DNS but ALWAYS worth a try — costs nothing",
+        ],
+        "next": ["subfinder", "amass", "theHarvester", "nmap"],
+        "caution": "DNS queries to the target's own name servers are semi-active and logged there.",
+    },
+
+    "theharvester": {
+        "summary": "Harvests emails, names, subdomains, and hosts from public search engines and data sources",
+        "typical": "theHarvester -d example.com -b all",
+        "flags": {
+            "-d":   "Target domain or company name",
+            "-b":   "Data source: all, bing, google, linkedin, crtsh, hunter, etc.",
+            "-b all":"Query every available source (broadest sweep)",
+            "-l":   "Limit number of results per source",
+            "-f":   "Save results to an HTML/XML report file",
+            "-s":   "Use Shodan for discovered hosts (needs API key)",
+            "-r":   "Take DNS reverse lookups on the found range",
+        },
+        "read": [
+            "Emails reveal the org's address FORMAT (first.last@, flast@) — feeds password spraying",
+            "Employee names from LinkedIn source build your target-user list",
+            "crtsh source pulls subdomains from cert transparency — overlaps subfinder",
+            "Different sources find different data — -b all then dedupe is the move",
+            "Found emails → check HaveIBeenPwned for breach exposure (still passive)",
+        ],
+        "next": ["sherlock", "holehe", "recon-theory", "subfinder"],
+        "caution": "Harvested PII (names, emails) is bound by privacy law. Use only for authorized engagements.",
+    },
+
+    "sherlock": {
+        "summary": "Hunts a username across 400+ social networks and sites — maps a person's online presence",
+        "typical": "sherlock johndoe",
+        "flags": {
+            "username":  "One or more usernames to search (space-separated)",
+            "--timeout": "Seconds to wait per site (default 60 — lower it to go faster)",
+            "--site":    "Check only specific sites: --site GitHub --site Twitter",
+            "--csv":     "Export results to CSV",
+            "--folderoutput":"Save per-username result files to a folder",
+            "--nsfw":    "Include adult sites in the search",
+        },
+        "read": [
+            "A username reused across sites links a person's accounts together — pivot points",
+            "Found profiles → read bios/posts for more seed data (other handles, employer, location)",
+            "False positives happen — always manually verify a hit before relying on it",
+            "Pair with the email format from theHarvester to confirm identity overlaps",
+            "Queries hit the SITES, not your target's infra — target sees nothing",
+        ],
+        "next": ["holehe", "theHarvester", "recon-theory"],
+        "caution": "Profiling real people is privacy-sensitive. Stay within engagement scope — public ≠ permission to stalk.",
+    },
+
+    "holehe": {
+        "summary": "Checks if an email is registered on 120+ sites — without alerting the target",
+        "typical": "holehe target@example.com",
+        "flags": {
+            "email":      "The email address to check across sites",
+            "--only-used":"Show only sites where the email IS registered (cleaner output)",
+            "--no-color": "Plain output for piping/parsing",
+            "--csv":      "Export to CSV",
+            "-T":         "Timeout per request",
+        },
+        "read": [
+            "Tells you WHERE a person has accounts (Twitter, Spotify, Adobe...) — expands the attack surface",
+            "Uses password-reset / registration flows that DON'T notify the account owner",
+            "Combine with sherlock: holehe finds accounts by email, sherlock by username",
+            "Registered-account list informs phishing pretext + credential-stuffing targets",
+            "Some sites rate-limit — spread checks out if you're doing many emails",
+        ],
+        "next": ["sherlock", "theHarvester", "recon-theory"],
+        "caution": "Enumerating someone's accounts is sensitive recon. Authorized engagements only — respect privacy law.",
+    },
+
+    "recon-ng": {
+        "summary": "Modular OSINT framework with a Metasploit-style console — automates multi-source recon",
+        "typical": "recon-ng → marketplace install all → modules load recon/domains-hosts/...",
+        "flags": {
+            "marketplace search":"Find available modules (recon, discovery, reporting)",
+            "marketplace install":"Install a module or 'all' to grab everything",
+            "modules load":      "Load a module: modules load recon/domains-hosts/hackertarget",
+            "options set SOURCE":"Set the input (e.g. the target domain) for the loaded module",
+            "run":               "Execute the loaded module",
+            "show hosts":        "Display results stored in the workspace database",
+            "workspaces create": "Isolate each engagement in its own workspace + database",
+        },
+        "read": [
+            "Everything is stored in a per-workspace DB — results from one module feed the next",
+            "It's a FRAMEWORK: chain modules (domains→hosts→ports→contacts) into a pipeline",
+            "Many modules need API keys (keys add shodan_api ...) for full power",
+            "Reporting modules export polished HTML/CSV straight from the workspace",
+            "Think of it as Metasploit for recon — same console muscle memory",
+        ],
+        "next": ["spiderfoot", "theHarvester", "amass", "target-identification"],
+        "caution": "Some modules do ACTIVE lookups (DNS, port checks). Know which before running against a scoped target.",
+    },
+
+    "spiderfoot": {
+        "summary": "Automated OSINT engine — point it at a target and it correlates 200+ data sources for you",
+        "typical": "spiderfoot -l 127.0.0.1:5001  (then drive the web UI)",
+        "flags": {
+            "-l":      "Launch the web UI on host:port (then use the browser)",
+            "-s":      "Scan target (CLI mode): -s example.com",
+            "-t":      "Restrict to specific data types: -t EMAILADDR,IP_ADDRESS",
+            "-m":      "Use only specific modules",
+            "-q":      "Quiet — only output data, no status",
+            "-o":      "Output format: tab, csv, json",
+        },
+        "read": [
+            "Give it a domain/email/IP/name and it auto-pivots across sources building a graph",
+            "Scan modes: Passive (safe), Investigate, or Footprint (some active) — pick deliberately",
+            "The web UI visualizes relationships — great for spotting non-obvious connections",
+            "Correlations surface what manual recon misses (shared infra, leaked data, exposed services)",
+            "Heavier than single tools — use when you want breadth without manual chaining",
+        ],
+        "next": ["recon-ng", "amass", "theHarvester", "target-identification"],
+        "caution": "Footprint/Investigate modes make active connections. Use Passive mode to stay undetectable.",
+    },
+
 }
 
 

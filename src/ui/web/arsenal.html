@@ -372,6 +372,9 @@ body::after {
     <div class="cat-item" data-cat="recon" onclick="setCategory(this,'recon')">
       <span class="ci">📡</span> Recon <span class="cat-count" id="count-recon">—</span>
     </div>
+    <div class="cat-item" data-cat="osint" onclick="setCategory(this,'osint')">
+      <span class="ci">🕵️</span> OSINT <span class="cat-count" id="count-osint">—</span>
+    </div>
     <div class="cat-item" data-cat="scanning" onclick="setCategory(this,'scanning')">
       <span class="ci">🔎</span> Scanning <span class="cat-count" id="count-scanning">—</span>
     </div>
@@ -531,6 +534,9 @@ function updateCounts(tools) {
     cats[p] = (cats[p]||0) + 1;
   });
   cats['all'] = tools.length;
+  // OSINT is a cross-cutting category (tools live under recon/subdomain/dns)
+  // so count it via the same predicate the filter uses.
+  cats['osint'] = tools.filter(isOsint).length;
   Object.entries(cats).forEach(([k,v]) => {
     const el = document.getElementById(`count-${k}`);
     if (el) el.textContent = v;
@@ -566,9 +572,27 @@ function onSearch(q) {
   }, 250);
 }
 
+// Tools that belong in the OSINT category. Matched by name because the
+// Phoenix registry scatters them across categories (osint, subdomain, dns,
+// osint_framework) — a single name set is more reliable than guessing
+// category strings. Mirrors the OSINT teach/mentor/usage coverage.
+const OSINT_TOOLS = new Set([
+  'subfinder','amass','dnsrecon','theharvester','sherlock','holehe',
+  'recon-ng','reconng','spiderfoot','maltego','sublist3r','fierce',
+  'dnsenum','assetfinder','whatweb','httpx','fierce'
+]);
+function isOsint(t) {
+  const n = (t.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if (OSINT_TOOLS.has(t.name?.toLowerCase()) || OSINT_TOOLS.has(n)) return true;
+  const cat = (t.category||'').toLowerCase();
+  return cat.includes('osint') || cat === 'subdomain' || cat === 'dns';
+}
+
 function applyFilters() {
   if (currentCat === 'all') {
     filtered = allTools;
+  } else if (currentCat === 'osint') {
+    filtered = allTools.filter(isOsint);
   } else {
     filtered = allTools.filter(t =>
       (t.phase||'').toLowerCase().includes(currentCat) ||

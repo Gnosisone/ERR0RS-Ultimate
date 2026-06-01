@@ -106,6 +106,49 @@ FIRST_MISSIONS = {
         ],
         "completion_message": "You've owned the login form manually AND scaled it with sqlmap. Next: try the JWT forge — alg:none — to escalate from customer to admin without re-injecting.",
     },
+
+    "osint_recon": {
+        "title": "Mission 03: OSINT & Passive Recon",
+        "description": "Build a target's external footprint using only passive, public-source intel — the quiet phase before you ever touch the target.",
+        # Safe teaching targets: example.com is IANA-reserved (never a real
+        # victim), scanme.nmap.org is explicitly authorized for scan practice.
+        "target": "example.com",
+        "steps": [
+            {
+                "id": 1,
+                "instruction": "Start passive — discover subdomains from public sources. The target never sees a packet:",
+                "command": "subfinder -d example.com -silent",
+                "what_it_does": "subfinder queries 30+ third-party sources (cert transparency logs, passive DNS) for subdomains. Because it never contacts the target's own servers, this is completely undetectable — the ideal first move.",
+                "what_to_look_for": "Each line is a subdomain. More subdomains = bigger attack surface. In a real engagement you'd validate each against your authorized scope before going further. Note any dev/staging/admin hostnames — those are where easy wins hide.",
+                "xp_reward": 30,
+            },
+            {
+                "id": 2,
+                "instruction": "Map what the organization owns — domains and IP blocks — with amass intel:",
+                "command": "amass intel -d example.com -whois",
+                "what_it_does": "amass intel pivots from one domain to related domains the same organization owns, using WHOIS data. This is how you turn 'one domain in scope' into the full picture of an org's internet presence.",
+                "what_to_look_for": "Related domains and registrant info. In scoping, this tells you the true size of the target. Remember: finding an asset does NOT mean it's authorized — you'd confirm each with the client before testing.",
+                "xp_reward": 35,
+            },
+            {
+                "id": 3,
+                "instruction": "Harvest public emails, names, and hosts tied to the domain:",
+                "command": "theHarvester -d example.com -b duckduckgo,crtsh,bing -l 50",
+                "what_it_does": "theHarvester scrapes search engines and public datasets for email addresses, employee names, and subdomains. Still fully passive — it pulls from third parties, never the target.",
+                "what_to_look_for": "The email FORMAT (first.last@ vs flast@) is the real prize — it's what you'd use to build a username list for later password spraying. Employee names feed the people-OSINT phase next.",
+                "xp_reward": 35,
+            },
+            {
+                "id": 4,
+                "instruction": "Pivot to people — check where a username exists across the web with sherlock:",
+                "command": "sherlock johndoe --timeout 10",
+                "what_it_does": "sherlock checks 400+ social/web platforms for a username. A reused handle links a person's accounts together, expanding your understanding of the human attack surface. Queries hit the SITES, not your target — silent.",
+                "what_to_look_for": "Confirmed profiles (verify manually — false positives happen). Bios and posts often leak more seed data: other handles, employer confirmation, location, tech they use. This is how OSINT compounds — each find seeds the next query.",
+                "xp_reward": 40,
+            },
+        ],
+        "completion_message": "That's the passive-recon phase end to end: infrastructure (subfinder/amass) AND people (theHarvester/sherlock) — all without touching the target. In a real engagement you'd now have a validated, in-scope target list and arrive at ACTIVE recon already knowing the answers. Type 'teach recon-theory' or 'teach engagement-lifecycle' to see where this fits in the bigger picture.",
+    },
 }
 
 

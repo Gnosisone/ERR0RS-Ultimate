@@ -981,6 +981,18 @@ LESSONS = {
         ],
         "next": ["amass", "httpx", "nmap", "whatweb"],
         "caution": "Subdomains found ≠ in scope. Validate each against authorization before active scanning.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Subdomains expose the org's attack surface — forgotten dev/staging hosts are where data leaks hide.",
+            "INTEGRITY — indirect. A discovered host is a future target whose compromise could enable tampering.",
+            "AVAILABILITY — none. Fully passive: queries public sources, never the target. Zero footprint, zero disruption.",
+        ],
+        "anatomy_cmd": "subfinder -d example.com -all -silent",
+        "anatomy": {
+            "subfinder":      "The binary.",
+            "-d example.com": "ROOT DOMAIN to enumerate. SOURCE: your scope document — the one piece of seed data every external engagement starts from.",
+            "-all":           "Use ALL data sources. Your thoroughness choice (slower, more results).",
+            "-silent":        "Output only subdomains — clean for piping into httpx/nmap. Your convenience flag.",
+        },
     },
 
     "amass": {
@@ -1005,6 +1017,18 @@ LESSONS = {
         ],
         "next": ["subfinder", "target-identification", "nmap", "httpx"],
         "caution": "-active / -brute send packets to the target. Confirm scope before using them.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Maps the full external footprint (subdomains, owned IP blocks) — the data-exposure surface.",
+            "INTEGRITY — indirect. Each discovered asset is a potential foothold for later tampering.",
+            "AVAILABILITY — mode-dependent. -passive = none. -active/-brute send DNS traffic to the target and are louder.",
+        ],
+        "anatomy_cmd": "amass enum -passive -d example.com",
+        "anatomy": {
+            "amass":          "The binary.",
+            "enum":           "SUBCOMMAND (mode). enum=find subdomains, intel=find owned domains/ASNs, viz=graph, db=query past runs. You pick by goal.",
+            "-passive":       "Stay third-party-only (undetectable). YOUR stealth choice; -active resolves against the target.",
+            "-d example.com": "ROOT DOMAIN. SOURCE: scope. For 'amass intel -org Acme' you'd instead give the company NAME to find what it owns.",
+        },
     },
 
     "dnsrecon": {
@@ -1028,6 +1052,18 @@ LESSONS = {
         ],
         "next": ["subfinder", "amass", "theHarvester", "nmap"],
         "caution": "DNS queries to the target's own name servers are semi-active and logged there.",
+        "cia": [
+            "CONFIDENTIALITY — primary. A zone transfer or rich record set leaks the org's internal map (hosts, mail, services).",
+            "INTEGRITY — indirect. Surfaced hosts become targets; misconfigured DNS can itself be a tampering vector.",
+            "AVAILABILITY — low. Queries hit the target's name servers (semi-active, logged there), but reading DNS doesn't disrupt it.",
+        ],
+        "anatomy_cmd": "dnsrecon -d example.com -t std",
+        "anatomy": {
+            "dnsrecon":       "The binary.",
+            "-d example.com": "DOMAIN to enumerate. SOURCE: scope, or a subdomain you already found.",
+            "-t std":         "ENUMERATION TYPE. std=safe record pull (start here), axfr=try zone transfer (jackpot if it works), brt=brute (needs -D wordlist), rvl=reverse over an IP range.",
+            "(name servers)": "IMPLICIT TARGET: the domain's authoritative NS, discovered automatically from the NS records — that's why std queries are semi-active.",
+        },
     },
 
     "theharvester": {
@@ -1051,6 +1087,19 @@ LESSONS = {
         ],
         "next": ["sherlock", "holehe", "recon-theory", "subfinder"],
         "caution": "Harvested PII (names, emails) is bound by privacy law. Use only for authorized engagements.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Emails, employee names, and hosts are exactly the data attackers use to target people.",
+            "INTEGRITY — indirect. The email FORMAT it reveals feeds the password-spray that later modifies systems.",
+            "AVAILABILITY — none. Scrapes search engines and public datasets; the target's infra is never contacted.",
+        ],
+        "anatomy_cmd": "theHarvester -d example.com -b bing,crtsh,duckduckgo -l 100",
+        "anatomy": {
+            "theHarvester":   "The binary.",
+            "-d example.com": "DOMAIN (or company name). SOURCE: scope. The thing you're profiling.",
+            "-b bing,crtsh,...": "DATA SOURCES to query. SOURCE: built-in list (bing/crtsh/duckduckgo/linkedin/hunter...). Each finds different data — 'all' is broadest. crtsh pulls subdomains from cert logs.",
+            "-l 100":         "LIMIT results per source. Your scope/speed dial.",
+            "(output)":       "What you're hunting: the email FORMAT (first.last@ vs flast@) — the prize that feeds hydra/crackmapexec later.",
+        },
     },
 
     "sherlock": {
@@ -1073,6 +1122,18 @@ LESSONS = {
         ],
         "next": ["holehe", "theHarvester", "recon-theory"],
         "caution": "Profiling real people is privacy-sensitive. Stay within engagement scope — public ≠ permission to stalk.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Links a person's accounts across the web, building the human-attack-surface picture.",
+            "INTEGRITY — indirect. Profile data feeds a convincing phishing pretext that could later trick someone into an integrity-breaking action.",
+            "AVAILABILITY — none. Queries the SITES, not your target's infrastructure. The target sees nothing.",
+        ],
+        "anatomy_cmd": "sherlock johndoe --timeout 10",
+        "anatomy": {
+            "sherlock":       "The binary.",
+            "johndoe":        "USERNAME to hunt. SOURCE: a handle from theHarvester, a LinkedIn/GitHub name, an email local-part, or a profile you already found. The seed for people-OSINT.",
+            "--timeout 10":   "Seconds per site. Your speed dial (default 60 is slow across 400+ sites).",
+            "(output)":       "Confirmed profiles — but VERIFY manually (false positives happen). Each hit's bio seeds the next query (other handles, employer, location).",
+        },
     },
 
     "holehe": {
@@ -1094,6 +1155,18 @@ LESSONS = {
         ],
         "next": ["sherlock", "theHarvester", "recon-theory"],
         "caution": "Enumerating someone's accounts is sensitive recon. Authorized engagements only — respect privacy law.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Reveals which services a person uses — the account map that widens the human attack surface.",
+            "INTEGRITY — indirect. Knowing where someone has accounts informs credential-stuffing that could later alter those accounts.",
+            "AVAILABILITY — none. Uses reset/registration flows on third-party sites; the target's own infra is never touched.",
+        ],
+        "anatomy_cmd": "holehe target@example.com --only-used",
+        "anatomy": {
+            "holehe":         "The binary.",
+            "target@example.com": "EMAIL to check. SOURCE: an address harvested by theHarvester, guessed from the email FORMAT + an employee name, or from a breach dump.",
+            "--only-used":    "Show only sites where the email IS registered. Your noise filter.",
+            "(quiet by design)": "KEY PROPERTY: uses flows that DON'T notify the owner — no password-reset email lands in their inbox. That's why it's safe recon.",
+        },
     },
 
     "recon-ng": {
@@ -1117,6 +1190,19 @@ LESSONS = {
         ],
         "next": ["spiderfoot", "theHarvester", "amass", "target-identification"],
         "caution": "Some modules do ACTIVE lookups (DNS, port checks). Know which before running against a scoped target.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Chains many sources into one workspace, building a deep data picture of the target.",
+            "INTEGRITY — indirect. The intel it gathers feeds later access attempts that could modify systems.",
+            "AVAILABILITY — module-dependent. Passive modules touch nothing; some modules do active DNS/port lookups. Know which before you run it.",
+        ],
+        "anatomy_cmd": "recon-ng -w acme → modules load recon/domains-hosts/hackertarget → run",
+        "anatomy": {
+            "recon-ng":       "The framework console (Metasploit-style).",
+            "-w acme":        "WORKSPACE name. SOURCE: you name it per engagement — isolates this client's data in its own DB.",
+            "modules load recon/domains-hosts/...": "MODULE to run. SOURCE: 'marketplace search' lists them; you pick by what you want (domains→hosts→ports→contacts).",
+            "options set SOURCE <domain>": "INPUT for the module. SOURCE: your scope domain, or results already in the workspace DB from a previous module (that's the chaining).",
+            "(API keys)":     "Many modules need 'keys add shodan_api ...' — sourced from your own free/paid API accounts.",
+        },
     },
 
     "spiderfoot": {
@@ -1139,6 +1225,18 @@ LESSONS = {
         ],
         "next": ["recon-ng", "amass", "theHarvester", "target-identification"],
         "caution": "Footprint/Investigate modes make active connections. Use Passive mode to stay undetectable.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Auto-correlates 200+ sources into one graph — the broadest data picture of a target.",
+            "INTEGRITY — indirect. Surfaced infra/leaks become the footholds for later integrity attacks.",
+            "AVAILABILITY — mode-dependent. Passive mode touches nothing; Footprint/Investigate make active connections to the target. Choose deliberately.",
+        ],
+        "anatomy_cmd": "spiderfoot -s example.com -t DOMAIN_NAME,EMAILADDR -q",
+        "anatomy": {
+            "spiderfoot":     "The binary (or -l host:port to drive the web UI instead).",
+            "-s example.com": "SCAN TARGET (a 'seed'). SOURCE: scope. The seed can be a domain, IP, email, or person's name — spiderfoot auto-pivots from it.",
+            "-t DOMAIN_NAME,EMAILADDR": "DATA TYPES to collect. Your focus filter — constrains the crawl so it doesn't wander.",
+            "(scan mode)":    "Pick deliberately: Passive (undetectable), Investigate, or Footprint (active, touches target). The seed TYPE + mode decide the noise.",
+        },
     },
 
 }

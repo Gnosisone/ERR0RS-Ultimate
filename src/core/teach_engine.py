@@ -176,6 +176,20 @@ LESSONS = {
         ],
         "next": ["hashcat (crack dumped hashes)", "database browsing (find useful tables)", "os-shell (if FILE priv)"],
         "caution": "--risk 3 and --level 5 can modify data and crash the application. Use carefully.",
+        "cia": [
+            "CONFIDENTIALITY — primary & severe. SQLi can dump entire databases — credentials, PII, secrets. This is the textbook confidentiality breach.",
+            "INTEGRITY — high. With write access (or --os-shell) an attacker can alter or delete records, not just read them.",
+            "AVAILABILITY — real risk. --risk 3 can issue destructive queries; a bad payload can corrupt or lock tables. Know the risk level you set.",
+        ],
+        "anatomy_cmd": "sqlmap -u 'http://target.com/page?id=1' -p id --dbs --batch",
+        "anatomy": {
+            "sqlmap":         "The binary.",
+            "-u 'http://target.com/page?id=1'": "TARGET URL with a parameter. SOURCE: a form/link found while browsing, gobuster path discovery, or a request captured in Burp (then use -r request.txt instead).",
+            "?id=1":          "The INJECTABLE PARAMETER in the URL. SOURCE: any user-controlled input — you identify it by spotting '?name=value' in links or form fields.",
+            "-p id":          "Tells sqlmap WHICH parameter to test ('id'). You name the one you suspect.",
+            "--dbs":          "Action — enumerate databases. Your goal-driven choice.",
+            "--batch":        "Auto-answer prompts. Your convenience flag.",
+        },
     },
 
     "hydra": {
@@ -204,6 +218,20 @@ LESSONS = {
         ],
         "next": ["ssh/rdp with found creds", "crackmapexec (test creds across network)", "evil-winrm (Windows WinRM)"],
         "caution": "Account lockout is real. Use -t 4 for SSH. Test with 1-2 passwords first on prod systems.",
+        "cia": [
+            "CONFIDENTIALITY — primary. A cracked login is direct unauthorized access to whatever that account can see.",
+            "INTEGRITY — high. Valid creds often mean the ability to change data or config, not just read it.",
+            "AVAILABILITY — direct threat. Online brute force triggers account lockouts — you can lock out real users (a self-inflicted DoS). This is why offline cracking (hashcat) is preferred when you have a hash.",
+        ],
+        "anatomy_cmd": "hydra -l admin -P rockyou.txt ssh://192.168.1.100 -t 4",
+        "anatomy": {
+            "hydra":          "The binary.",
+            "-l admin":       "USERNAME (single). SOURCE: enum4linux/theHarvester user lists, a login page, or a known default. Use -L users.txt for a list.",
+            "-P rockyou.txt": "PASSWORD LIST. SOURCE: rockyou (Kali ships it gzipped at /usr/share/wordlists/), SecLists, or a custom list from cewl scraped off the target site.",
+            "ssh://":         "PROTOCOL — must match a service nmap found open (ssh, ftp, rdp, http-post-form...).",
+            "192.168.1.100":  "TARGET host. SOURCE: nmap result. The service must actually be open on it.",
+            "-t 4":           "Threads — KEEP LOW for SSH (4) to avoid lockouts. Your safety dial.",
+        },
     },
 
     "nuclei": {
@@ -422,6 +450,19 @@ LESSONS = {
         ],
         "next": ["test cracked password against target", "credential stuffing (same pass other services)"],
         "caution": "Without a GPU, hashcat is very slow. Use john the ripper as CPU alternative.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Cracking a hash recovers the plaintext password, unlocking whatever that credential protects.",
+            "INTEGRITY — secondary. The recovered credential typically grants write access too, enabling data tampering downstream.",
+            "AVAILABILITY — none. Hashcat is 100% offline — it never touches the target. That's the OPSEC beauty: zero target-side noise, zero lockout risk.",
+        ],
+        "anatomy_cmd": "hashcat -m 1000 -a 0 hashes.txt rockyou.txt",
+        "anatomy": {
+            "hashcat":        "The binary.",
+            "-m 1000":        "HASH TYPE (mode). 1000 = NTLM. SOURCE: you identify it from WHERE the hash came — secretsdump→NTLM(1000), /etc/shadow→sha512crypt(1800), responder→NetNTLMv2(5600), WPA capture→22000. Wrong -m = it can't crack.",
+            "-a 0":           "ATTACK MODE. 0 = straight dictionary. Your strategy choice (0/3/6).",
+            "hashes.txt":     "THE HASHES to crack. SOURCE: sqlmap dump, impacket-secretsdump, responder capture, a leaked DB, or john-formatted /etc/shadow. One hash per line.",
+            "rockyou.txt":    "WORDLIST of guesses. SOURCE: rockyou (gunzip /usr/share/wordlists/rockyou.txt.gz first), SecLists, or a custom cewl list.",
+        },
     },
 
     "responder": {

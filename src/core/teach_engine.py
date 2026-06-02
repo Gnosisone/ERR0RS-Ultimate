@@ -50,6 +50,19 @@ LESSONS = {
         ],
         "next": ["nikto (web ports)", "enum4linux (SMB)", "hydra (found services)", "searchsploit (service versions)"],
         "caution": "SYN scans require root. -p- is slow — use -T4 or limit port range first.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Open ports + service versions expose the attack surface that protects (or leaks) private data.",
+            "INTEGRITY — secondary. A version you fingerprint may have a known RCE that lets an attacker alter data/systems.",
+            "AVAILABILITY — be careful. Aggressive timing (-T5) or -p- against fragile hosts can knock services over. You're testing C/I, not running a DoS.",
+        ],
+        "anatomy_cmd": "nmap -sV -sC -p- 192.168.1.100",
+        "anatomy": {
+            "nmap":           "The binary. Always the first token.",
+            "-sV":            "Flag — version detection. You CHOOSE this based on goal (enumeration).",
+            "-sC":            "Flag — default scripts. Your choice, adds common safe checks.",
+            "-p-":            "Flag — port range. '-' = all 65535. You decide scope vs speed.",
+            "192.168.1.100":  "TARGET (an IPv4 host). SOURCE: your scope document, or a host discovered via 'nmap -sn <CIDR>' ping sweep, or resolved from a hostname via DNS.",
+        },
     },
 
     "nikto": {
@@ -76,6 +89,19 @@ LESSONS = {
         ],
         "next": ["gobuster (path enum)", "sqlmap (if forms found)", "burp (manual testing)", "nuclei (template scan)"],
         "caution": "Nikto is loud — it will appear in IDS logs. Don't use without authorization.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Finds exposed files, backups, and info-leak headers that reveal data they shouldn't.",
+            "INTEGRITY — secondary. Flags outdated server software whose known bugs could let an attacker modify content.",
+            "AVAILABILITY — low. Nikto reads, it doesn't break things, but its request volume can stress tiny servers.",
+        ],
+        "anatomy_cmd": "nikto -h http://target.com -C all -maxtime 120",
+        "anatomy": {
+            "nikto":              "The binary.",
+            "-h":                 "Flag introducing the target host.",
+            "http://target.com":  "TARGET (a URL). SOURCE: a web port (80/443/8080) found by nmap, or a hostname/vhost from DNS / subfinder. The scheme (http vs https) comes from which port was open.",
+            "-C all":             "Flag value — check all plugin categories. Your choice.",
+            "-maxtime":           "Flag — time budget you set; 120 = stop after 2 minutes.",
+        },
     },
 
     "gobuster": {
@@ -104,6 +130,20 @@ LESSONS = {
         ],
         "next": ["ffuf (deeper fuzzing)", "curl/browser (inspect found paths)", "sqlmap (if forms)"],
         "caution": "High thread counts can crash fragile apps. Start with -t 10 on production.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Hidden paths (/admin, /backup, /.git) often expose data or controls never meant to be public.",
+            "INTEGRITY — secondary. A discovered upload or admin endpoint can become the door to altering the app.",
+            "AVAILABILITY — watch the threads. -t 50 against a fragile app is effectively a mini load test; you can take it down.",
+        ],
+        "anatomy_cmd": "gobuster dir -u http://target.com -w /usr/share/wordlists/dirb/common.txt -t 30 -q",
+        "anatomy": {
+            "gobuster":       "The binary.",
+            "dir":            "Mode (subcommand). 'dir' = path brute. You pick based on goal: dir/dns/vhost.",
+            "-u http://...":  "TARGET URL. SOURCE: a live web host from nmap, or a subdomain from subfinder/amass.",
+            "-w /usr/share/wordlists/dirb/common.txt": "WORDLIST (the guesses). SOURCE: ships with Kali (dirb), or from SecLists (/usr/share/seclists/Discovery/Web-Content/). Pick a list that matches the tech — bigger list = more coverage, slower.",
+            "-t 30":          "Threads — YOUR speed/safety dial. 30 is brisk for a lab.",
+            "-q":             "Quiet flag — your choice, shows only hits.",
+        },
     },
 
     "sqlmap": {
@@ -976,6 +1016,28 @@ def format_lesson(topic: str) -> str:
     lines.append("\n  READING THE OUTPUT:")
     for r in lesson['read']:
         lines.append(f"    • {r}")
+
+    # ── CIA TRIAD PLACEMENT (optional) ───────────────────────────────────
+    # Every tool/concept has a place in the Confidentiality-Integrity-
+    # Availability model. Naming it teaches students to articulate WHY a
+    # finding matters in business-risk terms (the language clients fund).
+    if lesson.get('cia'):
+        lines.append("\n  📐 CIA TRIAD PLACEMENT:")
+        for cline in lesson['cia']:
+            lines.append(f"    • {cline}")
+
+    # ── COMMAND ANATOMY (optional) ───────────────────────────────────────
+    # Breaks the typical command into its pieces and, crucially, tells the
+    # student WHERE each input comes from (the hostname from DNS, the
+    # wordlist from seclists, the hash from a capture, the SSID from a
+    # recon scan, etc.). This is the bridge from "copy the command" to
+    # "understand and build the command."
+    if lesson.get('anatomy'):
+        lines.append("\n  🧬 COMMAND ANATOMY — what each part is & where it comes from:")
+        lines.append(f"    $ {lesson.get('anatomy_cmd', lesson['typical'])}")
+        for part, meaning in lesson['anatomy'].items():
+            lines.append(f"    {part:<22} {meaning}")
+
     lines.append(f"\n  LOGICAL NEXT STEPS:  {', '.join(lesson['next'])}")
     if lesson.get('caution'):
         lines.append(f"\n  ⚠️  {lesson['caution']}")
@@ -994,5 +1056,21 @@ def format_lesson(topic: str) -> str:
             lines.append(mentor)
     except Exception:
         pass  # Mentor failure must never break a regular lesson
+
+    # ── CLOSING BLOCK — try it / questions / continue ────────────────────
+    # Every lesson ends the same way so students always know what to do
+    # next: (1) the ready-to-run command they can copy or that the UI can
+    # surface as a one-click run, (2) an invitation to ask follow-up
+    # questions (routes to the conversational LLM), and (3) a machine-
+    # readable marker the frontend turns into a "Continue / Next Lesson"
+    # button. The marker is parsed by the live-terminal renderer; if the
+    # UI isn't present it just reads as plain text.
+    try_cmd = lesson.get('try_cmd', lesson.get('typical', ''))
+    lines.append("")
+    lines.append(f"  ▶ TRY IT:  {try_cmd}")
+    lines.append(f"  💬 Questions? Ask me anything about {topic} — just type it.")
+    lines.append(f"  ⏭  Done? Type 'next' or tap Continue for the next lesson.")
+    # Hidden marker the FE keys on to render the Continue button + run-cmd.
+    lines.append(f"[[LESSON_CONTROLS topic={topic} try_cmd={try_cmd}]]")
 
     return "\n".join(lines)

@@ -35,7 +35,7 @@ from typing import List, Dict
 # Add parent to path so we can import core models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from core.models import (
+from src.core.models import (
     EngagementSession, Finding, ScanResult,
     Severity, PentestPhase, ReportConfig
 )

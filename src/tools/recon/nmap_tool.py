@@ -30,7 +30,7 @@ import time
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from core.models import Finding, Severity, PentestPhase
+from src.core.models import Finding, Severity, PentestPhase
 
 
 # Map common ports/services to severity and education tags

@@ -34,7 +34,7 @@ from datetime import datetime
 from typing import List, Dict, Optional, Callable
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from core.models import (
+from src.core.models import (
     EngagementSession, ScanResult, Finding,
     Severity, PentestPhase, ToolStatus
 )

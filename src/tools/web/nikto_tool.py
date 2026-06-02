@@ -33,7 +33,7 @@ import csv
 import io
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from core.models import Finding, Severity, PentestPhase
+from src.core.models import Finding, Severity, PentestPhase
 
 
 # Nikto severity mapping based on its internal categories

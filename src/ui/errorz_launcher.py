@@ -60,16 +60,26 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 UI_DIR   = Path(__file__).resolve().parent / "web"
 SRC_DIR  = ROOT_DIR / "src"
 
+# Only the repo ROOT goes on sys.path, so packages resolve under their proper
+# `src.*` names and nothing else. Putting src/ ITSELF on the path (the old
+# behavior) made every package under src/ importable under a SECOND bare name
+# too (e.g. `education_new.teach_engine` AND `src.education_new.teach_engine`),
+# which Python treats as two distinct modules. That dual namespace is what
+# caused the teach engine to execute twice at boot (the doubled "lessons
+# loaded" log lines) and is a latent split-state hazard. All formerly-bare
+# imports (`from core.models ...`, `from tools.module_registry ...`) have been
+# converted to `src.`-prefixed form, so src/ no longer needs to be on the path.
 if str(ROOT_DIR) not in sys.path: sys.path.insert(0, str(ROOT_DIR))
-if str(SRC_DIR)  not in sys.path: sys.path.insert(0, str(SRC_DIR))
 
 # ── Integration adapter — fixes module registry + wires all 25 tool entry points
 try:
-    from tools.integration_adapter import patch_registry
+    from src.tools.integration_adapter import patch_registry
     patch_registry()
 except Exception:
+    # Legacy fallback: bare import (only resolves if src/ is on sys.path,
+    # which it no longer is by default — kept for non-standard launch dirs).
     try:
-        from src.tools.integration_adapter import patch_registry
+        from tools.integration_adapter import patch_registry
         patch_registry()
     except Exception as _ia_e:
         print(f"[ERR0RS] Integration adapter warning: {_ia_e}")

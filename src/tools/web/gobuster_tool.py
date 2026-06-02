@@ -27,7 +27,7 @@ import time
 import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from core.models import Finding, Severity, PentestPhase
+from src.core.models import Finding, Severity, PentestPhase
 
 
 # Paths that are HIGH value when found

@@ -692,6 +692,17 @@ LESSONS = {
         ],
         "next": ["CIS Benchmarks (system hardening)", "NIST CSF (framework mapping)", "compliance report"],
         "caution": "CIS Controls are a starting point, not a guarantee. Threat model your specific environment.",
+        "cia": [
+            "ALL THREE — CIS is a defensive program covering the whole triad: CIS 3 (Data Protection) = Confidentiality, CIS 8 (Audit Logs) + CIS 11 (Recovery) = Integrity/Availability.",
+            "As an attacker, CIS tells you which pillar the defender invested in — gaps in their lowest-numbered missing control are your easiest path.",
+        ],
+        "apply": [
+            "Pre-engagement: ask the client which Implementation Group (IG1/2/3) they target. That one answer tells you their maturity instantly.",
+            "Map every finding you report to a specific CIS Control number — boards and risk officers understand 'violates CIS 5 (Account Management)'.",
+            "If they're CIS-aligned, assume Audit Logs (CIS 8) are on — favor quieter techniques and expect your actions to be recorded.",
+            "Read the CIS Benchmark for the target OS/app BEFORE testing — it's the blue team's hardening checklist, so it shows you exactly what they likely did and didn't lock down.",
+            "Use missing low-number controls as your attack priority: no asset inventory (CIS 1-2) means shadow IT; no patch mgmt (CIS 7) means old CVEs work.",
+        ],
     },
 
     "owasp": {
@@ -718,6 +729,17 @@ LESSONS = {
         ],
         "next": ["burp suite (manual web testing)", "nuclei owasp templates", "zap (automated scan)"],
         "caution": "OWASP is web-focused. Don't forget network, physical, and social engineering risks.",
+        "cia": [
+            "MAPS ACROSS THE TRIAD — each category hits a pillar: A01 Broken Access Control + A02 Crypto Failures = Confidentiality; A03 Injection + A08 Integrity Failures = Integrity; A05/A06 misconfig & old components can yield DoS = Availability.",
+            "Naming the pillar a web finding breaks is how you set its severity in the report.",
+        ],
+        "apply": [
+            "Use the Top 10 as a web-test CHECKLIST — walk each category against every endpoint so nothing gets skipped.",
+            "Tag every web finding with its OWASP ID (e.g. 'A03:2021 Injection') — it's the lingua franca clients and other testers expect.",
+            "Prioritize A01 (Broken Access Control) first — it causes the most real breaches; test IDOR by changing IDs/usernames in every request.",
+            "For A05 Misconfiguration, check default creds, verbose error pages, and exposed admin panels — fastest wins on most engagements.",
+            "Drive the test order from what whatweb/nuclei fingerprinted: old component → A06; login form → A07; URL fetch param → A10 SSRF (try 169.254.169.254).",
+        ],
     },
 
     "mitre": {
@@ -748,6 +770,17 @@ LESSONS = {
         ],
         "next": ["ATT&CK Navigator (visualization)", "MITRE D3FEND (defensive mapping)", "reporting"],
         "caution": "ATT&CK describes observed behaviors, not a complete list. Novel techniques won't be in it.",
+        "cia": [
+            "SPANS THE TRIAD by tactic — Collection/Exfiltration (TA0009/0010) attack Confidentiality; Defense Evasion + Impact-via-tampering attack Integrity; the Impact tactic (TA0040: ransomware, destruction) attacks Availability.",
+            "ATT&CK is the shared map between red and blue: you use it to pick techniques, they use it to build detections.",
+        ],
+        "apply": [
+            "Log the ATT&CK technique ID for every action you take during the engagement (e.g. T1110 for your hydra spray) — your report then maps 1:1 to a framework the client already tracks.",
+            "Open ATT&CK Navigator (free web tool) and color the techniques you used — instant visual coverage map for the report.",
+            "Before going loud, read the Detection section of the technique you're about to use — it tells you which logs will catch you, so you can choose a quieter sub-technique.",
+            "Use the Mitigations section in reverse: a control they're missing = a technique that will work.",
+            "Be specific with sub-techniques in findings: 'T1059.001 PowerShell', not just 'T1059 Execution' — precision is what separates a pro report from a student one.",
+        ],
     },
 
     "kill-chain": {
@@ -771,6 +804,17 @@ LESSONS = {
         ],
         "next": ["MITRE ATT&CK (more granular TTPs)", "diamond model (threat intel)", "IR planning"],
         "caution": "Kill Chain is linear — real attacks aren't. Use ATT&CK for non-linear mapping.",
+        "cia": [
+            "The chain is the ROUTE to a CIA breach — phase 7 (Actions on Objectives) is where the triad is actually hit (steal data = C, alter/ransom = I, destroy/DoS = A).",
+            "Phases 1-6 don't break the triad themselves; they're the setup. That's why defenders try to break the chain EARLY, before phase 7.",
+        ],
+        "apply": [
+            "Structure your engagement narrative by these 7 phases in the report — execs grasp 'we got to phase 6 undetected' instantly.",
+            "For each phase you completed, note what artifact you left (recon = log entries, delivery = email, installation = persistence mechanism) so the blue team knows where to look.",
+            "Identify which phase the defender is weakest at — most orgs defend Delivery (email/web filters) well but are blind at Exploitation and Installation.",
+            "Use it as a STOP-test: if you can show the chain breaks at an early phase (e.g. delivery blocked), that's a defensive win worth reporting, not a failure.",
+            "When the linear model doesn't fit (lateral movement, loops), switch to MITRE ATT&CK for the granular mapping and reference the kill chain only for the exec summary.",
+        ],
     },
 
     "cia": {
@@ -790,6 +834,17 @@ LESSONS = {
         ],
         "next": ["risk assessment", "threat modeling", "control mapping to framework"],
         "caution": "Some add a 4th: Non-repudiation (can't deny you did something). Check your scope.",
+        "cia": [
+            "THIS IS the triad — every other lesson's CIA section maps back here. Confidentiality = secrecy, Integrity = trustworthiness, Availability = uptime.",
+            "Every vulnerability you ever find breaks at least one of these three. Naming which one is the first step of writing the finding.",
+        ],
+        "apply": [
+            "For EVERY finding, write one sentence: 'This breaks ___ because ___.' (e.g. 'breaks Confidentiality because it dumps the user table'). That sentence becomes your impact statement.",
+            "Use the triad to set severity: a Confidentiality leak of public data is low; an Integrity break on financial records is critical. Same bug class, different pillar weight.",
+            "Translate to business language for execs: Confidentiality = 'data breach / lawsuit', Integrity = 'fraud / bad data', Availability = 'downtime / lost revenue'. That's what funds the fix.",
+            "Watch the trade-offs in your recommendations — adding MFA strengthens C but can hurt A (lockouts). Note the balance so your advice is realistic.",
+            "Apply it to your OWN engagement data too: are your notes encrypted (C), tamper-evident (I), and backed up (A)? You're a custodian of the client's secrets.",
+        ],
     },
 
     "incident-response": {
@@ -812,6 +867,17 @@ LESSONS = {
         ],
         "next": ["forensics (memory/disk imaging)", "threat hunting (find lateral movement)", "lessons learned report"],
         "caution": "Never eradicate before you have full scope — attacker may have 10 more backdoors.",
+        "cia": [
+            "IR exists to RESTORE the triad after a breach — Containment stops further Confidentiality loss, Eradication+Recovery rebuild Integrity and Availability.",
+            "As a red-teamer, understanding IR tells you the defender's reaction timeline — how fast they'll move from Detection to Containment once they spot you.",
+        ],
+        "apply": [
+            "Know the playbook you're up against: when you trip an alert, the SOC moves Detection → Containment fast. Plan your actions assuming a clock starts the moment you're noticed.",
+            "Phase 3 (Containment) is host isolation — if you have multiple footholds, expect them to be cut one at a time. Persistence across several hosts buys you survival time (and tests their thoroughness).",
+            "Test their Detection (phase 2) deliberately: do a noisy action and see if anyone responds. 'No detection in 48h' is a critical finding about their blue-team gap.",
+            "In purple-team mode, walk each phase WITH the defenders — show them exactly what your activity looked like in their logs so they tune Detection.",
+            "In your report, recommend tabletop exercises for the top scenarios you proved viable — that's the constructive, blue-team-helping close to an engagement.",
+        ],
     },
 
     "threat-modeling": {
@@ -834,6 +900,17 @@ LESSONS = {
         ],
         "next": ["risk register", "penetration test scoping", "security requirements in SDLC"],
         "caution": "Threat models go stale — update when architecture changes significantly.",
+        "cia": [
+            "STRIDE maps directly onto the triad: Info Disclosure = Confidentiality; Tampering + Spoofing + Repudiation = Integrity; Denial of Service = Availability; Elevation of Privilege = the master key to all three.",
+            "Threat modeling is how you decide WHICH pillar to attack (or defend) first for a given system.",
+        ],
+        "apply": [
+            "Start every engagement by sketching a data-flow diagram of the target — follow data from user → app → storage and back. Attacks live at the arrows.",
+            "Draw the trust boundaries explicitly (internet↔DMZ, app↔DB, user↔admin). Each boundary crossing is a place to test STRIDE.",
+            "Walk each component through all six STRIDE letters as a prompt: 'Can I spoof this? Tamper with it? ...' — it generates your test cases systematically.",
+            "Map each STRIDE threat you identify to a concrete tool: Spoofing→responder/JWT forge, Tampering→sqlmap/Burp, Info Disclosure→ffuf/nikto, EoP→linpeas. The model tells you what to run.",
+            "Do it BEFORE you start testing — a 20-minute threat model focuses the whole engagement and stops you from random unfocused scanning.",
+        ],
     },
 
     # ════════════════════════════════════════════════════════════════════
@@ -862,6 +939,17 @@ LESSONS = {
         ],
         "next": ["scoping", "target-identification", "recon-theory", "reporting"],
         "caution": "Skipping phase 1 (authorization) isn't a methodology shortcut — it's a federal crime (CFAA).",
+        "cia": [
+            "The lifecycle is HOW you safely probe a client's CIA posture — phases 3-5 test whether their Confidentiality, Integrity, and Availability actually hold under attack.",
+            "Phase 1 (authorization) is itself an Integrity control on YOU — it's the signed record that your actions are sanctioned, not criminal.",
+        ],
+        "apply": [
+            "Treat the phases as a checklist gate — do not advance to Exploitation (4) until Recon (2) and Scanning (3) have actually scoped the target. Rushing skips findings.",
+            "Budget your time like a pro: most of it goes to phases 1, 2, and 6 (scoping, recon, reporting) — not the 'hacking'. Beginners invert this and produce thin reports.",
+            "Let each phase feed the next concretely: recon output (subfinder/theHarvester) becomes scanning input (nmap), scanning output becomes exploitation targets.",
+            "Expect to LOOP: a post-ex foothold (phase 5) often reveals new hosts, sending you back to recon (2) on the internal network. Track that in your notes.",
+            "Map your ERR0RS missions to this: Mission 03 (OSINT) is phase 2, Mission 01 (recon) is phase 3, Mission 02 (SQLi) is phase 4 — the platform walks the lifecycle.",
+        ],
     },
 
     "scoping": {
@@ -885,6 +973,17 @@ LESSONS = {
         ],
         "next": ["target-identification", "engagement-lifecycle", "recon-theory"],
         "caution": "No signed authorization = no testing. Ever. This is the line between pentester and criminal.",
+        "cia": [
+            "Scoping protects the client's Availability — the ROE and testing window are what stop your test from accidentally taking down production.",
+            "It also protects the client's Confidentiality via the data-handling rules (what you may access, store, and how you destroy it), and YOUR integrity via the signed authorization.",
+        ],
+        "apply": [
+            "Before ANY packet: get a signed authorization from someone who actually owns the assets. Carry the get-out-of-jail letter. No signature = no test, full stop.",
+            "Build an explicit in-scope / out-of-scope list of IPs, domains, and apps. Paste it where you'll see it constantly so you never stray.",
+            "Confirm the ROE specifics in writing: is social engineering allowed? DoS testing? physical? After-hours only? Each 'yes/no' changes which tools you may run.",
+            "When you find a vuln that pivots OUT of scope, STOP and ask before following it — chasing it is the #1 way testers get into legal trouble.",
+            "For cloud assets, verify the PROVIDER's rules too (AWS/Azure/GCP have their own pentest policies) — the client's permission alone isn't always enough.",
+        ],
     },
 
     "target-identification": {
@@ -908,6 +1007,17 @@ LESSONS = {
         ],
         "next": ["subfinder", "amass", "theHarvester", "recon-theory"],
         "caution": "Finding an asset doesn't mean it's in scope. Validate ownership + authorization before active testing.",
+        "cia": [
+            "This phase defines the Confidentiality attack surface — every asset you enumerate is a place the org's data could leak from.",
+            "It's pure mapping, so it doesn't touch Integrity or Availability itself — but a complete map is what makes the LATER triad testing thorough.",
+        ],
+        "apply": [
+            "Start from the scope seed (a domain or company name) and expand outward: domains → subdomains (subfinder/amass) → IP ranges (ASN lookup at bgp.he.net) → live hosts → services.",
+            "Pull cert-transparency logs (crt.sh) first — they leak subdomains for free, passively, and often reveal dev/staging hosts.",
+            "Run an ASN lookup on the org to find every IP block they own — that's how one company name becomes a full network range to (in-scope) test.",
+            "Check whois history and acquisitions — BigCorp may own SmallCo's domains; those count too if scope says so.",
+            "CRITICAL gate: before any active scan, cross-check every discovered asset against your authorized scope list. Found ≠ authorized. Validate ownership first.",
+        ],
     },
 
     "recon-theory": {
@@ -930,6 +1040,17 @@ LESSONS = {
         ],
         "next": ["subfinder", "theHarvester", "sherlock", "target-identification"],
         "caution": "Passive recon is undetectable BUT still bound by scope and privacy law. Public ≠ permission to harass.",
+        "cia": [
+            "Recon attacks Confidentiality first — every passive source you exhaust (certs, DNS, leaks, social) pulls data the org exposed without realizing it.",
+            "Your OWN attribution is the Confidentiality concern on your side — active recon is logged and traceable; passive isn't. OPSEC is recon applied to yourself.",
+        ],
+        "apply": [
+            "ALWAYS start passive: search engines, crt.sh, DNS, social media, HaveIBeenPwned. Zero packets to the target means zero detection and zero attribution.",
+            "Exhaust passive before going active — a strong OSINT phase means you arrive at active recon already knowing the answers, so you make far less noise.",
+            "Treat the passive→semi-passive→active ladder as a noise dial: climb it only as far as you must. Each rung up is more findings but more traceability.",
+            "Harvest the high-value passive wins specifically: email format + employee names (feeds password spraying), leaked creds (devastating and free), tech fingerprints (tells you which exploits to prep).",
+            "When you must go active, proxy it (VPN/Tor/redirector) so the target can't trace recon back to you — and confirm scope allows it first.",
+        ],
     },
 
     "reporting": {
@@ -953,6 +1074,17 @@ LESSONS = {
         ],
         "next": ["cvss scoring", "engagement-lifecycle", "remediation retest"],
         "caution": "A finding with no evidence is an opinion. Always capture reproducible proof as you go.",
+        "cia": [
+            "The report's whole job is to translate every technical finding into CIA-and-business terms — that translation is what convinces a client to fund the fix.",
+            "Reporting protects the client's Confidentiality directly: the document itself contains their vulnerabilities, so handle, encrypt, and transmit it as the sensitive asset it is.",
+        ],
+        "apply": [
+            "Capture evidence AS YOU GO, never after — screenshot, save request/response pairs, copy command output the moment a finding lands. A finding with no proof is just an opinion.",
+            "Write each finding with: title, CIA impact, CVSS score + business context, affected assets, and EXACT reproduction steps a developer can follow.",
+            "Lead the executive summary with business risk in plain language ('an attacker could read all customer records'), not CVE numbers. Execs fund fixes, not jargon.",
+            "Make remediation specific — not 'patch it' but 'upgrade OpenSSL to 3.0.x and disable TLS 1.0 in nginx.conf'. Actionable fixes get implemented; vague ones get ignored.",
+            "In ERR0RS, type 'report' to auto-generate a professional report from your session — then refine the exec summary and business context by hand. The tool drafts; you judge.",
+        ],
     },
 
     # ════════════════════════════════════════════════════════════════════
@@ -1301,6 +1433,18 @@ def format_lesson(topic: str) -> str:
         lines.append(f"    $ {lesson.get('anatomy_cmd', lesson['typical'])}")
         for part, meaning in lesson['anatomy'].items():
             lines.append(f"    {part:<22} {meaning}")
+
+    # ── HOW TO APPLY (optional) ──────────────────────────────────────────
+    # For CONCEPT / framework / methodology lessons (CIA, OWASP, MITRE,
+    # kill-chain, engagement phases, etc.) there is no shell command to
+    # dissect — so instead of 🧬 COMMAND ANATOMY they carry 🛠️ HOW TO
+    # APPLY: concrete, operator-facing steps for turning the concept into
+    # action during a real engagement. This is the heart of why ERR0RS
+    # exists — teaching students to USE the knowledge, not just recite it.
+    if lesson.get('apply'):
+        lines.append("\n  🛠️  HOW TO APPLY — turning this into action on an engagement:")
+        for step in lesson['apply']:
+            lines.append(f"    • {step}")
 
     lines.append(f"\n  LOGICAL NEXT STEPS:  {', '.join(lesson['next'])}")
     if lesson.get('caution'):

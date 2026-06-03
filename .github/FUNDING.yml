@@ -1,0 +1,9 @@
+# GitHub Sponsors funding configuration for ERR0RS-Ultimate
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+#
+# Funds raised go toward training the ERR0RS local model — specifically
+# self-hosted training equipment so the model can be trained in-house
+# rather than relying on rented compute. ERR0RS is a free, fully-local,
+# open-source AI pentest teaching platform for students.
+
+github: Gnosisone

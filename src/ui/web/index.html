@@ -2434,6 +2434,99 @@ async function launchKillChain() {
   }
 }
 
+// ─── LESSON RENDERER ──────────────────────────────────────────────────────
+// Renders a full teach lesson into the live terminal and turns the hidden
+// [[LESSON_CONTROLS topic=.. try_cmd=..]] marker (emitted by teach_engine's
+// format_lesson) into a real button row: "▶ Try it" loads the command into
+// the operator input, "⏭ Continue" advances to the next lesson. This is what
+// makes the lesson flow work end-to-end inside the terminal the student is
+// looking at — no Operator Profile detour required.
+function renderLessonToTerminal(lessonText, topic) {
+  const MARKER = /^\[\[LESSON_CONTROLS\s+topic=(.*?)\s+try_cmd=(.*?)\]\]$/;
+  const lines = String(lessonText).split('\n');
+  let controls = null;
+
+  lines.forEach(line => {
+    const m = line.match(MARKER);
+    if (m) {
+      // Capture the marker data; don't print the raw marker.
+      controls = { topic: (m[1] || topic || '').trim(), tryCmd: (m[2] || '').trim() };
+      return;
+    }
+    ltpWrite(line, 'teach-block');
+  });
+
+  // Build the interactive control row in place of the marker.
+  if (controls) {
+    const row = document.createElement('div');
+    row.className = 'ltp-line lesson-controls';
+    row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px;';
+
+    // ▶ Try it — drop the ready-to-run command into the operator input
+    // (does NOT auto-run; the student reads it, then hits Send — keeps the
+    //  human in the loop, which matters for commands that touch a target).
+    // Only shown when try_cmd looks like an ACTUAL command (tool lessons),
+    // not a conceptual "typical" line (concept lessons like CIA/OWASP, whose
+    // typical is prose like "Frame every decision around..."). Heuristic: a
+    // real command's first token is a lowercase binary name, often with a
+    // flag (-) or path (/). Prose starts with a capitalized word.
+    const tc = controls.tryCmd || '';
+    const firstTok = tc.split(/\s+/)[0] || '';
+    const looksLikeCommand = tc.length > 0
+      && /^[a-z][a-z0-9._-]*$/.test(firstTok)            // lowercase binary-ish first token
+      && (tc.includes(' -') || tc.includes('/') || tc.includes('-')
+          || ['msfconsole','recon-ng','spiderfoot'].includes(firstTok));
+    if (looksLikeCommand) {
+      const tryBtn = document.createElement('button');
+      tryBtn.className = 'lesson-ctl-btn try';
+      tryBtn.textContent = '▶ Try it';
+      tryBtn.title = controls.tryCmd;
+      tryBtn.style.cssText = 'background:var(--cyan,#00d4ff);color:#001018;border:none;'
+        + 'padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;';
+      tryBtn.onclick = () => {
+        const inp = document.getElementById('op-chat-input');
+        if (inp) { inp.value = controls.tryCmd; inp.focus(); }
+        ltpWrite(`▶ Loaded: ${controls.tryCmd}  — review it, then hit Send.`, 'system');
+      };
+      row.appendChild(tryBtn);
+    }
+
+    // 💬 Ask a question — prime the input with "explain: <topic> "
+    const askBtn = document.createElement('button');
+    askBtn.className = 'lesson-ctl-btn ask';
+    askBtn.textContent = '💬 Questions?';
+    askBtn.style.cssText = 'background:transparent;color:var(--text,#cfe);'
+      + 'border:1px solid var(--border,#2a3a4a);padding:6px 14px;border-radius:6px;'
+      + 'cursor:pointer;font-size:13px;';
+    askBtn.onclick = () => {
+      const inp = document.getElementById('op-chat-input');
+      if (inp) { inp.value = `explain: ${controls.topic} `; inp.focus(); }
+    };
+    row.appendChild(askBtn);
+
+    // ⏭ Continue — advance to the next unread lesson. Reuses the existing
+    // continueLessons() so the X/N progress counter stays in sync.
+    const contBtn = document.createElement('button');
+    contBtn.className = 'lesson-ctl-btn continue';
+    contBtn.textContent = '⏭ Continue';
+    contBtn.style.cssText = 'background:var(--purple,#7b2fbe);color:#fff;border:none;'
+      + 'padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;';
+    contBtn.onclick = () => {
+      if (typeof window.continueLessons === 'function') {
+        window.continueLessons();
+      } else {
+        sendToOperator('next');
+      }
+    };
+    row.appendChild(contBtn);
+
+    ltpOutput.appendChild(row);
+    ltpOutput.scrollTop = ltpOutput.scrollHeight;
+  }
+
+  addIntel('[ERR0RS LESSON]', `${topic || 'lesson'} — loaded in live terminal`, 'info');
+}
+
 // ─── ERR0RS OPERATOR CHAT ─────────────────────────────────────────────────
 async function sendToOperator(msg) {
   const input = document.getElementById('op-chat-input');
@@ -2471,8 +2564,19 @@ async function sendToOperator(msg) {
                         : 'var(--text-dim)';
     }
 
-    // Only show reply in fallback (non-streaming) mode; streaming arrives via chat_token WS events
-    if (data.reply && !data.findings && data.status !== 'streaming') {
+    // ── Lesson response: render the FULL lesson into the live terminal ──
+    // The teach path returns the complete lesson text in `data.lesson`.
+    // We render it straight from this HTTP response (NOT via the narrator
+    // WS broadcast) so there's no race: clicking "Continue Lessons" opens
+    // the terminal and fires this fetch, and the lesson appears here
+    // regardless of whether the WS subscriber has connected yet. This is
+    // the fix for the lesson printing to the launcher stdout instead of
+    // the xterm the student is looking at.
+    if (data.lesson) {
+      renderLessonToTerminal(data.lesson, data.topic);
+    } else if (data.reply && !data.findings && data.status !== 'streaming') {
+      // Only show reply in fallback (non-streaming) mode; streaming arrives
+      // via chat_token WS events.
       ltpWrite(`[ERR0RS] ${data.reply}`, 'narrator');
     }
   } catch(e) {

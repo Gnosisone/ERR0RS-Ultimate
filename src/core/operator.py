@@ -163,6 +163,9 @@ class Operator:
         if action == "teach":
             return self._teach(intent.get("topic"))
 
+        if action == "next_lesson":
+            return self._next_lesson()
+
         if action == "report":
             return self._generate_report()
 
@@ -465,9 +468,20 @@ class Operator:
             self.say(msg, "narrator")
             return {"status": "ok", "reply": msg}
         lesson_text = teach_engine.format_lesson(topic)
-        # Broadcast line-by-line so the live terminal renders it cleanly
-        for line in lesson_text.splitlines():
-            self.say(line, "narrator")
+        # NOTE: we intentionally do NOT broadcast the lesson line-by-line over
+        # the narrator WS channel anymore. Doing so caused two field bugs:
+        #   1. RACE: when the lesson was triggered by opening the live terminal
+        #      (e.g. the "Continue Lessons" button), the WS subscriber wasn't
+        #      connected yet, so the broadcast lines were emitted to nothing —
+        #      the lesson "printed" only to the launcher's stdout, never the
+        #      xterm the student was looking at.
+        #   2. DOUBLE-PRINT: when the WS *was* connected, the lesson rendered
+        #      twice (once per line via narrator, plus the HTTP reply).
+        # The full lesson is returned synchronously in the HTTP response below
+        # as `lesson`; the frontend renders it straight into the live terminal,
+        # which has no race and no duplication. A single short narrator ping
+        # keeps the intel feed informed without spamming the terminal.
+        self.say(f"📖 Lesson: {topic}", "narrator")
 
         # ── Mark the lesson as completed ────────────────────────────────────
         # The user has now SEEN the lesson — that's "completion" for our
@@ -490,7 +504,31 @@ class Operator:
 
         # Summary return for HTTP caller
         first_line = lesson_text.splitlines()[0] if lesson_text else "no lesson"
-        return {"status": "ok", "reply": first_line, "lesson": lesson_text}
+        return {"status": "ok", "reply": first_line, "lesson": lesson_text,
+                "topic": topic, "kind": "lesson"}
+
+    def _next_lesson(self):
+        """Advance the teaching flow: teach the next unread topic.
+
+        Backs the 'next'/'continue' command and the live-terminal Continue
+        button. Uses the same next-unread selection as the skill panel so the
+        X/N progress counter stays consistent across both entry points.
+        """
+        topic = None
+        try:
+            from src.core.operator_profile import get_lesson_state
+            ls = get_lesson_state()
+            topic = ls.get("next_unread")
+        except Exception as _le:
+            log.debug(f"next_lesson state lookup failed: {_le}")
+        if not topic:
+            # Either everything is done, or state is unavailable — fall back
+            # to the first topic the user hasn't obviously seen. If lessons
+            # are all complete, celebrate rather than erroring.
+            msg = "🎓 All lessons complete — you've covered every topic. Type 'teach <topic>' to review any of them."
+            self.say(msg, "narrator")
+            return {"status": "ok", "reply": msg, "all_complete": True}
+        return self._teach(topic)
 
     def _juice_shop(self, sub, challenge_id=None):
         """Handle Juice Shop CTF commands."""

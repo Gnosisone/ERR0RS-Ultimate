@@ -170,6 +170,14 @@ def _fast_parse(text, state=None):
     text = text.strip()
     low = text.lower()
 
+    # Lesson advancement — "next" / "continue" / "next lesson" advance the
+    # teaching flow. Caught here at the top so it routes instantly instead of
+    # falling through to the 30s LLM classifier (which would time out and
+    # dead-end to chat). Mirrors the "▶ Continue" button in the live terminal.
+    if low in ("next", "continue", "next lesson", "next topic",
+               "continue lessons", "keep going"):
+        return {"action": "next_lesson", "confidence": 0.99}
+
     for pat, action in CONTROL_PATTERNS:
         m = pat.match(text)
         if not m: continue

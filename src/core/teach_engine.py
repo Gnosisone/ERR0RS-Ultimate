@@ -19,6 +19,228 @@
 LESSONS = {
 
     # ══════════════════════════════════════════════════════════════
+    # FUNDAMENTALS — how the machine actually works
+    # The on-ramp every tool lesson assumes. Concept lessons (no single
+    # binary), so they carry CIA placement + 🛠️ SEE IT YOURSELF hands-on
+    # commands (via the 'apply' field) the student runs on their own box
+    # to OBSERVE the concept — with the security angle made explicit.
+    # ══════════════════════════════════════════════════════════════
+
+    "linux-basics": {
+        "summary": "Why Linux runs security — and the map of where everything lives on the system",
+        "typical": "ls -la /     # look at the top-level filesystem map",
+        "flags": {
+            "Why Linux":     "Open source + full control over processes/networking. nmap, burp, metasploit, gdb are all Linux-first.",
+            "/ (root)":      "The top of everything. Linux has ONE tree, not C:/D: drives — every disk mounts somewhere under /.",
+            "/etc":          "System config + the user/password files. Where you look first to understand a box.",
+            "/home, /root":  "User home dirs; /root is the superuser's home. Loot and dotfiles live here.",
+            "/var, /tmp":    "/var/log = the logs that record you; /tmp = world-writable scratch space (sticky bit).",
+            "/bin, /sbin":   "The binaries — the actual commands. /usr/bin too. Where tools and LOLBins live.",
+            "/proc, /dev":   "Virtual filesystems: /proc = live kernel + process data; /dev = device files.",
+        },
+        "read": [
+            "Everything in Linux is a file — devices, processes, sockets. That's why /proc and /dev are so powerful.",
+            "You can't understand a target until you know this map — configs in /etc, logs in /var/log, loot in /home.",
+            "There are no drive letters. One root (/), and storage 'mounts' into the tree at a path.",
+            "The same five commands (ls, cd, cat, grep, find) get you 80% of exploration.",
+            "Knowing WHERE things live is half of post-exploitation — you navigate fast because you know the map.",
+        ],
+        "next": ["the-shell", "filesystems", "permissions", "processes"],
+        "caution": "Exploring your own box is free and safe. The same commands on a client system are only OK in scope.",
+        "cia": [
+            "Linux IS the enforcement layer for all three pillars — file permissions (C/I), process isolation (I), and network controls (A) are all kernel features you're about to learn.",
+            "Understanding the OS is what lets you reason about HOW a finding breaks the triad, not just THAT it does.",
+        ],
+        "apply": [
+            "Run `ls -la /` and read the top-level dirs out loud — name what each is for. That map is your mental model for every box you ever touch.",
+            "`cat /etc/os-release` to identify the exact distro+version — the first thing you'd note on a target (it tells you which exploits apply).",
+            "`cat /etc/passwd` — every account on the system, world-readable. Note which have real shells (/bin/bash) vs nologin. This is recon you can do on your own box right now.",
+            "`ls -la /var/log/` — these are the files that record what you do. Knowing they exist is step one of understanding detection.",
+            "`which nmap` then `ls -la $(which nmap)` — find a tool's actual binary and see its permissions. Everything is a file with an owner and rights.",
+        ],
+        "try_cmd": "ls -la /",
+    },
+
+    "the-shell": {
+        "summary": "The command line itself — commands, pipes, redirection: how you chain power together",
+        "typical": "cat /etc/passwd | grep -v nologin | cut -d: -f1",
+        "flags": {
+            "command args":  "Every line is: a binary, then flags/arguments. `ls -la /home` = run ls, options -la, on /home.",
+            "| (pipe)":      "Send one command's OUTPUT into the next command's INPUT. The core of Unix power.",
+            "> and >>":      "> writes output to a file (overwrites); >> appends. `nmap ... > scan.txt`.",
+            "2> and &>":     "2> redirects ERRORS (stderr); &> both. `find / ... 2>/dev/null` hides permission-denied noise.",
+            "* ? [ ]":       "Wildcards (globbing): * = any chars, ? = one char. `ls *.txt`. The SHELL expands these, not the command.",
+            "$(...)":        "Command substitution — run a command and use its output inline: `cat $(which python3)`.",
+            "&& and ;":      "&& = run next only if this succeeds; ; = run next regardless. Chaining steps.",
+        },
+        "read": [
+            "A pipeline is read left-to-right: each | hands the previous output to the next tool. That's how you filter scan output.",
+            "`2>/dev/null` is everywhere in pentest commands — it throws away the 'Permission denied' spam so you see real results.",
+            "Wildcards are expanded by the shell BEFORE the command runs — that's why quoting matters in payloads.",
+            "Redirection (>) is how you save tool output for your report. Get in the habit early.",
+            "The pipe is why Unix tools are small: each does one thing, and you compose them. subfinder | httpx | nmap is this idea.",
+        ],
+        "next": ["filesystems", "linux-basics", "grep / find usage", "nmap"],
+        "caution": "A stray `>` overwrites files silently. Double-check redirection targets before hitting Enter.",
+        "cia": [
+            "The shell is neutral — but it's the INTERFACE through which every confidentiality (read), integrity (write/modify), and availability (kill/start) action is performed.",
+            "Redirection and pipes are how attackers move and stage data — understanding them is understanding exfiltration mechanics.",
+        ],
+        "apply": [
+            "Build a pipeline on your own box: `cat /etc/passwd | grep -v nologin | cut -d: -f1` — every real-shell username, extracted. You just did credential recon with three piped tools.",
+            "See redirection work: `ls -la / > /tmp/root.txt` then `cat /tmp/root.txt`. You captured output to a file — exactly how you'd save scan results.",
+            "Watch stderr filtering: run `find / -name id_rsa` (lots of 'Permission denied'), then `find / -name id_rsa 2>/dev/null` — clean. That `2>/dev/null` is in nearly every find-based loot hunt.",
+            "Try command substitution: `file $(which bash)` — finds bash's path AND inspects it in one line.",
+            "Glob safely: `ls /etc/*.conf` lists config files. The shell expanded `*` to every match before ls ran.",
+        ],
+        "try_cmd": "cat /etc/passwd | grep -v nologin | cut -d: -f1",
+    },
+
+    "filesystems": {
+        "summary": "How data is actually stored — inodes, links, paths, and the /proc window into the kernel",
+        "typical": "ls -lai /etc/passwd     # see the inode number + metadata",
+        "flags": {
+            "inode":         "The real file. Metadata (owner, perms, timestamps) + pointers to data blocks. The NAME is just a label pointing at an inode.",
+            "absolute path": "Starts from root: /etc/passwd. Unambiguous from anywhere.",
+            "relative path": ". = here, .. = parent. `../../../etc/passwd` — the basis of path-traversal attacks.",
+            "hard link":     "A second NAME for the same inode. Delete the original name, data survives via the link.",
+            "symlink (ln -s)":"A pointer FILE that holds another path. Can dangle (point at nothing) or cross filesystems.",
+            "mount":         "Attaching a disk/share into the tree at a path. `mount`, /etc/fstab. Storage isn't a drive letter — it's a location.",
+            "/proc/[pid]/":  "A live window into a running process: cmdline, environ, fd/, maps. Not real files — kernel data as files.",
+        },
+        "read": [
+            "A filename is NOT the file — it's a directory entry pointing at an inode. That's why hard links and 'deleted but still open' files work.",
+            "`..` is the whole reason directory traversal exists: ../../../ walks UP out of the web root toward /etc/passwd.",
+            "/proc/self/environ can leak secrets (API keys, DB passwords passed as env vars) — a favorite target of LFI/traversal.",
+            "Deleting a file only removes one name + frees the inode IF no other name or open handle remains — forensic recovery exploits this.",
+            "/proc/[pid]/maps shows a process's memory layout — the prelude to understanding buffer overflows.",
+        ],
+        "next": ["permissions", "the-shell", "gobuster", "directory traversal"],
+        "caution": "Reading /proc and your own files is safe. Reading another user's /proc/[pid]/environ needs privilege — that's the security boundary.",
+        "cia": [
+            "The filesystem is the primary CONFIDENTIALITY surface — every file has an owner and permission bits deciding who reads it.",
+            "INTEGRITY lives here too: write access to the wrong file (a cron script, authorized_keys, a config) = the ability to alter the system.",
+            "Path traversal and LFI are filesystem attacks — they abuse the path model (..) to read files outside the intended directory.",
+        ],
+        "apply": [
+            "See an inode: `ls -lai /etc/passwd` — the first number is the inode. The name is just a label on it.",
+            "Prove the name-vs-file split: `echo secret > a.txt; ln a.txt b.txt; rm a.txt; cat b.txt` — data survives because b.txt points at the same inode. That's forensic recovery in four commands.",
+            "Read live process metadata (the traversal/LFI payoff): `cat /proc/self/cmdline | tr '\\0' ' '; echo; cat /proc/self/environ | tr '\\0' '\\n'` — see your own process's args and environment. THIS is what `?file=../../../proc/self/environ` steals on a vulnerable web app.",
+            "Walk a path manually: `cd /etc && cd ../etc/../home && pwd` — watch `..` move you up the tree. Now you understand `../../../etc/passwd`.",
+            "List a process's open files: `ls -la /proc/self/fd` — every fd is a symlink to what it points at (files, sockets, pipes).",
+        ],
+        "try_cmd": "ls -lai /etc/passwd",
+    },
+
+    "permissions": {
+        "summary": "The core Unix security model — who can read, write, and execute what (and the SUID trap)",
+        "typical": "ls -la /etc/shadow     # see owner, group, and the rwx bits",
+        "flags": {
+            "rwx":           "read / write / execute — three permissions, for three classes: user, group, other. `-rwxr-xr--`.",
+            "user/group/other":"The three triplets in `ls -l`. Owner, the file's group, everyone else.",
+            "octal (chmod)": "Numeric mode: r=4 w=2 x=1, summed per triplet. 755=rwxr-xr-x, 644=rw-r--r--, 600=owner-only.",
+            "dir execute":   "On a DIRECTORY, x means 'may traverse into it'. No x on a dir = can't cd in even if you can read it.",
+            "SUID (4000)":   "setuid: the binary runs as its OWNER, not you. A SUID-root binary runs as root — THE classic privesc vector.",
+            "SGID / sticky": "SGID = run as group / inherit group; sticky bit (/tmp) = only the owner can delete their files.",
+            "chmod/chown":   "chmod changes permission bits; chown changes the owner (needs root). The two levers of access.",
+        },
+        "read": [
+            "UID 0 is root — total power. The whole game of privesc is getting from your UID to UID 0.",
+            "SUID is the #1 thing to enumerate on a box: a SUID-root binary with a flaw = instant root. linpeas hunts these for you.",
+            "/etc/passwd is world-readable (account list); /etc/shadow is root-only (the hashes). That split IS the access model in action.",
+            "'Permission denied' is the kernel enforcing this model — every exploit is ultimately about getting around one of these bits.",
+            "A writable config, cron script, or authorized_keys file is as dangerous as a SUID binary — write access = integrity break.",
+        ],
+        "next": ["linpeas", "processes", "hashcat", "filesystems"],
+        "caution": "chmod 777 'to make it work' is the most common real-world misconfiguration — and a finding you'll report constantly.",
+        "cia": [
+            "Permissions ARE the Confidentiality + Integrity enforcement mechanism of the OS — read bits guard C, write bits guard I.",
+            "Privilege escalation is, by definition, a permissions failure: crossing from your rights to higher rights you weren't granted.",
+            "SUID is where the model is deliberately bent (run as owner) — which is exactly why it's the most-abused misconfiguration.",
+        ],
+        "apply": [
+            "Read the model directly: `ls -la /etc/passwd /etc/shadow` — note passwd is world-readable (r for other), shadow is not. The kernel enforces that gap.",
+            "Hunt SUID binaries exactly like an attacker: `find / -perm -4000 -type f 2>/dev/null` — every result runs as its owner. Cross-check each against GTFOBins; that's the privesc workflow linpeas automates.",
+            "Decode octal yourself: `stat -c '%a %n' /etc/shadow` shows the numeric mode. Translate it (640 = rw-r-----) and predict who can read it. Then verify with `ls -la`.",
+            "See the directory-execute rule: `mkdir t; chmod 600 t; cd t` fails — no x means no traversal, even though you can read it. `chmod 700 t; cd t` works.",
+            "Watch ownership matter: `touch f; ls -la f` (you own it), then try `chown root f` (denied — only root reassigns ownership). That denial IS the boundary.",
+        ],
+        "try_cmd": "find / -perm -4000 -type f 2>/dev/null",
+    },
+
+    "processes": {
+        "summary": "Programs in execution — PIDs, the parent/child tree, memory layout, and signals",
+        "typical": "ps aux     # every running process: owner, PID, command",
+        "flags": {
+            "PID / PPID":    "Process ID and Parent PID. Every process has a parent — they form a tree rooted at PID 1 (init/systemd).",
+            "fork/exec":     "How processes are born: fork() copies the parent, exec() replaces it with a new program. A shell running a command IS fork+exec.",
+            "ps aux / top":  "ps aux = snapshot of all processes; top/htop = live view. First column is the owner — WHO a process runs as.",
+            "memory layout": "Each process has: text (code), data, heap (grows up, malloc), stack (grows down, local vars + return addresses).",
+            "signals":       "Messages to a process: SIGTERM(15)=ask to stop, SIGKILL(9)=force kill, SIGSEGV(11)=segfault. `kill -9 PID`.",
+            "real vs effective UID":"Who you ARE vs who you're RUNNING AS. SUID makes them differ — that's how a SUID-root binary acts as root.",
+            "&  nohup  systemd":"Backgrounding: & detaches, nohup survives logout, systemd/cron run things without you. Where persistence lives.",
+        },
+        "read": [
+            "The process owner (ps aux first column) decides what it can touch — a root process is a root-level target if you can hijack it.",
+            "/proc/[pid]/maps shows a process's memory regions — stack, heap, libraries. This is the foundation under buffer overflows.",
+            "Real vs effective UID is the SUID mechanism: your real UID is you, the effective UID is root — that mismatch is the privesc.",
+            "Persistence almost always = a process that restarts: a cron job, a systemd unit, a backgrounded reverse shell.",
+            "A zombie (defunct) process has exited but the parent hasn't reaped it; an orphan's parent died and init adopts it.",
+        ],
+        "next": ["linpeas", "netcat", "permissions", "metasploit"],
+        "caution": "kill -9 on the wrong PID can crash a service. On a client box, know what a process IS before you signal it.",
+        "cia": [
+            "Processes are the INTEGRITY/Availability surface — a process runs with an owner's rights, so hijacking one inherits those rights (integrity), and killing one removes a service (availability).",
+            "The real-vs-effective-UID model is the exact mechanism privilege escalation abuses.",
+            "A reverse shell, a persistence daemon, a crashed service — all are process-level events. Detection (blue team) watches process spawns closely.",
+        ],
+        "apply": [
+            "See who runs what: `ps aux | head -20` — read the first column (owner). Spot the root processes; those are the high-value hijack targets.",
+            "Walk the process tree: `ps -ejH | head -40` or `pstree -p` — watch everything descend from PID 1. fork/exec made every one of those.",
+            "Inspect a live process like an attacker: `cat /proc/$$/cmdline | tr '\\0' ' '; echo` ($$ = your shell's PID), then `ls -la /proc/$$/fd` to see its open files/sockets.",
+            "See the memory map (overflow prelude): `cat /proc/self/maps` — identify the stack, heap, and loaded libraries. This is literally what exploit devs read.",
+            "Practice signals safely: `sleep 300 &` (background a process, note the PID), `ps aux | grep sleep`, then `kill PID`. You just controlled a process's lifecycle.",
+        ],
+        "try_cmd": "ps aux",
+    },
+
+    "networking": {
+        "summary": "The attack surface itself — how machines talk: layers, ports, TCP/UDP, sockets, and listeners",
+        "typical": "ss -tulpn     # every listening port + the process behind it",
+        "flags": {
+            "OSI / TCP-IP":  "Layers: L2 Ethernet/MAC, L3 IP (addresses + routing), L4 TCP/UDP (ports), L7 app (HTTP, DNS, SSH).",
+            "IP address":    "L3 identity of a host. `ip a` shows yours. A target's IP comes from DNS resolution or a scope list.",
+            "port":          "L4 address of a SERVICE on a host. 22=SSH, 80=HTTP, 443=HTTPS, 445=SMB, 3306=MySQL. Open port = a way in.",
+            "TCP handshake": "SYN → SYN-ACK → ACK to connect; FIN/RST to close. nmap -sS sends SYN and watches the reply.",
+            "UDP":           "No handshake — fire and forget. Faster, spoofable, used by DNS(53), SNMP(161), NTP(123).",
+            "socket":        "An endpoint = IP + port. socket→bind→listen→accept (server) vs socket→connect (client). nc is this by hand.",
+            "ss / firewall": "ss -tulpn lists listeners; iptables/nftables allow or deny by rule. A firewall is just a packet filter.",
+        },
+        "read": [
+            "An open port is a listening process — `ss -tulpn` ties the port to the PID. That's the bridge between networking and processes.",
+            "The TCP handshake is why SYN scans work: nmap sends SYN, an open port replies SYN-ACK, and nmap knows it's open without finishing.",
+            "Ports below 1024 need root to bind — that's why a reverse shell on 443 looks legit AND requires privilege to listen there.",
+            "A reverse shell is just a socket: the victim connects OUT to your listener (nc -lvnp), bypassing inbound firewall rules.",
+            "Knowing well-known ports lets you read an nmap scan instantly: 445 open = SMB = try enum4linux; 3306 = MySQL = try creds.",
+        ],
+        "next": ["nmap", "netcat", "wireshark", "the-shell"],
+        "caution": "Listening services and scans are fine on your own network. On any other network, that's active recon — scope only.",
+        "cia": [
+            "Networking is the AVAILABILITY pillar's home turf — services must be reachable (uptime), and DoS attacks live here.",
+            "It's also the delivery path for Confidentiality/Integrity attacks: data exfiltrates over sockets, exploits arrive over ports.",
+            "Every remote attack crosses the network — understanding ports, sockets, and the handshake is understanding the attack surface itself.",
+        ],
+        "apply": [
+            "See your own attack surface: `ss -tulpn` — every listening port and the process behind it. This is exactly what an nmap scan of your box would reveal to an attacker.",
+            "Find your IP (the LHOST for any reverse shell): `ip a` — note the inet address on your active interface. That's what you put in a payload's callback.",
+            "Build a socket by hand (the netcat lesson, previewed): in one terminal `nc -lvnp 4444` (a listener = bind+listen+accept), in another `nc 127.0.0.1 4444` (a client = connect). Type — you've made a raw TCP channel.",
+            "Watch the handshake: `sudo tcpdump -i lo -n 'port 4444' &` then connect with nc — see SYN / SYN-ACK / ACK in the capture. That's the three-way handshake nmap -sS exploits.",
+            "Map ports to services: `ss -tulpn` then look up each port number — predict which tool you'd reach for (445→enum4linux, 80→whatweb/gobuster). That's how you read a scan.",
+        ],
+        "try_cmd": "ss -tulpn",
+    },
+
+    # ══════════════════════════════════════════════════════════════
     # OFFENSIVE TOOLS
     # ══════════════════════════════════════════════════════════════
 

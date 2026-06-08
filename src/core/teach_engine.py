@@ -1593,6 +1593,128 @@ LESSONS = {
         },
     },
 
+    # ══════════════════════════════════════════════════════════════
+    # OFFENSIVE TOOLS — batch added with Eros, grounded in each tool's
+    # real --help on the Pi (integrity-checked, no fabricated flags).
+    # ══════════════════════════════════════════════════════════════
+
+    "fluxion": {
+        "summary": "Wi-Fi evil-twin & handshake-capture framework — phishes the WPA key with a fake captive portal",
+        "typical": "cd /usr/share/fluxion && sudo ./fluxion.sh   # run from its dir (relative-path bug)",
+        "flags": {
+            "Captive Portal":   "Flagship attack: clones the AP, deauths clients off the real one, serves a fake router-login page, and VERIFIES the typed password against the captured handshake — no cracking needed.",
+            "Handshake Snooper":"Capture the WPA 4-way handshake (deauth forces a reconnect), then crack it offline with hashcat/aircrack.",
+            "deauth (mdk4)":    "Kicks clients off the real AP so they reconnect — to your evil twin, or so you catch the handshake.",
+            "hostapd+lighttpd+dnsmasq":"The evil twin's parts: hostapd = rogue AP, lighttpd = phishing web server, dnsmasq = hands the victim IP/DNS so every page redirects to the portal.",
+            "handshake verification":"Fluxion checks the entered password against the real handshake — a captured portal password is GUARANTEED correct (no false positives).",
+            "monitor-mode iface":"Needs a card with monitor mode + injection (your Alfa AWUS036ACM). The Pi's internal wifi usually can't.",
+        },
+        "read": [
+            "A captured handshake is the prerequisite for BOTH attacks — Captive Portal uses it to verify, Snooper hands it to a cracker.",
+            "Captive Portal wins the moment the victim types their real wifi password into your fake page — no GPU, no wordlist.",
+            "If clients will not deauth/reconnect, the handshake never lands — check injection support and that you are on the right channel.",
+            "Snooper output is a .cap file — feed it to hashcat -m 22000 or aircrack-ng with a wordlist.",
+            "The portal page is template-driven; fluxion ships pages that mimic common router brands.",
+        ],
+        "next": ["hashcat (-m 22000 crack the handshake)", "aircrack-ng (cap analysis)", "wifite (automated alternative)"],
+        "caution": "Attacking Wi-Fi you do not own is a crime (rogue AP + deauth + credential phishing). Your OWN AP or explicit written authorization ONLY. The deauth flood knocks real users offline — a live availability impact, not a side effect.",
+        "cia": [
+            "CONFIDENTIALITY — primary. The whole goal is capturing the WPA pre-shared key, the network's master secret.",
+            "AVAILABILITY — direct and unavoidable. The deauth flood disconnects legitimate clients; disruption is part of the attack.",
+            "INTEGRITY — the evil twin is an active man-in-the-middle: once a victim associates to it, their traffic can be tampered with.",
+        ],
+    },
+
+    "xsstrike": {
+        "summary": "Advanced XSS suite — context-aware payloads, WAF fingerprinting, crawling, and a fuzzer (v3.1.5)",
+        "typical": "xsstrike -u 'http://target/search?q=test' --crawl",
+        "flags": {
+            "-u TARGET":   "URL with a parameter to test (e.g. ?q=test) — the injection point.",
+            "--data":      "POST body to test instead of a GET query string.",
+            "--crawl":     "Spider the site first, then test every parameter it discovers.",
+            "--fuzzer":    "Fuzz one parameter to study how the app/WAF reacts to payloads.",
+            "-e / --encode":"Encode payloads to slip past filters.",
+            "--blind":     "Inject a blind-XSS payload that fires later in someone else's browser (needs your collector).",
+            "-l LEVEL":    "Test depth / how many payloads to try.",
+            "--skip-dom":  "Skip the DOM-XSS static scan (faster) if you only want reflected/stored.",
+            "-t / -d":     "Threads / delay — your speed-vs-stealth dial.",
+            "--proxy":     "Route through Burp (127.0.0.1:8080) to inspect and replay.",
+        },
+        "read": [
+            "XSStrike does not just spray payloads — it analyzes the REFLECTION CONTEXT (HTML body, attribute, script) and crafts one that actually fires there. That is why it beats blind spraying.",
+            "It fingerprints the WAF first; a detected WAF is your cue to reach for --encode and evasion.",
+            "A confirmed hit shows the exact payload + parameter + context — paste it into a browser to prove the popup fires.",
+            "DOM-XSS results come from static JS analysis — verify them by hand, they can be noisy.",
+            "It finds the injection; whether it PERSISTS (stored) is something you confirm by revisiting the page.",
+        ],
+        "next": ["dalfox (second-opinion XSS scanner)", "burp (manual confirmation + exploitation)", "the browser (prove it fires)"],
+        "caution": "Authorized targets only. Stored-XSS payloads persist and can fire in real users' browsers — be careful what you inject on shared or live apps.",
+        "cia": [
+            "CONFIDENTIALITY — primary. XSS steals session cookies/tokens and reads page data as the victim — account takeover.",
+            "INTEGRITY — high. Injected script can rewrite the page and submit actions as the victim.",
+            "AVAILABILITY — low, but a malicious script can break or deface the page for anyone who loads it.",
+        ],
+    },
+
+    "sstimap": {
+        "summary": "Server-Side Template Injection scanner & exploiter — detects the engine, then escalates to code/OS execution",
+        "typical": "sstimap -u 'http://target/page?name=test'",
+        "flags": {
+            "-u URL":      "Target URL with a parameter to test for SSTI.",
+            "-d / -m":     "POST data / HTTP method for form-based injection points.",
+            "-H / -C":     "Add a header / cookie (for authenticated testing).",
+            "-c / -f":     "Crawl to a depth / include forms when hunting injection points.",
+            "-e ENGINE":   "Force a template engine (Jinja2, Twig, Freemarker...) instead of auto-detect.",
+            "-t":          "Detect-only — confirm the engine WITHOUT exploiting.",
+            "-T / -X":     "Run raw template code / language eval through the injection.",
+            "-S OS_CMD":   "Run a single OS command via the SSTI (the escalation payoff).",
+            "-s":          "Drop into an interactive OS shell through the injection.",
+            "-B / -R":     "Bind shell (port) / reverse shell (host port) through the SSTI.",
+        },
+        "read": [
+            "SSTImap first DETECTS the engine by injecting math like {{7*7}} and watching for 49 — different engines render it differently, which is how it fingerprints them.",
+            "Detection then tells it which sandbox-escape payload reaches code execution for THAT specific engine.",
+            "Not every SSTI reaches RCE — some only leak data. -t shows how far it can go before you fire -S/-s.",
+            "It is the maintained successor to tplmap — same idea, more engines, active development.",
+            "An -S os-command success means full RCE on the server — the highest-impact web finding there is.",
+        ],
+        "next": ["reverse shell (-R your_ip port, catch with netcat)", "linpeas (privesc once you have the shell)", "burp (find more injection points)"],
+        "caution": "RCE-class testing. -S/-s/-R execute code on the target server — systems you own or are explicitly authorized to test ONLY. Confirm scope before going past -t (detect-only).",
+        "cia": [
+            "CONFIDENTIALITY — high. Even detect-only SSTI can read server-side files and config through the template context.",
+            "INTEGRITY — primary at full exploit. -S/-s give code execution = full ability to modify the server.",
+            "AVAILABILITY — caution. Code execution means you can crash the app server; exploit deliberately, not blindly.",
+        ],
+    },
+
+    "gef": {
+        "summary": "GDB Enhanced Features — turns raw gdb into a usable exploit-dev & reverse-engineering cockpit",
+        "typical": "gef   # launches: gdb -ex 'source /usr/share/gdb/gef.py'",
+        "flags": {
+            "checksec":    "Show a binary's protections at a glance: NX, PIE, RELRO, Stack Canary. Your first move on any target binary.",
+            "context":     "GEF's auto-display on every stop: registers, stack, disassembly, source — the cockpit view.",
+            "vmmap":       "Show the process memory map (segments + permissions) — find where stack/heap/libs live.",
+            "pattern create / search":"Generate a cyclic pattern, crash with it, then find the exact offset that overwrote a register — classic overflow offset-finding.",
+            "telescope <addr>":"Dereference-walk memory — follow pointers to see what's really on the stack/heap.",
+            "heap chunks / bins":"Inspect glibc heap state — essential for heap exploitation (UAF, tcache).",
+            "ropper / ropgadget":"Find ROP gadgets to bypass NX, then chain them into a payload.",
+        },
+        "read": [
+            "checksec output dictates your whole strategy: NX on -> need ROP/ret2libc; PIE/ASLR on -> need a leak first; no canary -> straight stack smash.",
+            "The context view updates on every breakpoint — read registers (RIP/RSP) and the stack together to see exactly what your input did.",
+            "pattern create, crash it, then pattern search $rsp gives the exact byte offset to the return address — no manual counting.",
+            "vmmap shows which regions are executable — where shellcode could live, or confirms NX forced you to ROP.",
+            "GEF is just GDB with batteries — every normal gdb command (break, run, ni, si, x/) still works underneath.",
+        ],
+        "next": ["ropper / ROPgadget (build the chain)", "pwntools (script the exploit in Python)", "decompiler (understand the bug)"],
+        "caution": "Debug binaries you own or are authorized to analyze — CTFs, your own programs, authorized research. This is exploit-development tradecraft.",
+        "cia": [
+            "INTEGRITY — primary. Exploit dev is about achieving code execution: making a program do what it was never meant to (the ultimate integrity break).",
+            "CONFIDENTIALITY — secondary. Memory inspection (telescope, x/) reads secrets, keys, and canaries straight out of process memory.",
+            "AVAILABILITY — inherent. A corruption bug you don't fully control just crashes the target; reliability is what separates a crash from an exploit.",
+        ],
+    },
+
 }
 
 

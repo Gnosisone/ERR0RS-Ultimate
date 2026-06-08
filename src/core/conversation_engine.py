@@ -473,9 +473,15 @@ class ConversationEngine:
                     session_id:     str       = "default",
                     operator_state            = None,
                     on_token:       Callable  = None,
-                    on_done:        Callable  = None):
+                    on_done:        Callable  = None,
+                    model:          str       = None,
+                    options:        dict      = None):
         """
         Stream a response to user_msg via Ollama HTTP streaming API.
+
+        model   — optional per-call model override (teach mode uses err0rs-qwen
+                  while general chat stays on the fast default). None → self.model.
+        options — optional per-call Ollama options dict. None → default block.
 
         on_token(str)  — called for each token as it streams
         on_done(str)   — called once with the complete response
@@ -488,11 +494,11 @@ class ConversationEngine:
         messages.extend(history.last_n(18))  # last 9 turns
 
         payload = {
-            "model":      self.model,
+            "model":      model or self.model,
             "messages":   messages,
             "stream":     True,
             "keep_alive": "15m",   # keep model hot in RAM between requests
-            "options":    {
+            "options":    options or {
                 "temperature": 0.7,
                 "num_predict": 2048,
                 "num_ctx":     4096,

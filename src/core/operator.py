@@ -92,6 +92,7 @@ class Operator:
         self.state = OperatorState()
         self._broadcast: Optional[Callable] = None
         self._busy = threading.Lock()
+        self._active_learn_session: Optional[str] = None
 
     @classmethod
     def instance(cls) -> "Operator":
@@ -123,6 +124,13 @@ class Operator:
             q = self.state.pending_question
             self.state.pending_question = None
             return self._handle_answer(q, user_msg)
+
+        # Learn trigger — the launcher Learn button (or a typed "learn <tool>")
+        # opens a LIVE, conversation-grounded lesson on the err0rs-qwen teaching
+        # model. Intercepted before intent parsing so it never gets misrouted.
+        _low = user_msg.lower().strip()
+        if _low == "learn" or _low.startswith("learn "):
+            return self._learn(user_msg[5:].strip() or None)
 
         intent = intent_parser.parse(user_msg, state=self.state)
         log.info(f"Intent: {intent}")
@@ -199,6 +207,9 @@ class Operator:
         from src.core import output_analyzer, next_step_engine
         from src.core.live_terminal import build_command, get_operator_terminal
         from src.core.phoenix_bridge import run_tool as phoenix_run
+
+        # Running a tool exits any active Learn session → back to operator chat.
+        self._active_learn_session = None
 
         if not target and tool not in ("msfconsole","update"):
             self.state.pending_question = "need_target"
@@ -595,19 +606,69 @@ class Operator:
             return r
         return {"status":"error","reply":"Usage: solve juice-shop [all|<id>] or juice-shop list/status"}
 
+    def _learn(self, tool):
+        """Open a LIVE, conversation-grounded lesson on a tool.
+
+        Unlike _teach() (which prints a static lesson into the terminal), this
+        seeds the err0rs-qwen teaching persona with a mentor prompt, streams the
+        reply as chat bubbles, and keeps the per-tool session open so the student
+        can ask follow-ups back-and-forth. Lesson + RAG context are auto-injected
+        by conversation_engine.build_system_prompt().
+        """
+        from src.core import teach_engine
+        from src.core.conversation_engine import get_engine
+        if not tool:
+            topics = ", ".join(sorted(teach_engine.LESSONS.keys()))
+            msg = f"📖 What do you want to learn? Try: {topics}"
+            self.say(msg, "narrator")
+            return {"status": "ok", "reply": msg}
+
+        tool = tool.strip().lower()
+        session_id = f"learn_{tool}"
+        self._active_learn_session = session_id
+        self.say(f"🎓 Live lesson on {tool} — ask me anything when it's done", "narrator")
+
+        seed = (
+            f"I want to learn how to use `{tool}` for authorized penetration testing "
+            f"in my own lab. Teach me like a patient mentor: a short friendly intro to "
+            f"what {tool} is and why it matters, one or two real example commands each "
+            f"with a one-line explanation, the defensive/detection angle, then invite me "
+            f"to ask follow-up questions. Keep it concise and beginner-friendly."
+        )
+        # Stress test (docs/STRESS_TESTS/FINDINGS_2026-05-20.md) proved gemma3:1b
+        # is the ONLY local model that completes RAG-grounded teach inference on
+        # Pi 5 CPU within wall-clock — 7B/3B hard-timeout. So teach uses the
+        # default warmed model, grounded by RAG, not a heavier persona model.
+        if self._broadcast:
+            def _tok(t):  self._broadcast("chat_token", t, {})
+            def _done(_): self._broadcast("chat_done",  "", {})
+            get_engine().chat_stream(seed, session_id, self.state,
+                                     on_token=_tok, on_done=_done)
+            return {"status": "streaming", "session": session_id, "topic": tool}
+        reply = get_engine().chat_blocking(seed, session_id, self.state)
+        return {"status": "ok", "reply": reply, "topic": tool}
+
     def _chat(self, msg):
-        """Routes question through conversation engine, streaming tokens as chat bubbles."""
+        """Routes question through conversation engine, streaming tokens as chat bubbles.
+
+        When a Learn session is active, follow-ups continue in that per-tool
+        session (coherent thread) — but stay on the default gemma3:1b model,
+        the only one viable for RAG teach inference on Pi 5 CPU. General chat
+        uses the operator_cli session.
+        """
+        # Keep the per-tool session for coherent follow-ups; default model.
+        session = self._active_learn_session or "operator_cli"
         try:
             from src.core.conversation_engine import get_engine
             engine = get_engine()
             if self._broadcast:
                 def _tok(t):  self._broadcast("chat_token", t, {})
                 def _done(_): self._broadcast("chat_done",  "", {})
-                engine.chat_stream(msg, "operator_cli", self.state,
+                engine.chat_stream(msg, session, self.state,
                                    on_token=_tok, on_done=_done)
                 return {"status": "streaming"}
             else:
-                reply = engine.chat_blocking(msg, "operator_cli", self.state)
+                reply = engine.chat_blocking(msg, session, self.state)
                 if not reply:
                     reply = "Ready. Ask me about any security topic, CIS control, or type 'help'."
                 return {"status": "ok", "reply": reply}

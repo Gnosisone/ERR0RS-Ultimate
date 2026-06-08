@@ -33,80 +33,69 @@ from typing import List, Dict, Optional, Callable, Any
 
 log = logging.getLogger("err0rs.recon")
 
+# Canonical engagement state + finding (folded — single source of truth)
+try:
+    from .agent import AgentState, AgentFinding
+except ImportError:  # pragma: no cover
+    from src.core.agent import AgentState, AgentFinding
+
 
 # ── Recon finding ─────────────────────────────────────────────────────────────
-@dataclass
-class ReconFinding:
-    category:  str          # dns, port, service, web, vuln, cred, osint
-    key:       str          # specific item (port number, domain, etc.)
-    value:     str          # the actual data
-    source:    str          # which tool produced this
-    severity:  str = "info" # critical, high, medium, low, info
-    confidence:float = 1.0
-    ts:        str = field(default_factory=lambda: datetime.now().isoformat())
-
-    def to_dict(self) -> dict:
-        return {
-            "category": self.category, "key": self.key,
-            "value": self.value, "source": self.source,
-            "severity": self.severity, "confidence": self.confidence,
-        }
+def ReconFinding(category: str, key: str, value: str, source: str,
+                 severity: str = "info", confidence: float = 1.0) -> AgentFinding:
+    """Compatibility factory: recon findings ARE canonical AgentFindings now.
+    Maps recon (category, key, source) -> AgentFinding (kind, key, tool)."""
+    return AgentFinding(tool=source, kind=category, value=value, key=key,
+                        severity=severity, detail=key, confidence=confidence)
 
 
-# ── Recon state ───────────────────────────────────────────────────────────────
-@dataclass
-class ReconState:
-    target:         str
-    start_time:     str = field(default_factory=lambda: datetime.now().isoformat())
-    phase:          str = "passive"
-    findings:       List[ReconFinding] = field(default_factory=list)
-    open_ports:     List[str] = field(default_factory=list)
-    services:       Dict[str, str] = field(default_factory=dict)
-    hostnames:      List[str] = field(default_factory=list)
-    ips:            List[str] = field(default_factory=list)
-    web_paths:      List[str] = field(default_factory=list)
-    technologies:   List[str] = field(default_factory=list)
-    vulnerabilities:List[str] = field(default_factory=list)
-    subdomains:     List[str] = field(default_factory=list)
-    emails:         List[str] = field(default_factory=list)
-    completed_tools:List[str] = field(default_factory=list)
-    running:        bool = True
-    done:           bool = False
+# ── Recon state (folded -> subclass of canonical AgentState) ──────────────────
+class ReconState(AgentState):
+    """Recon's view of the ONE canonical engagement state. Inherits every
+    AgentState field (target, findings, open_ports, ptt, ...); adds recon's
+    category-routing add() and the dict summary() the launcher expects."""
 
-    def add(self, finding: ReconFinding):
+    def __init__(self, target: str, **kw):
+        super().__init__(target=target, goal=kw.pop("goal", "recon"))
+        self.phase = "passive"
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+    def add(self, finding: AgentFinding):
         self.findings.append(finding)
-        if finding.category == "port" and finding.key not in self.open_ports:
-            self.open_ports.append(finding.key)
-        elif finding.category == "service":
-            self.services[finding.key] = finding.value
-        elif finding.category == "hostname" and finding.value not in self.hostnames:
-            self.hostnames.append(finding.value)
-        elif finding.category == "web_path" and finding.key not in self.web_paths:
-            self.web_paths.append(finding.key)
-        elif finding.category == "technology" and finding.value not in self.technologies:
-            self.technologies.append(finding.value)
-        elif finding.category == "vuln" and finding.value not in self.vulnerabilities:
-            self.vulnerabilities.append(finding.value)
-        elif finding.category == "subdomain" and finding.value not in self.subdomains:
-            self.subdomains.append(finding.value)
-        elif finding.category == "email" and finding.value not in self.emails:
-            self.emails.append(finding.value)
-        elif finding.category == "ip" and finding.value not in self.ips:
-            self.ips.append(finding.value)
+        cat, key, val = finding.kind, finding.key, finding.value
+        if cat == "port" and key not in self.open_ports:
+            self.open_ports.append(key)
+        elif cat == "service":
+            self.services[key] = val
+        elif cat == "hostname" and val not in self.hostnames:
+            self.hostnames.append(val)
+        elif cat == "web_path" and key not in self.web_paths:
+            self.web_paths.append(key)
+        elif cat == "technology" and val not in self.technologies:
+            self.technologies.append(val)
+        elif cat == "vuln" and val not in self.vulnerabilities:
+            self.vulnerabilities.append(val)
+        elif cat == "subdomain" and val not in self.subdomains:
+            self.subdomains.append(val)
+        elif cat == "email" and val not in self.emails:
+            self.emails.append(val)
+        elif cat == "ip" and val not in self.ips:
+            self.ips.append(val)
 
     def summary(self) -> Dict:
         return {
-            "target":    self.target,
-            "phase":     self.phase,
-            "findings":  len(self.findings),
-            "ports":     self.open_ports,
-            "services":  self.services,
-            "hostnames": self.hostnames,
-            "subdomains":self.subdomains,
-            "web_paths": self.web_paths[:10],
-            "techs":     self.technologies,
-            "vulns":     self.vulnerabilities,
-            "done":      self.done,
+            "target":     self.target,
+            "phase":      self.phase,
+            "findings":   len(self.findings),
+            "ports":      self.open_ports,
+            "services":   self.services,
+            "hostnames":  self.hostnames,
+            "subdomains": self.subdomains,
+            "web_paths":  self.web_paths[:10],
+            "techs":      self.technologies,
+            "vulns":      self.vulnerabilities,
+            "done":       self.done,
         }
 
 

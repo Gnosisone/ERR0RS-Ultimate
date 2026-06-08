@@ -32,7 +32,8 @@ import subprocess
 import threading
 import time
 import logging
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import List, Dict, Optional, Callable, Any
 
@@ -89,6 +90,31 @@ class AgentFinding:
     severity: str          # critical, high, medium, low, info
     detail:   str = ""
     ts:       str = field(default_factory=lambda: datetime.now().isoformat())
+    key:        str   = ""      # recon: specific item (port/domain) — folded from ReconFinding
+    confidence: float = 1.0     # folded from ReconFinding
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+
+    def to_report_finding(self, target: str = ""):
+        """Convert this runtime finding into a rich models.Finding for reporting."""
+        from .models import Finding as _RF, Severity as _Sev
+        sev = {"critical": _Sev.CRITICAL, "high": _Sev.HIGH, "medium": _Sev.MEDIUM,
+               "low": _Sev.LOW, "info": _Sev.INFO}.get((self.severity or "info").lower(), _Sev.INFO)
+        return _RF(title=f"{self.kind}: {self.value}",
+                   description=self.detail or self.value,
+                   severity=sev, target=target, tool_name=self.tool,
+                   confidence=float(getattr(self, "confidence", 1.0) or 1.0),
+                   tags=[self.kind] if self.kind else [])
+
+@dataclass
+class Task:
+    """A node in the Penetration Testing Tree (PTT)."""
+    id:     str
+    title:  str
+    status: str = "todo"           # todo | done | skipped | n/a
+    tool:   Optional[str] = None   # tool that satisfies this task, if any
+    parent: Optional[str] = None   # parent task id (None = phase root)
 
 @dataclass
 class AgentStep:
@@ -105,7 +131,7 @@ class AgentStep:
 @dataclass
 class AgentState:
     target:         str
-    goal:           str
+    goal:           str               = ""
     phase:          str               = "init"
     steps:          List[AgentStep]   = field(default_factory=list)
     findings:       List[AgentFinding] = field(default_factory=list)
@@ -118,6 +144,17 @@ class AgentState:
     running:        bool              = True
     done:           bool              = False
     abort_reason:   str               = ""
+
+    # -- folded-in recon superset (was ReconState) --
+    hostnames:      List[str]         = field(default_factory=list)
+    ips:            List[str]         = field(default_factory=list)
+    subdomains:     List[str]         = field(default_factory=list)
+    web_paths:      List[str]         = field(default_factory=list)
+    technologies:   List[str]         = field(default_factory=list)
+    emails:         List[str]         = field(default_factory=list)
+    start_time:     str               = field(default_factory=lambda: datetime.now().isoformat())
+    # -- Penetration Testing Tree: what's done / what's next --
+    ptt:            List["Task"]      = field(default_factory=list)
 
     def summary(self) -> str:
         lines = [
@@ -146,6 +183,98 @@ class AgentState:
 
     def tools_used_str(self) -> str:
         return ", ".join(self.completed_tools) if self.completed_tools else "none"
+
+    # -- PTT: what's done / what's next -------------------------------------
+    def seed_ptt(self, phases) -> None:
+        """Create one root task per planned phase (idempotent)."""
+        if self.ptt:
+            return
+        self.ptt = [Task(id=str(i + 1), title=f"Phase: {p}", status="todo")
+                    for i, p in enumerate(phases)]
+
+    def _phase_root(self, phase: str) -> "Task":
+        for t in self.ptt:
+            if t.parent is None and t.title == f"Phase: {phase}":
+                return t
+        root = Task(id=str(len(self.ptt) + 1), title=f"Phase: {phase}", status="todo")
+        self.ptt.append(root)
+        return root
+
+    def add_task(self, phase: str, tool: str, title: str) -> "Task":
+        """Add a sub-task for a tool (idempotent by tool)."""
+        for t in self.ptt:
+            if t.tool == tool:
+                return t
+        root = self._phase_root(phase)
+        sibs = [t for t in self.ptt if t.parent == root.id]
+        task = Task(id=f"{root.id}.{len(sibs) + 1}", title=title,
+                    status="todo", tool=tool, parent=root.id)
+        self.ptt.append(task)
+        return task
+
+    def complete_task(self, tool: str, ok: bool = True) -> None:
+        task = next((t for t in self.ptt if t.tool == tool), None)
+        if task is None:
+            task = self.add_task(self.phase, tool, tool)
+        task.status = "done" if ok else "skipped"
+        self._roll_up()
+
+    def _roll_up(self) -> None:
+        """Mark a phase root done once all its sub-tasks are resolved."""
+        for root in [t for t in self.ptt if t.parent is None]:
+            kids = [t for t in self.ptt if t.parent == root.id]
+            if kids and all(k.status in ("done", "skipped", "n/a") for k in kids):
+                root.status = "done"
+
+    def next_todo(self):
+        for t in self.ptt:
+            if t.parent is not None and t.status == "todo":
+                return t
+        return None
+
+    def ptt_for_prompt(self) -> str:
+        """Compact PTT render for LLM context or the operator feed."""
+        if not self.ptt:
+            return "PTT: (empty)"
+        mark = {"todo": "[ ]", "done": "[x]", "skipped": "[-]", "n/a": "[~]"}
+        out = []
+        for t in self.ptt:
+            indent = "" if t.parent is None else "    "
+            out.append(f"{indent}{mark.get(t.status, '[ ]')} {t.id} {t.title}")
+        return "\n".join(out)
+
+    # -- persistence: resumable engagements --------------------------------
+    def _engagement_path(self) -> str:
+        d = os.path.expanduser("~/.err0rs/engagements")
+        os.makedirs(d, exist_ok=True)
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", self.target or "unknown")
+        return os.path.join(d, f"{safe}.json")
+
+    def to_dict(self) -> Dict:
+        d = asdict(self)
+        for s in d.get("steps", []):
+            if len(s.get("stdout", "")) > 2000:
+                s["stdout"] = s["stdout"][:2000] + "...[trimmed]"
+        return d
+
+    def save(self) -> None:
+        with open(self._engagement_path(), "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_dict(cls, d: Dict) -> "AgentState":
+        st = cls(target=d.get("target", ""), goal=d.get("goal", ""))
+        for k in ("phase", "running", "done", "abort_reason", "start_time"):
+            if k in d:
+                setattr(st, k, d[k])
+        for k in ("open_ports", "services", "vulnerabilities", "credentials",
+                  "shells", "completed_tools", "hostnames", "ips", "subdomains",
+                  "web_paths", "technologies", "emails"):
+            if k in d:
+                setattr(st, k, d[k])
+        st.ptt = [Task(**t) for t in d.get("ptt", [])]
+        st.findings = [AgentFinding(**f) for f in d.get("findings", [])]
+        return st
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -513,7 +642,7 @@ What tool should run next? Choose from the available tools list.
 Respond with JSON only."""
 
 
-def _llm_decide(state: AgentState, flags: Dict, model: str = "llama3.2:3b",
+def _llm_decide(state: AgentState, flags: Dict, model: str = "gemma3:1b",
                 ollama_host: str = "http://localhost:11434") -> Dict:
     """Ask the LLM to decide the next tool. Falls back to deterministic rules."""
     import requests
@@ -704,7 +833,7 @@ class PentestAgent:
 
     def __init__(self,
                  broadcast_fn:  Callable,
-                 model:         str = "llama3.2:3b",
+                 model:         str = "gemma3:1b",
                  ollama_host:   str = "http://localhost:11434"):
         self.broadcast   = broadcast_fn
         self.model       = model
@@ -757,6 +886,8 @@ class PentestAgent:
             "open_ports": s.open_ports,
             "vulns":     s.vulnerabilities,
             "creds":     len(s.credentials),
+            "next":      (s.next_todo().title if s.next_todo() else None),
+            "ptt":       s.ptt_for_prompt(),
         }
 
     # ── Internal loop ─────────────────────────────────────────────────────────
@@ -764,6 +895,7 @@ class PentestAgent:
     def _run_loop(self, goal_cfg: Dict):
         state = self._state
         max_steps = goal_cfg["max_steps"]
+        state.seed_ptt(goal_cfg.get("phases", []))
 
         self._emit_banner(state)
 
@@ -780,7 +912,9 @@ class PentestAgent:
 
             # ── REASON: LLM (or rules) picks next tool ────────────────────────
             self._emit_system("[AGENT] 🧠 Reasoning about next action...")
-            decision = _llm_decide(state, flags, self.model, self.ollama_host)
+            # Rules plan the loop (instant). gemma3:1b is too slow for the hot
+            # path on Pi CPU (~248s/decision measured) - it narrates async below.
+            decision = _rule_based_decision(state, flags)
 
             tool_key = decision.get("tool")
             reason   = decision.get("reason", "")
@@ -822,6 +956,8 @@ class PentestAgent:
                 break
 
             # ── ACT: build and run the command ────────────────────────────────
+            # NARRATE (async): gemma explains the move while the tool runs.
+            self._narrate_async(state, tool_key, reason)
             cmd = _build_command(tool_key, decision, state)
             self._emit_system(f"\n[AGENT] ⚡ Running: {tool_key}")
 
@@ -842,6 +978,22 @@ class PentestAgent:
                 decision=decision, duration=duration,
             )
             state.steps.append(step)
+
+            # -- PTT: mark this tool done, peek the next pick, persist memory --
+            state.complete_task(tool_key, ok=bool(stdout and stdout.strip()))
+            try:
+                _nxt = _rule_based_decision(state, _state_flags(state))
+                if _nxt.get("tool") and _nxt["tool"] not in state.completed_tools:
+                    state.add_task(_nxt.get("phase", state.phase),
+                                   _nxt["tool"], _nxt.get("reason", _nxt["tool"]))
+            except Exception:
+                pass
+            try:
+                state.save()
+            except Exception:
+                pass
+
+            self._emit_system("[AGENT] 🧭 PTT (done / next):\n" + state.ptt_for_prompt())
 
             # ── Report new findings ───────────────────────────────────────────
             if findings:
@@ -881,6 +1033,46 @@ class PentestAgent:
         state.running = False
         self._emit_final_summary(state)
 
+    def _narrate_async(self, state: "AgentState", tool_key: str, reason: str):
+        """Fire gemma in the background to explain this step in plain English.
+        Best-effort commentary; never blocks the loop."""
+        threading.Thread(
+            target=self._narrate_worker,
+            args=(state.target, state.phase, tool_key, reason,
+                  dict(state.services), list(state.open_ports)),
+            daemon=True,
+        ).start()
+
+    def _narrate_worker(self, target, phase, tool_key, reason, services, open_ports):
+        """Short scoped gemma call -> one plain-English line of operator narration."""
+        import requests
+        tool_desc = AGENT_TOOLS.get(tool_key, {}).get("description", tool_key)
+        known = ", ".join(f"{p}/{services.get(p, '?')}" for p in open_ports) or "nothing yet"
+        prompt = (
+            "You are a senior red-team operator narrating a live engagement to a "
+            "student. In 1-2 short sentences of plain English, explain WHY we now run "
+            f"'{tool_key}' ({tool_desc}) against {target}, and what a good result would "
+            f"tell us. Current phase: {phase}. Known so far: {known}. "
+            "Be concrete and calm. No preamble, no markdown, no lists."
+        )
+        try:
+            resp = requests.post(
+                f"{self.ollama_host}/api/chat",
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "keep_alive": "15m",
+                    "options": {"temperature": 0.3, "num_predict": 90},
+                },
+                timeout=240,
+            )
+            text = resp.json().get("message", {}).get("content", "").strip()
+            if text and not self._stop_flag.is_set():
+                self._emit_system("🗣️  " + text)
+        except Exception:
+            pass  # narration is best-effort; never disrupt the loop
+
     def _emit_system(self, msg: str):
         self.broadcast({"type": "system", "data": msg})
 
@@ -894,7 +1086,7 @@ class PentestAgent:
   Goal:    {state.goal} — {goal_cfg['description']}
   Phases:  {' → '.join(goal_cfg['phases'])}
   Max steps: {goal_cfg['max_steps']}
-  Mode:    LLM-guided ReAct loop with deterministic fallback
+  Mode:    Rules-driven ReAct loop · gemma3:1b narrates live
 {'═'*60}
   [AGENT] Engage. Zero tolerance for missed findings.
 {'═'*60}
@@ -971,7 +1163,7 @@ class PentestAgent:
 _agent: Optional[PentestAgent] = None
 
 def get_agent(broadcast_fn: Callable = None,
-              model: str = "llama3.2:3b") -> PentestAgent:
+              model: str = "gemma3:1b") -> PentestAgent:
     global _agent
     if _agent is None and broadcast_fn:
         _agent = PentestAgent(broadcast_fn=broadcast_fn, model=model)

@@ -1806,7 +1806,7 @@ async def ws_terminal_handler(websocket):
 
                     # ── Manual / Help ────────────────────────────────────────
                     elif clean_cmd.lower() in ("manual", "docs", "man", "help manual", "open manual"):
-                        import webbrowser, os
+                        import webbrowser
                         manual_path = os.path.join(ROOT_DIR, "docs", "USER_MANUAL.html")
                         if os.path.exists(manual_path):
                             try:
@@ -1870,7 +1870,7 @@ async def ws_terminal_handler(websocket):
                     if AGENT_AVAILABLE and agent_match:
                         ag_target = agent_match.group("target")
                         ag_goal   = agent_match.group("goal") or "full_chain"
-                        model_name = CONV_ENGINE.model if CONV_ENGINE else "llama3.2:3b"
+                        model_name = CONV_ENGINE.model if CONV_ENGINE else "gemma3:1b"
 
                         await websocket.send(json.dumps({"type": "system",
                             "data": f"[ERR0RS] 🤖 Launching autonomous agent — target: {ag_target} | goal: {ag_goal}"}))
@@ -2051,6 +2051,8 @@ async def ws_terminal_handler(websocket):
                     await websocket.send(json.dumps({"type":"system","data":"[ERR0RS] Done (non-streaming mode)."}))
 
     except Exception as e:
+        import traceback as _tb
+        log.error("[ws_terminal_handler] unhandled: %s", e); _tb.print_exc()
         try:
             await websocket.send(json.dumps({"type":"error","data":str(e)}))
         except Exception:

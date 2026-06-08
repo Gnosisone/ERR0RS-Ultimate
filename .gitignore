@@ -54,3 +54,10 @@ tools/_debug/
 # Compiled Python
 *.pyc
 *.pyo
+
+# ── RAG knowledge corpora (local-only; ~2.3GB of cloned third-party content) ──
+# knowledge/ is vendored locally to feed the RAG index — NOT committed to the repo
+# (size + third-party licensing). The real submodules already tracked under
+# knowledge/ are unaffected: git does not apply .gitignore to already-tracked paths.
+# Re-fetch corpora from your clone/fetch script rather than versioning them here.
+knowledge/

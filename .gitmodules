@@ -10,9 +10,6 @@
 [submodule "knowledge/badusb/PowerShell-for-Hackers"]
 	path = knowledge/badusb/PowerShell-for-Hackers
 	url = https://github.com/I-Am-Jakoby/PowerShell-for-Hackers.git
-[submodule "knowledge/badusb/UberGuidoZ-Flipper"]
-	path = knowledge/badusb/UberGuidoZ-Flipper
-	url = https://github.com/UberGuidoZ/Flipper.git
 [submodule "knowledge/rocketgod/flipper-zero-rf-jammer"]
 	path = knowledge/rocketgod/flipper-zero-rf-jammer
 	url = https://github.com/RocketGod-git/flipper-zero-rf-jammer.git
@@ -22,9 +19,6 @@
 [submodule "knowledge/rocketgod/SubGHz-Toolkit"]
 	path = knowledge/rocketgod/SubGHz-Toolkit
 	url = https://github.com/RocketGod-git/RocketGods-SubGHz-Toolkit.git
-[submodule "knowledge/rocketgod/Flipper_Zero"]
-	path = knowledge/rocketgod/Flipper_Zero
-	url = https://github.com/RocketGod-git/Flipper_Zero.git
 [submodule "knowledge/rocketgod/flipper-zero-carjacker"]
 	path = knowledge/rocketgod/flipper-zero-carjacker
 	url = https://github.com/RocketGod-git/flipper-zero-carjacker.git

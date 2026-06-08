@@ -17,6 +17,89 @@
 """
 
 LESSONS = {
+    "wpprobe": {
+        "summary": "Stealthy WordPress plugin scanner — fingerprints installed plugins and flags known CVEs from the Wordfence database",
+        "typical": "wpprobe update-db && wpprobe scan -u https://target.tld -o results.json",
+        "flags": {
+            "update-db":        "FIRST run, always. Pulls the Wordfence vuln database locally — without it you find plugins but know no CVEs.",
+            "scan -u URL":      "Scan a single WordPress site for installed plugins + known vulns.",
+            "-f FILE":          "Scan many sites, one URL per line — for sweeping a scope, not a single target.",
+            "-m MODE":          "stealthy (default, quiet) / bruteforce (probes a big plugin wordlist, loud) / hybrid. Start stealthy.",
+            "-p LIST":          "Custom plugin wordlist for bruteforce mode.",
+            "-o FILE":          "Save results as csv or json (extension decides) — keep the evidence for your report.",
+            "-t / --rate-limit":"Concurrency (default 10) and req/s cap (default 50). Lower both to stay quiet or spare a fragile site.",
+            "--proxy URL":      "Route through Burp (http://127.0.0.1:8080) to inspect and replay.",
+            "--no-check-version":"Skip version checks (faster) — but you lose the 'is this version actually vulnerable' signal.",
+        },
+        "read": [
+            "It detects plugins by public fingerprints (readme.txt, asset paths) — no login needed, which is what makes it stealthy.",
+            "A plugin match is NOT a vuln by itself; wpprobe cross-references the installed version against Wordfence CVE data.",
+            "stealthy only confirms plugins it can passively see; bruteforce guesses from a wordlist and is far noisier (WAF-flaggable).",
+            "The 50 r/s default exists to avoid flooding — on production WordPress, drop it.",
+            "Findings map to specific CVEs — pull the matching PoC, don't assume exploitability.",
+        ],
+        "next": ["searchsploit (PoCs for the flagged CVEs)", "nuclei (template-confirm the specific CVE)", "wpscan (second-opinion scanner)", "burp (manual confirmation)"],
+        "caution": "Authorized targets only — plugin enumeration, and especially bruteforce mode, is active scanning of someone's site. bruteforce/hybrid can generate heavy traffic; on production WordPress that is an availability risk, so prefer stealthy + a low rate-limit unless you have sign-off to be loud.",
+        "cia": [
+            "CONFIDENTIALITY — primary. It enumerates the plugin attack surface and known weaknesses, the recon that precedes a breach.",
+            "INTEGRITY — downstream. The CVEs it surfaces (plugin RCE, auth-bypass, SQLi) are the paths to modifying the site.",
+            "AVAILABILITY — incidental. bruteforce request volume can degrade a fragile site; the rate-limit is the guardrail.",
+        ],
+    },
+    "atomic-operator": {
+        "summary": "Runs Atomic Red Team tests — small ATT&CK-mapped attack simulations that VALIDATE whether your detections actually fire (purple team)",
+        "typical": "atomic-operator get_atomics && atomic-operator run --technique_ids T1059.001 --check_prereqs",
+        "flags": {
+            "get_atomics":      "Downloads Red Canary's atomic-red-team repo locally (the test library). Run once, first.",
+            "run":              "The main verb — executes the atomic test(s) for the technique(s) you name on the local host.",
+            "--technique_ids":  "Which ATT&CK technique(s) to simulate, e.g. T1059.001 (PowerShell), T1003 (cred dumping) — what you're testing detection for.",
+            "--atomics_path":   "Where the downloaded atomics live (the path get_atomics wrote to).",
+            "--check_prereqs / --get_prereqs":"Check whether a test's prerequisites are met / fetch them — so the test actually runs instead of silently no-op'ing.",
+            "--cleanup":        "Run each test's cleanup afterward to undo changes (files, accounts, reg keys) — leave the box as you found it.",
+            "search":           "Find techniques/tests in the library by keyword before you run them.",
+        },
+        "read": [
+            "This is a DETECTION-VALIDATION tool, not exploitation — you run a known technique on a host you control, then check the EDR/SIEM caught it.",
+            "Every test maps to a MITRE ATT&CK technique ID — the point is to walk the matrix and find your blind spots.",
+            "--check_prereqs matters: many tests need a tool/file present first; without it the test 'passes' having done nothing.",
+            "ALWAYS clean up — atomics intentionally create artifacts (files, users, reg keys) you must remove.",
+            "Run it where your detections live (a monitored lab host / your own fleet), or the exercise tells you nothing.",
+        ],
+        "next": ["the SIEM/EDR console (did the alert fire? — the actual deliverable)", "ATT&CK Navigator (track which techniques you've validated)", "caldera (chain atomics into full adversary emulation)", "sigma (write the detection the test exposed as missing)"],
+        "caution": "Run only on hosts you own or are authorized to test — atomics execute REAL attack behaviors (spawn shells, touch credentials, modify the registry). Never point it at production without change-control: a test can trip other defenses or leave artifacts if cleanup is skipped.",
+        "cia": [
+            "DEFENSIVE / PURPLE — the odd one out: this tool exists to IMPROVE the blue team. The 'attack' is a controlled probe of your own visibility.",
+            "INTEGRITY — tests deliberately modify the host (files, users, reg keys); cleanup restores it.",
+            "AVAILABILITY — some destructive techniques (service/boot tampering) can disrupt the test host; scope and clean up accordingly.",
+        ],
+    },
+    "adaptix-c2": {
+        "summary": "Modern open-source command-and-control framework — teamserver + multi-operator GUI client, extensible agents/listeners (a free Cobalt Strike-class C2)",
+        "typical": "cd /usr/share/adaptixc2 && ./adaptixserver -profile profile.yaml   # then connect with: adaptixclient",
+        "flags": {
+            "adaptixserver":    "The teamserver — the brain. Holds sessions, tasks agents, brokers between operators. Started with a profile.",
+            "profile.yaml":     "Server config: listen port, operator credentials, endpoint/SSL settings. Edit BEFORE first launch.",
+            "adaptixclient":    "The Qt operator GUI — connects to the teamserver so multiple operators share one engagement.",
+            "ssl_gen.sh + server.rsa.crt/key":"Generates/holds the TLS material for the client-server channel — encrypted operator comms.",
+            "extenders":        "Extension modules — how Adaptix adds agents (beacon-like implants), listeners, and BOF support. The core is small; capability lives here.",
+            "listener":         "The server-side endpoint an implant calls back to (HTTP/S, SMB, TCP). Define it in the client before generating an agent.",
+            "agent / beacon":   "The implant on the target that polls the listener for tasks — sleep/jitter control stealth vs responsiveness.",
+        },
+        "read": [
+            "Mental model: adaptixserver = the hub; adaptixclient = your console; extenders = the plugins that give it implants/listeners/BOFs.",
+            "Workflow: edit profile.yaml -> start server -> connect client -> create a listener -> generate an agent -> run it on the (authorized) target -> task it.",
+            "It's intentionally minimal at the core — almost everything operational comes from extenders, so check which are loaded.",
+            "Sleep/jitter on the agent is your main OpSec dial: longer sleeps = stealthier beaconing, slower interaction.",
+            "All operator-server traffic rides the cert from ssl_gen.sh — regenerate it per engagement; the shipped cert is a fingerprint.",
+        ],
+        "next": ["sliver (compare — another modern open-source C2)", "havoc (compare — similar GUI C2)", "a redirector (front the C2 behind a CDN/redirector for OpSec)", "mythic (compare — containerized multi-agent C2)"],
+        "caution": "A C2 framework is post-exploitation tooling — running an implant on any system you don't own or aren't explicitly authorized (written scope) to test is a serious crime. Even in a lab, keep the teamserver off the public internet unless the engagement requires it, and regenerate certs/creds per engagement.",
+        "cia": [
+            "CONFIDENTIALITY — primary. C2 is the channel for tasking implants to collect and exfiltrate data from compromised hosts.",
+            "INTEGRITY — direct. Operators run commands, drop tools, and modify the target through the agent.",
+            "AVAILABILITY — situational. Post-ex actions (ransomware emulation, service kills) can be staged through C2, though that's engagement-specific.",
+        ],
+    },
 
     # ══════════════════════════════════════════════════════════════
     # FUNDAMENTALS — how the machine actually works

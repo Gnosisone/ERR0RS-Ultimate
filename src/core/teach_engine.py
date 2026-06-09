@@ -1927,6 +1927,25 @@ def _wrap(text: str, width: int = 58) -> list:
     return out
 
 
+def format_step(step: dict, idx: int | None = None) -> str:
+    """Render one 5-slot attack step (do/why_now/watch_for/means/blue).
+       Single source of truth shared by the lesson renderer AND the live
+       narrator, so a taught step and a real executed step read identically."""
+    out = []
+    head = f"{idx}. " if idx is not None else ""
+    _cmd = step.get("cmd", "")
+    out.append(f"    {head}$ {_cmd}" if _cmd else f"    {head}".rstrip())
+    for _lbl, _key in (("DO", "do"), ("WHY NOW", "why_now"), ("WATCH FOR", "watch_for"), ("MEANS", "means"), ("BLUE", "blue")):
+        _val = step.get(_key)
+        if not _val:
+            continue
+        _w = _wrap(_val, 50)
+        out.append(f"       {_lbl:<9} {_w[0]}")
+        for _cont in _w[1:]:
+            out.append(f"                 {_cont}")
+    return "\n".join(out)
+
+
 def format_lesson(topic: str) -> str:
     """Produce a pretty multi-line lesson block for the live terminal."""
     lesson = lookup(topic)
@@ -2007,16 +2026,8 @@ def format_lesson(topic: str) -> str:
     if lesson.get('steps'):
         lines.append("\n  🪜 STEP-BY-STEP — what each step does and WHY:")
         for _i, _st in enumerate(lesson['steps'], 1):
-            _cmd = _st.get('cmd', '')
-            lines.append(f"\n    {_i}. $ {_cmd}" if _cmd else f"\n    {_i}.")
-            for _lbl, _key in (("DO", "do"), ("WHY NOW", "why_now"), ("WATCH FOR", "watch_for"), ("MEANS", "means"), ("BLUE", "blue")):
-                _val = _st.get(_key)
-                if not _val:
-                    continue
-                _w = _wrap(_val, 50)
-                lines.append(f"       {_lbl:<9} {_w[0]}")
-                for _cont in _w[1:]:
-                    lines.append(f"                 {_cont}")
+            lines.append("")
+            lines.append(format_step(_st, _i))
     lines.append(f"\n  LOGICAL NEXT STEPS:  {', '.join(lesson['next'])}")
     if lesson.get('caution'):
         lines.append(f"\n  ⚠️  {lesson['caution']}")

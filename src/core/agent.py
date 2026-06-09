@@ -959,6 +959,17 @@ class PentestAgent:
             # NARRATE (async): gemma explains the move while the tool runs.
             self._narrate_async(state, tool_key, reason)
             cmd = _build_command(tool_key, decision, state)
+            # ── 5-slot STEP narration (instant, static) ───────────────────────
+            # Explains WHAT this step does and WHY *before* the tool fires, via
+            # the shared teach_engine formatter. No LLM, no blocking; degrades
+            # to nothing for tools without a STEP_DETAILS entry.
+            try:
+                from .narrator import step_narration as _step_narr
+                _sn = _step_narr(tool_key)
+                if _sn:
+                    self._emit_system("[AGENT] 🪜 STEP — what this does & why:\n" + _sn)
+            except Exception:
+                pass
             self._emit_system(f"\n[AGENT] ⚡ Running: {tool_key}")
 
             start_time = time.time()

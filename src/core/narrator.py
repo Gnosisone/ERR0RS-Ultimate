@@ -396,6 +396,97 @@ narrator = Narrator()
 
 
 # ── Convenience top-level functions ──────────────────────────────────────────
+# ── 5-SLOT STEP NARRATION (opt-in, per tool) ──────────────────────────────────
+# Richer than NARRATIONS{start,why}: the full do/why_now/watch_for/means/blue
+# schema, rendered through teach_engine.format_step() so a LIVE executed step
+# and a TAUGHT lesson step read identically. step_narration() returns "" for
+# tools without an entry, so the agent loop degrades gracefully.
+STEP_DETAILS = {
+    "nmap": {
+        "cmd": "nmap -sV -sC <target>",
+        "do": "Send TCP/UDP probes to map open ports, service versions, and default-script results.",
+        "why_now": "You cannot attack a service you have not found. Every open port is a door; this inventories them before you pick one.",
+        "watch_for": "Open ports and their version banners. Odd high ports and outdated versions are your best leads.",
+        "means": "The open-port + version list defines the entire attack surface the next steps work from.",
+        "blue": "Noisy and logged — IDS/firewalls see the sweep. Defenders rate-limit, drop, or alert on it; -T2 / -sS shrink the footprint.",
+    },
+    "nikto": {
+        "cmd": "nikto -h <target>",
+        "do": "Sweep a web server for dangerous files, outdated software, misconfigurations, and missing security headers.",
+        "why_now": "Once a web port is confirmed open, nikto grabs the fast, well-known wins before slower manual testing.",
+        "watch_for": "CVE/OSVDB hits, exposed /admin or config files, default creds, missing headers (CSP, HSTS).",
+        "means": "Each hit is a candidate vuln to confirm — it feeds sqlmap, manual testing, or an exploit search.",
+        "blue": "Very loud — signature-heavy requests trip WAFs and fill logs. Defenders alert on the nikto user-agent and request pattern.",
+    },
+    "gobuster": {
+        "cmd": "gobuster dir -u <target> -w <wordlist>",
+        "do": "Brute-force URL paths to discover directories and files the site never links to.",
+        "why_now": "Apps expose /admin, /backup, /api that are not advertised; you enumerate them once a web app is confirmed live.",
+        "watch_for": "200/301/403 on interesting names (admin, backup, .git, api). A 403 still proves the path exists.",
+        "means": "Discovered endpoints widen the attack surface — new logins, APIs, or leaked files to test next.",
+        "blue": "Loud — hundreds of 404s from one IP in the access log. Defenders rate-limit and alert on high 404 volume.",
+    },
+    "sqlmap": {
+        "cmd": "sqlmap -u '<url>?id=1' --batch",
+        "do": "Probe a parameter with crafted payloads to detect and then exploit SQL injection automatically.",
+        "why_now": "Run it against any parameter that reaches a database query — the highest-impact web flaw to confirm.",
+        "watch_for": "'parameter is injectable' plus the DBMS type. From there it can enumerate DBs, tables, and dump data.",
+        "means": "Confirmed SQLi can expose the whole database — credentials, PII — and sometimes RCE through the DB.",
+        "blue": "Loud — anomalous/malformed queries hit WAFs and DB error logs. Parameterized queries + WAF rules block it.",
+    },
+    "airmon-ng": {
+        "cmd": "airmon-ng start wlan0",
+        "do": "Put the WiFi card into monitor mode (wlan0 -> wlan0mon).",
+        "why_now": "Managed mode only hears traffic addressed to you; you cannot study the airspace until the card hears every frame.",
+        "watch_for": "Interface renamed to wlan0mon. If it warns about interfering processes, run 'airmon-ng check kill' first.",
+        "means": "The card can now see frames from every AP and client in range.",
+        "blue": "Purely passive — nothing on the wire to detect. Recon leaves no trace, which is why defense cannot rely on catching it.",
+    },
+    "airodump-ng": {
+        "cmd": "airodump-ng -c CH --bssid BSSID -w cap wlan0mon",
+        "do": "Survey the air, then park on the target's channel and record its frames to disk.",
+        "why_now": "You need the AP's BSSID, channel, and a connected client first — and you must be recording before the handshake happens.",
+        "watch_for": "Target BSSID + CH with a STATION beneath it; then 'WPA handshake: <BSSID>' top-right once captured.",
+        "means": "Any handshake that occurs lands on disk with the nonces and MIC needed to crack offline.",
+        "blue": "Channel-locked listening is still passive and hard to detect. The loud step is the deauth that comes next.",
+    },
+    "aireplay-ng": {
+        "cmd": "aireplay-ng --deauth 3 -a BSSID -c CLIENT wlan0mon",
+        "do": "Send a few forged 'deauthenticate' frames so the client drops and immediately reconnects.",
+        "why_now": "Forcing a fast reconnect beats waiting. It WORKS because WPA2 management frames are unauthenticated — the client cannot tell your deauth from the AP's.",
+        "watch_for": "The STATION drops then reappears, and the capture flips to 'WPA handshake'. Send the minimum (3) — a flood denies service.",
+        "means": "The forced reconnect re-runs the 4-way handshake, which the recorder just captured.",
+        "blue": "THE LOUD STEP. A WIDS sees a deauth flood; 802.11w / PMF makes forged frames get dropped, defeating it. This is where WPA3 wins.",
+    },
+    "aircrack-ng": {
+        "cmd": "aircrack-ng -w /usr/share/wordlists/rockyou.txt cap-01.cap",
+        "do": "For each candidate password: derive the keys, compute the MIC, and compare it to the captured MIC.",
+        "why_now": "You have everything except the password, and this needs zero contact with the target — fully offline.",
+        "watch_for": "'KEY FOUND!' on success, or the list exhausts. For GPU speed, convert to mode 22000 and use hashcat.",
+        "means": "A hit hands you the PSK. No hit means the password was not in your list — you have proven it was strong.",
+        "blue": "Undetectable (offline). Defense is upstream: passphrase entropy and WPA3-SAE, which make offline guessing infeasible.",
+    },
+}
+
+
+def step_narration(tool: str) -> str:
+    """Return the rendered 5-slot step block (do/why_now/watch_for/means/blue)
+    for a tool, via the shared teach_engine formatter, or '' if none is defined.
+    Instant + static — safe to call synchronously in the agent's hot loop."""
+    key = (tool or "").lower().strip()
+    detail = STEP_DETAILS.get(key) or STEP_DETAILS.get(key.replace("_", "-"))
+    if not detail:
+        return ""
+    try:
+        from .teach_engine import format_step
+    except Exception:
+        try:
+            from src.core.teach_engine import format_step
+        except Exception:
+            return ""
+    return format_step(detail)
+
+
 def tell(msg, phase="system", tool="", detail="", finding="", teach=""):
     narrator.tell(msg, phase, tool, detail, finding, teach)
 

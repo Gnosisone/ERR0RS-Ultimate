@@ -345,26 +345,45 @@ Rules:
 """
 
 def _ollama_parse(text, state=None):
+    # HTTP to the WARM ollama server -- NOT `ollama run`, which cold-spawns the CLI
+    # and stalls the hot path (field logs showed it time out at 30s -> chat 0.3).
+    # format:json + a tight num_predict cap keep this ~10-20s warm and return valid
+    # JSON, instead of an unbounded generation we then regex-scrape.
+    import urllib.request
     try:
         prompt = OLLAMA_SYSTEM_PROMPT + f"\n\nOperator message: {text}\n\nJSON intent:"
-        proc = subprocess.run(
-            ["ollama","run","gemma3:1b",prompt],
-            capture_output=True, text=True, timeout=30,
+        payload = {
+            "model": "gemma3:1b", "prompt": prompt, "stream": False, "format": "json",
+            "options": {"temperature": 0.1, "num_predict": 160, "num_ctx": 2048},
+        }
+        req = urllib.request.Request(
+            "http://127.0.0.1:11434/api/generate",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
         )
-        raw = proc.stdout.strip()
-        m = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw, re.DOTALL)
-        if not m: return None
-        intent = json.loads(m.group(0))
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = (json.loads(resp.read()).get("response") or "").strip()
+        if not raw:
+            return None
+        try:
+            intent = json.loads(raw)
+        except Exception:
+            m = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw, re.DOTALL)
+            if not m:
+                return None
+            intent = json.loads(m.group(0))
         intent.setdefault("confidence", 0.6)
         intent.setdefault("action", "chat")
         return intent
     except Exception as e:
-        log.warning(f"Ollama fallback failed: {e}")
+        log.warning(f"Ollama intent parse failed: {e}")
         return None
 
-
 def parse(text, state=None):
-    """Main entry — fast path first, LLM fallback, else chat."""
+    """Main entry — fast rules, then chat. The generative LLM classifier is OFF
+    the hot path: gemma3:1b classification on the Pi runs ~15-45s (cold-load
+    penalty) and was timing out to chat anyway (field logs), so a rules-miss
+    returns chat immediately and the streaming ConvEngine answers it."""
     text = (text or "").strip()
     if not text:
         return {"action":"chat","confidence":0.0}
@@ -382,10 +401,9 @@ def parse(text, state=None):
     verbatim = _known_binary_passthrough(text, state)
     if verbatim:
         return verbatim
-    slow = _ollama_parse(text, state)
-    if slow:
-        return slow
-    return {"action":"chat","confidence":0.3}
+    # Generative LLM intent-classify is intentionally NOT called here — see docstring.
+    # _ollama_parse() (now HTTP) stays defined for an opt-in / async classifier later.
+    return {"action": "chat", "confidence": 0.3}
 
 
 # Security binaries that may appear as the first token of a typed command

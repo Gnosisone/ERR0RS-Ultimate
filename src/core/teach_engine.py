@@ -17,6 +17,89 @@
 """
 
 LESSONS = {
+    "ghidra": {
+        "summary": "NSA's open-source reverse-engineering suite — disassembles AND decompiles binaries into readable C-like pseudocode so you can understand what a compiled program actually does, with no source code",
+        "typical": "ghidra   (GUI: new project -> import binary -> auto-analyze -> read the Decompiler)    |    headless: analyzeHeadless <proj_dir> <proj_name> -import <binary> -postScript <Script>",
+        "mental_model": (
+            "Compilation is a one-way shredder: source code becomes machine code, throwing away names, "
+            "comments, and structure. Ghidra runs that backwards as far as the math allows — it disassembles "
+            "raw bytes into assembly, then LIFTS that assembly into readable C-like pseudocode. Along the way "
+            "it recovers function boundaries, cross-references, strings, and data types, so you can read and "
+            "reason about a program you have no source for. You are not getting the original code back — you "
+            "are getting a faithful paraphrase that is close enough to follow."
+        ),
+        "analogy": (
+            "A compiled binary is a book translated into a language you don't speak, then shredded, with the "
+            "author's name and margin notes burned off. Ghidra reassembles the shreds into sentences "
+            "(disassembly) and paraphrases them back into plain language (decompilation). It's not the original "
+            "manuscript, but it's close enough to follow the plot — and to find the one paragraph that matters."
+        ),
+        "flags": {
+            "ghidra":            "Launch the GUI (Kali's wrapper for ghidraRun). The normal workflow: create a project, import a binary, auto-analyze, then browse the Decompiler.",
+            "analyzeHeadless":   "The no-GUI runner at /usr/share/ghidra/support/ — analyze and script binaries in batch (automation, CI, large sample sets).",
+            "<proj_location> <proj_name>":"Headless: the project folder + name to create or open. Or ghidra://server/repo for a shared team project.",
+            "-import <dir|file>":"Bring a binary (or a whole directory) into the project and auto-analyze it.",
+            "-process [pattern]":"Re-run on files ALREADY imported (instead of -import) — e.g. to apply a new script to the corpus.",
+            "-preScript / -postScript <Script>":"Run a Ghidra script BEFORE / AFTER analysis (export decompiled C, dump strings, list xrefs). This is the automation hook.",
+            "-scriptPath <paths>":"Where your custom Java/Python (Jython) scripts live.",
+            "-recursive":        "With -import on a directory, walk the whole tree of binaries.",
+            "-readOnly":         "Analyze without saving changes to the project — throwaway triage.",
+            "-deleteProject":    "Discard the project after a one-shot headless run (pairs well with a /tmp project).",
+            "-noanalysis":       "Import WITHOUT auto-analysis, when you intend to drive analysis yourself from a script.",
+            "-analysisTimeoutPerFile <s>":"Cap per-file analysis time — essential for batch runs so one huge/packed binary can't stall the whole job.",
+        },
+        "read": [
+            "The Decompiler window (C-like pseudocode) is where you live; the Listing (disassembly) is ground truth when the decompile looks wrong or incomplete.",
+            "Strings + their cross-references (xrefs) are the fastest way in: find an 'Access denied' string, jump to what references it, and you are standing in the auth check.",
+            "Auto-analysis recovers function boundaries, names known library functions via the FID databases (ghidra-data), and builds the call graph — but it GUESSES; verify before you trust it.",
+            "Rename variables/functions and add comments as you understand them — RE is iterative, and your annotations ARE the deliverable.",
+            "Loading symbols (PDB/DWARF) or applying FID signatures dramatically improves readability — do it before deep reading whenever you can.",
+        ],
+        "zoom": {
+            "eli5": "Programs ship as machine code people can't read. Ghidra turns it back into something close to source code, so you can see how it works — find the password check, the hidden function, or the bug.",
+            "operator": "Import the binary, let auto-analysis recover functions/strings/xrefs, then read the Decompiler (C-like) next to the Listing (assembly). Navigate by string -> xref to reach the logic you care about. Use analyzeHeadless to batch-analyze and script exports across many samples.",
+            "deep": "Ghidra disassembles via processor-specific SLEIGH specs into P-code (its intermediate representation), then the decompiler runs data-flow and type analysis over P-code to emit C. Analysis is a pipeline: function ID, stack/variable recovery, type propagation, switch recovery. Script it in Java or Python (Jython) against the FlatProgramAPI, automate with Headless, and collaborate via a Ghidra Server. Enrich the output by importing PDB/DWARF symbols or applying FID databases.",
+        },
+        "steps": [
+            {
+                "cmd": "/usr/share/ghidra/support/analyzeHeadless /tmp ghtri -import ./suspicious.bin -deleteProject",
+                "do": "Create a throwaway project and import + auto-analyze the binary, no GUI.",
+                "why_now": "Headless is the fast first pass — recover functions/strings/xrefs before deciding it's worth a GUI deep-dive.",
+                "watch_for": "The analysis log: loader/format detected, function count, and any 'unable to' warnings (hints of packing/obfuscation).",
+                "means": "You now have an analyzed program — enough to triage whether and where to look closer.",
+                "blue": "Static and offline — analyzing in Ghidra touches nothing on a network. You are only READING the sample, not running it.",
+            },
+            {
+                "cmd": "analyzeHeadless /tmp ghtri -process suspicious.bin -postScript ExportToC.java",
+                "do": "Run a script after analysis to export the decompiled C (or strings/xrefs) to a file.",
+                "why_now": "Scripting turns one-off RE into repeatable, diffable output — vital for triaging many samples or wiring it into CI.",
+                "watch_for": "The exported artifact (decompiled functions, string table). Grep it for crypto constants, URLs, and command strings.",
+                "means": "A text artifact you can diff across malware variants or feed to the next analysis stage.",
+                "blue": "The core blue-team move: turn an adversary binary into readable code so you can write detections/signatures from its real behavior.",
+            },
+            {
+                "cmd": "ghidra   (open the project, go to the functions triage flagged)",
+                "do": "Switch to the GUI only for the functions triage flagged — read the Decompiler, rename, comment, chase xrefs.",
+                "why_now": "GUI time is expensive; spend it only where headless said the logic of interest lives.",
+                "watch_for": "The routine that handles the suspicious string / network call — usually the payload, the auth check, or the secret.",
+                "means": "Understanding of the exact routine: the algorithm, the key, the vulnerability, or the C2 behavior.",
+                "blue": "From here you author the YARA rule, the detection, or the patch. Reading the binary is how the defense gets written.",
+            },
+        ],
+        "next": [
+            "gdb / gef (dynamic — confirm at runtime what the static decompile implies)",
+            "radare2 / cutter (alternative RE suite + fast triage)",
+            "strings / binwalk (quick first-pass triage before a full project)",
+            "yara (turn what you learned into a reusable detection signature)",
+        ],
+        "caution": "Reverse engineering can be limited by software licenses/EULAs and local law (anti-circumvention rules). RE your OWN binaries, CTF/authorized targets, or malware in an ISOLATED lab. Ghidra itself is static and safe, but treat the samples around it as live — analyze real malware only in a disposable, network-isolated VM.",
+        "cia": [
+            "DEFENSIVE / BLUE — the dominant use: malware analysis and vulnerability research. Reading the adversary's binary is exactly how YARA rules, detections, and patches get written.",
+            "CONFIDENTIALITY — RE recovers the logic and secrets an author meant to keep opaque (keys, license checks, protocols, C2 details).",
+            "INTEGRITY — understanding the code is the precursor to modifying it: patching a vuln, neutralizing an implant, or (offensively) defeating a check.",
+        ],
+        "try_cmd": "ghidra",
+    },
     "wpa-handshake": {
         "summary": "How WPA2-PSK proves both sides know the WiFi password without ever sending it — the 4-way handshake — and why recording it lets an attacker crack the password offline",
         "typical": "airmon-ng start wlan0  ->  airodump-ng (find target)  ->  airodump-ng -c CH --bssid BSSID -w cap  ->  aireplay-ng --deauth  ->  aircrack-ng -w wordlist cap.cap",

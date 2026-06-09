@@ -17,6 +17,103 @@
 """
 
 LESSONS = {
+    "wpa-handshake": {
+        "summary": "How WPA2-PSK proves both sides know the WiFi password without ever sending it — the 4-way handshake — and why recording it lets an attacker crack the password offline",
+        "typical": "airmon-ng start wlan0  ->  airodump-ng (find target)  ->  airodump-ng -c CH --bssid BSSID -w cap  ->  aireplay-ng --deauth  ->  aircrack-ng -w wordlist cap.cap",
+        "mental_model": (
+            "WPA2-PSK never sends your WiFi password over the air. Instead the access point (AP) and "
+            "your device each PROVE they know it by trading random numbers and a fingerprint computed "
+            "from (those numbers + the password). That four-message exchange is the 4-way handshake. "
+            "The catch: every part of the handshake travels in the clear EXCEPT the password itself. So "
+            "if you record the handshake you can sit offline and guess passwords until one produces the "
+            "same fingerprint. You are not 'cracking WiFi' live — you are checking guesses against a math "
+            "problem you copied down off the air."
+        ),
+        "analogy": (
+            "Two people prove they share a secret word without saying it: each shouts a random number, "
+            "then both whisper a checksum made from (their two numbers + the secret word). Matching "
+            "checksums means both knew the word. An eavesdropper hears the random numbers and the "
+            "checksum but never the word — so all they can do is go home and try words until one makes "
+            "the same checksum. The deauth attack just forces the two people to redo the exchange now, "
+            "while you are listening."
+        ),
+        "flags": {
+            "airmon-ng start":  "Put the WiFi card into MONITOR mode (wlan0 -> wlan0mon) so it hears EVERY frame in the air, not just traffic addressed to you.",
+            "airodump-ng (bare)":"No filter = hop all channels and list APs (BSSID, CH, ENC, ESSID) plus the clients on each. This is the recon survey.",
+            "-c CH":            "Lock the capture to the target's channel. Cards hop channels by default; the handshake is a 4-frame burst, so you must be parked to catch it.",
+            "--bssid BSSID":    "Filter to the one target AP's radio MAC so the capture isn't buried under the whole neighborhood.",
+            "-w cap":           "Write frames to disk (cap-01.cap). The handshake must be ON DISK before you can crack it.",
+            "--deauth N -a BSSID -c CLIENT":"aireplay: send N forged 'disconnect' frames to CLIENT spoofed as the AP, so the client reconnects and re-runs the handshake while you record.",
+            "aircrack-ng -w LIST":"Offline crack: for each candidate password derive the keys and check it against the captured fingerprint (MIC). Never touches the target.",
+        },
+        "read": [
+            "A crackable target in airodump needs three things: a BSSID, a channel (CH), and at least one STATION (connected client). No client -> nothing to deauth (see the PMKID method instead).",
+            "Success signal: 'WPA handshake: <BSSID>' appears top-right in airodump once enough of the four frames are captured.",
+            "The handshake frames are EAPOL messages M1-M4. In Wireshark, the filter 'eapol' shows you exactly the four packets that matter.",
+            "A captured handshake is NOT the password — it is the math needed to TEST passwords. aircrack only wins if the real password is in your wordlist.",
+            "If the wordlist runs out with no hit, that is itself a finding: the passphrase resisted the guess space — evidence the WiFi password is strong.",
+        ],
+        "zoom": {
+            "eli5": "The router and your phone prove they both know the WiFi password by trading random numbers and a secret-recipe checksum — never the password itself. Record that trade and you can guess passwords offline until one matches the checksum.",
+            "operator": "Capture the 4-way handshake (EAPOL M1-M4) by parking on the AP's channel and recording; optionally deauth a client to force a fast reconnect. The .cap then feeds an offline dictionary or brute attack in aircrack-ng (or hashcat mode 22000). Cracking needs zero further contact with the target.",
+            "deep": "PSK + SSID --PBKDF2(4096 iter, SSID as salt)--> PMK (256-bit). M1 AP->STA: ANonce. STA now has ANonce+SNonce+both MACs+PMK and derives PTK = PRF(PMK, ANonce | SNonce | AP_MAC | STA_MAC). M2 STA->AP: SNonce + MIC. M3 AP->STA: MIC + encrypted GTK. M4: ACK. Offline crack per guess g: PMK' = PBKDF2(g, SSID); PTK' = PRF(...); MIC' = HMAC(PTK', eapol_frame); if MIC' == captured MIC then g is the password. PMKID variant: some APs put PMKID = HMAC-SHA1(PMK, 'PMK Name' | AP_MAC | STA_MAC) in M1, enabling a clientless crack with no deauth.",
+        },
+        "steps": [
+            {
+                "cmd": "airmon-ng start wlan0",
+                "do": "Put the Alfa card into monitor mode (wlan0 -> wlan0mon).",
+                "why_now": "Managed mode only hears traffic addressed to you. You cannot study the airspace until the card listens to every frame.",
+                "watch_for": "Interface renamed to wlan0mon and 'monitor mode enabled'. If airmon-ng warns about interfering processes, run 'airmon-ng check kill' first.",
+                "means": "The card can now see frames from every AP and client in range.",
+                "blue": "Purely passive — nothing hits the wire to detect. Lesson: recon leaves no trace, which is exactly why defenders cannot rely on catching this stage.",
+            },
+            {
+                "cmd": "airodump-ng wlan0mon",
+                "do": "Survey the air: list APs (BSSID, CH, ENC, ESSID) and the STATIONs connected to each.",
+                "why_now": "You cannot target what you cannot see. You need the AP's BSSID, its channel, and ideally a connected client.",
+                "watch_for": "Your target's BSSID and CH, a STATION row beneath it, and WPA2 in the ENC column.",
+                "means": "You now hold the three prerequisites for a capture: BSSID, channel, and a victim client.",
+                "blue": "Still passive and undetectable. A WIDS cannot see a silent listener — this is why rogue-listener detection is so hard and defense focuses elsewhere.",
+            },
+            {
+                "cmd": "airodump-ng -c CH --bssid BSSID -w cap wlan0mon",
+                "do": "Park on the target's channel and record all of its frames to cap-01.cap.",
+                "why_now": "The handshake is a 4-frame burst. You must already be recording, on the correct channel, BEFORE it happens.",
+                "watch_for": "The 'WPA handshake:' field top-right stays blank until caught. Leave this window running; it is your recorder.",
+                "means": "Any handshake that occurs now lands on disk with the nonces and MIC you need to crack.",
+                "blue": "Channel-locked listening is still passive. The loud, detectable part comes next.",
+            },
+            {
+                "cmd": "aireplay-ng --deauth 3 -a BSSID -c CLIENT wlan0mon",
+                "do": "Send a few forged 'deauthenticate' frames so the client drops and immediately reconnects.",
+                "why_now": "Waiting for a natural reconnect is slow. This WORKS because WPA2 management frames are unauthenticated — the client cannot tell your forged deauth from the real AP's.",
+                "watch_for": "The STATION disappears then reappears, and the capture window flips to 'WPA handshake: <BSSID>'. Send the MINIMUM (3) — a flood is noisy and denies service to real users.",
+                "means": "The forced reconnect re-runs the 4-way handshake, which your recorder just captured.",
+                "blue": "THE LOUD STEP. A WIDS sees a deauth flood; 802.11w / PMF makes forged management frames get silently dropped, defeating this entirely. This is exactly where you teach the WPA3 upgrade.",
+            },
+            {
+                "cmd": "aircrack-ng -w /usr/share/wordlists/rockyou.txt cap-01.cap",
+                "do": "For each candidate password: derive PMK -> PTK, compute the MIC, and compare it to the captured MIC.",
+                "why_now": "You have everything except the password, and this needs ZERO contact with the target — it is fully offline.",
+                "watch_for": "'KEY FOUND! [ password ]' on success, or the list exhausts. For GPU speed, convert the cap to mode 22000 and run hashcat.",
+                "means": "A hit hands you the PSK. No hit means the password was not in your list — you have proven it was strong.",
+                "blue": "Undetectable (offline). Defense lives entirely upstream: passphrase entropy (length + randomness) and WPA3-SAE, which makes offline guessing infeasible. A crack you CANNOT finish is the blue team winning.",
+            },
+        ],
+        "next": [
+            "hashcat (mode 22000 — GPU-speed cracking of this same capture)",
+            "wpa-pmkid (clientless capture when no client is connected to deauth)",
+            "wifite (automates this whole chain end to end)",
+            "wpa3-sae / 802.11w PMF (the defenses that close deauth + offline cracking)",
+        ],
+        "caution": "Your OWN network, or one you have explicit written permission to test, in a controlled lab. Deauth frames knock REAL devices offline (an availability attack), and capturing handshakes on networks you do not own is illegal in most places. Send the fewest deauths needed and never run this against production WiFi without sign-off.",
+        "cia": [
+            "CONFIDENTIALITY — primary. The chain targets the one secret (the PSK) protecting every device on the network; crack it and you can decrypt traffic and join.",
+            "AVAILABILITY — the deauth step is a live availability attack: forged frames knock clients offline. That is the noisy, detectable, legally serious part.",
+            "INTEGRITY — downstream. With the PSK you are a trusted insider on the LAN and can tamper with traffic (MITM, DNS spoofing) from the inside.",
+        ],
+        "try_cmd": "airmon-ng start wlan0",
+    },
     "wpprobe": {
         "summary": "Stealthy WordPress plugin scanner — fingerprints installed plugins and flags known CVEs from the Wordfence database",
         "typical": "wpprobe update-db && wpprobe scan -u https://target.tld -o results.json",
@@ -1821,6 +1918,15 @@ def list_topics() -> list:
     return sorted(LESSONS.keys())
 
 
+def _wrap(text: str, width: int = 58) -> list:
+    """Wrap a long paragraph to the fixed-width live terminal."""
+    import textwrap
+    out = []
+    for _para in str(text).split("\n"):
+        out.extend(textwrap.wrap(_para, width) or [""])
+    return out
+
+
 def format_lesson(topic: str) -> str:
     """Produce a pretty multi-line lesson block for the live terminal."""
     lesson = lookup(topic)
@@ -1832,6 +1938,27 @@ def format_lesson(topic: str) -> str:
     lines.append(f"\n{'═'*62}")
     lines.append(f"📖 {topic.upper()} — {lesson['summary']}")
     lines.append(f"{'─'*62}")
+    # ── MENTAL MODEL / ANALOGY / ZOOM (optional, for foundations lessons) ─
+    # Foundations/concept lessons lead with the WHY: a plain-language mental
+    # model, an analogy, and three depth "zoom" levels the learner picks
+    # from (progressive disclosure — the firehose is opt-in). Tool lessons
+    # omit these keys and render exactly as before.
+    if lesson.get('mental_model'):
+        lines.append("\n  🧠 MENTAL MODEL — what's really going on (the WHY before the how):")
+        for _ln in _wrap(lesson['mental_model']):
+            lines.append(f"    {_ln}")
+    if lesson.get('analogy'):
+        lines.append("\n  💡 ANALOGY:")
+        for _ln in _wrap(lesson['analogy']):
+            lines.append(f"    {_ln}")
+    if lesson.get('zoom'):
+        _z = lesson['zoom']
+        lines.append("\n  🔎 ZOOM LEVELS — same idea at three depths (pick yours):")
+        for _lvl, _lbl in (("eli5", "ELI5"), ("operator", "OPERATOR"), ("deep", "DEEP")):
+            if _z.get(_lvl):
+                lines.append(f"    [{_lbl}]")
+                for _ln in _wrap(_z[_lvl]):
+                    lines.append(f"      {_ln}")
     lines.append(f"\n  Typical use:  {lesson['typical']}\n")
     lines.append("  FLAGS / OPTIONS:")
     for flag, desc in lesson['flags'].items():
@@ -1873,6 +2000,23 @@ def format_lesson(topic: str) -> str:
         for step in lesson['apply']:
             lines.append(f"    • {step}")
 
+    # ── STEP-BY-STEP narration (optional) ────────────────────────────────
+    # For attack lessons: each step is a 5-slot dict (do / why_now /
+    # watch_for / means / blue). Same schema the live narrator uses, so a
+    # real run and the lesson explain a step identically.
+    if lesson.get('steps'):
+        lines.append("\n  🪜 STEP-BY-STEP — what each step does and WHY:")
+        for _i, _st in enumerate(lesson['steps'], 1):
+            _cmd = _st.get('cmd', '')
+            lines.append(f"\n    {_i}. $ {_cmd}" if _cmd else f"\n    {_i}.")
+            for _lbl, _key in (("DO", "do"), ("WHY NOW", "why_now"), ("WATCH FOR", "watch_for"), ("MEANS", "means"), ("BLUE", "blue")):
+                _val = _st.get(_key)
+                if not _val:
+                    continue
+                _w = _wrap(_val, 50)
+                lines.append(f"       {_lbl:<9} {_w[0]}")
+                for _cont in _w[1:]:
+                    lines.append(f"                 {_cont}")
     lines.append(f"\n  LOGICAL NEXT STEPS:  {', '.join(lesson['next'])}")
     if lesson.get('caution'):
         lines.append(f"\n  ⚠️  {lesson['caution']}")

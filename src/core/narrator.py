@@ -402,6 +402,70 @@ narrator = Narrator()
 # and a TAUGHT lesson step read identically. step_narration() returns "" for
 # tools without an entry, so the agent loop degrades gracefully.
 STEP_DETAILS = {
+    "whatweb": {
+        "cmd": "whatweb <target> -a 3",
+        "do": "Fingerprint the web stack — server, framework, CMS, language, versions — from headers and page markers.",
+        "why_now": "Before attacking a web app you map what it's built on; the stack dictates which CVEs and exploit paths are even relevant.",
+        "watch_for": "Server/framework/CMS names and versions. Outdated versions and known-vulnerable CMS plugins are immediate leads.",
+        "means": "The tech profile tells the next steps where to aim — which nuclei templates, which exploits, which manual tests.",
+        "blue": "Lightly noisy (a few HTTP requests). Hardening: strip Server / X-Powered-By headers so you leak less of this.",
+    },
+    "nuclei": {
+        "cmd": "nuclei -u <target> -t http/ -severity critical,high,medium",
+        "do": "Run thousands of community templates against the target to detect known CVEs and misconfigurations.",
+        "why_now": "Once the stack is known, nuclei confirms specific known issues fast and accurately before slower manual work.",
+        "watch_for": "[critical]/[high] template matches with CVE IDs — each is a confirmed, citable finding.",
+        "means": "Matched templates are confirmed vulns to weaponize or report; they often point straight at a public exploit.",
+        "blue": "Signature-detectable — WAFs/IDS see the template request patterns. Patch the matched CVEs; that's the whole point.",
+    },
+    "hydra": {
+        "cmd": "hydra -l <user> -P <wordlist> <service>://<target>",
+        "do": "Brute-force or password-spray a login service (SSH, FTP, HTTP) with a username/password list.",
+        "why_now": "Run it against any exposed auth service — weak, default, or reused credentials remain the #1 way in.",
+        "watch_for": "A green 'login: ... password: ...' line means valid creds. Watch for lockouts; -f stops on the first hit.",
+        "means": "Valid credentials give authenticated access — usually the pivot from outsider to insider.",
+        "blue": "Very loud — bursts of failed logins in auth logs. Defenders alert on this; lockout policy + MFA + fail2ban kill it.",
+    },
+    "ffuf": {
+        "cmd": "ffuf -u <target>/FUZZ -w <wordlist> -mc 200,301,302,403",
+        "do": "Fast web fuzzing — brute-force paths or parameters and filter by response code to find hidden content.",
+        "why_now": "Like gobuster but faster; you map the unadvertised attack surface once a web app is confirmed live.",
+        "watch_for": "Hits on interesting names (admin, api, backup, .git). Tune matchers/filters to cut the noise.",
+        "means": "Discovered endpoints or params open new logins, APIs, or files to test in the next step.",
+        "blue": "Loud — heavy 404 volume from one IP. Rate-limit, alert on high 404s, and don't leave sensitive paths reachable.",
+    },
+    "enum4linux": {
+        "cmd": "enum4linux -a <target>",
+        "do": "Enumerate a Windows/Samba host over SMB — shares, users, groups, password policy, OS info.",
+        "why_now": "When 139/445 are open, this harvests the low-effort intel that shapes credential and lateral-movement attacks.",
+        "watch_for": "User lists, readable shares, and a weak password policy — all feed the next (credential) phase.",
+        "means": "User names + share access + policy are the inputs for password spraying and lateral movement.",
+        "blue": "Detectable SMB session/enumeration. Restrict null/guest sessions, segment SMB, alert on mass enumeration.",
+    },
+    "crackmapexec": {
+        "cmd": "crackmapexec smb <target> --shares --users",
+        "do": "Sweep SMB across hosts to test credentials and list shares/users, flagging where creds are valid.",
+        "why_now": "After you hold a credential (or want to map SMB exposure), CME shows fast where it works and what's reachable.",
+        "watch_for": "[+] valid creds vs [-], 'Pwn3d!' (admin), and readable/writable shares across the subnet.",
+        "means": "A valid cred plus admin on a host is the lateral-movement and credential-dumping springboard.",
+        "blue": "Noisy auth + SMB activity across hosts. Detect via logon-failure correlation; defend with LAPS, segmentation, MFA.",
+    },
+    "nmap_vuln": {
+        "cmd": "nmap --script vuln -p <ports> <target>",
+        "do": "Run nmap's NSE 'vuln' scripts against open ports to flag known, version-specific vulnerabilities.",
+        "why_now": "After ports and versions are known, this maps which services carry public CVEs worth chasing.",
+        "watch_for": "Script output naming CVE IDs and 'VULNERABLE' states — direct leads to an exploit.",
+        "means": "Each flagged CVE is a candidate exploit path; confirm with searchsploit/nuclei before firing.",
+        "blue": "Loud and script-heavy — IDS sees the probes. Patch the named CVEs; that closes the doors these scripts find.",
+    },
+    "nmap_smb": {
+        "cmd": "nmap --script smb-vuln-* -p 139,445 <target>",
+        "do": "Probe SMB with NSE scripts for known vulns (e.g. MS17-010), security mode, and shares.",
+        "why_now": "When SMB ports are open, check for high-impact wormable bugs and misconfig before manual enumeration.",
+        "watch_for": "'VULNERABLE: ... ms17-010' or guest/anonymous share access — both are serious, immediate findings.",
+        "means": "An SMB RCE bug or an open share is often the fastest route to a foothold on a Windows network.",
+        "blue": "Patch MS17-010-class bugs, disable SMBv1, require signing, segment. IDS detects the smb-vuln probes.",
+    },
     "nmap": {
         "cmd": "nmap -sV -sC <target>",
         "do": "Send TCP/UDP probes to map open ports, service versions, and default-script results.",
@@ -474,7 +538,9 @@ def step_narration(tool: str) -> str:
     for a tool, via the shared teach_engine formatter, or '' if none is defined.
     Instant + static — safe to call synchronously in the agent's hot loop."""
     key = (tool or "").lower().strip()
-    detail = STEP_DETAILS.get(key) or STEP_DETAILS.get(key.replace("_", "-"))
+    detail = (STEP_DETAILS.get(key)
+              or STEP_DETAILS.get(key.replace("_", "-"))
+              or STEP_DETAILS.get(key.split("_")[0]))   # family: nmap_quick -> nmap
     if not detail:
         return ""
     try:

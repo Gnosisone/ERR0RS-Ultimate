@@ -17,6 +17,130 @@
 """
 
 LESSONS = {
+    "network-silence": {
+        "summary": "Keep the OS quiet on a network — silence the chatty protocols that announce your presence, name, and intentions — to blend in (red-team OpSec) AND shrink your attack surface (blue-team hardening)",
+        "typical": "audit with tcpdump -> disable LLMNR/NBT-NS/mDNS -> tame IPv6 -> randomize MAC + blank hostname -> default-deny egress -> re-verify with a sniffer",
+        "mental_model": (
+            "Out of the box an OS is a chatterbox. The moment it joins a network it starts broadcasting: 'I "
+            "exist, my name is X, I'm looking for a printer, who has this hostname?' Each protocol behind that "
+            "(mDNS, LLMNR, NetBIOS, SSDP, IPv6 autoconfig, DHCP) is a convenience feature that trades privacy "
+            "for plug-and-play. Going silent means auditing every UNSOLICITED packet your host emits and "
+            "disabling the ones you don't need — until the host only speaks when spoken to, and only says what "
+            "it must."
+        ),
+        "analogy": (
+            "A default OS on a network is like a person walking into a party shouting their full name, who "
+            "they're looking for, and what they want — to everyone, constantly. Going silent is learning to "
+            "stand quietly, speak only when addressed, and never volunteer your ID. An eavesdropper (a sniffer, "
+            "or a poisoning tool) feeds on the shouting; a quiet guest gives them nothing to work with."
+        ),
+        "flags": {
+            "LLMNR (UDP 5355)":  "Link-Local Multicast Name Resolution — broadcasts the names you look up when DNS fails; poisoning tools abuse it to steal NetNTLM hashes. Kill it: systemd-resolved 'LLMNR=no' / Windows GPO 'turn off multicast name resolution'.",
+            "NetBIOS-NS (UDP 137)":"Legacy Windows name service — same hash-theft risk as LLMNR. Disable NetBIOS over TCP/IP per-adapter (Windows); unused on modern Linux.",
+            "mDNS (UDP 5353)":   "multicast DNS / Bonjour / Avahi — advertises your hostname and services on .local. Disable: mask avahi-daemon (Linux); disable Bonjour if unneeded (Win/macOS).",
+            "SSDP/UPnP (UDP 1900)":"Service discovery — announces and hunts for UPnP devices. Disable SSDP / Function Discovery unless you genuinely need device discovery.",
+            "IPv6 RS/RA + RDNSS":"IPv6 autoconfig leaks presence and will ACCEPT attacker-supplied routes/DNS (the mitm6 attack). Prefer DHCPv6 or disable IPv6 if unused; enable RA Guard on the switch.",
+            "DHCP hostname (opt 12)":"Your DHCP request volunteers your hostname to the whole segment and the DHCP log. Blank or anonymize the sent hostname.",
+            "MAC address":       "The NIC's burned-in MAC is a stable per-device identifier trackable across networks. Randomize per-network (macchanger / NetworkManager cloned-mac-address=random).",
+            "Egress (outbound)": "A default-allow firewall lets any process phone home. Set default-deny outbound + allowlist only what's needed — the backstop for anything still chatty or compromised.",
+        },
+        "read": [
+            "The biggest single win is killing LLMNR + NBT-NS + mDNS — that one change defeats the most common internal hash-theft path (poison the name lookup -> capture NetNTLM -> relay it).",
+            "Don't trust 'I disabled it' — VERIFY. Put a second host in promiscuous mode (tcpdump/wireshark) and confirm your machine emits nothing unsolicited at boot and idle.",
+            "IPv6 is the silent leak: even on an 'IPv4 network' your host may autoconfigure IPv6 and accept a rogue RA/DNS (mitm6). Handle IPv6 explicitly — never just ignore it.",
+            "Silence has usability tradeoffs — mDNS off can break AirPlay/printer discovery; egress-deny can break updates. Document what you turned off and why.",
+            "A quiet host is not an invisible host — ARP, switch MAC tables, and your actual traffic still place you. Silence reduces exposure, it doesn't erase it.",
+        ],
+        "zoom": {
+            "eli5": "Computers blurt out their name and what they want the moment they join a network. This teaches you to make yours stop blurting, so snoops and attackers can't easily see or impersonate you.",
+            "operator": "Audit and disable broadcast/multicast name services (LLMNR, mDNS, NetBIOS-NS, SSDP), tame IPv6 autoconfig, stop leaking your hostname via DHCP, randomize your MAC, and lock egress with a default-deny firewall. Then verify with a sniffer that the host emits nothing unsolicited.",
+            "deep": "The leak surface is mostly link-local multicast/broadcast: LLMNR (UDP 5355), mDNS (UDP 5353), NetBIOS-NS (UDP 137), SSDP/UPnP (UDP 1900), plus ICMPv6 RS/RA + RDNSS and DHCP option 12 (hostname)/option 55. These are weaponized: name-poisoning tools spoof LLMNR+NBT-NS+mDNS replies to capture NetNTLM and relay it; mitm6 abuses IPv6 RA+DHCPv6 to become your DNS/router. Defense: disable the services (resolved LLMNR=no, mask avahi, disable wsdd/NetBIOS), set IPv6 to DHCPv6-only or off with RA Guard, blank the DHCP hostname, randomize MAC per-network, and enforce egress filtering so even a process that speaks can't reach out.",
+        },
+        "apply": [
+            "Inventory first: from another box, run `tcpdump -i <iface> -n 'multicast or broadcast'` (as root) and watch what your host shouts at boot and idle. That list IS your kill-list.",
+            "Linux name services: set 'LLMNR=no' and 'MulticastDNS=no' in /etc/systemd/resolved.conf (or per-link), then mask the avahi-daemon service. Re-test with tcpdump.",
+            "Windows: GPO/registry 'Turn off multicast name resolution' (kills LLMNR), disable NetBIOS over TCP/IP on each adapter, and stop SSDP Discovery + Function Discovery if unused.",
+            "IPv6: if you don't use it, disable it; if you do, prefer DHCPv6 and turn on RA Guard at the switch. This shuts the mitm6 door.",
+            "Identity: randomize MAC per-network (NetworkManager wifi.cloned-mac-address=random / ethernet.cloned-mac-address=random) and blank the DHCP-sent hostname.",
+            "Egress backstop: default-deny outbound in your host firewall and allowlist only required destinations/ports — the safety net for anything you missed.",
+        ],
+        "next": [
+            "responder (run it in a LAB to watch what a silenced host denies the attacker — see the threat you're closing)",
+            "wireshark / tcpdump (verify silence — the proof step, non-negotiable)",
+            "privacy-hardening (the host + identity privacy companion lesson)",
+            "nftables / ufw (build the default-deny egress backstop)",
+        ],
+        "caution": "Test in a lab or maintenance window — disabling name services, IPv6, or egress can break printing, discovery, updates, or domain features. On managed/enterprise hosts, coordinate via change control: silencing a domain member's LLMNR/NBT-NS is usually a win, but do it knowingly. Defensive hardening on systems you own or administer.",
+        "cia": [
+            "CONFIDENTIALITY — primary. Silence stops the host leaking its identity, name lookups, and presence, and closes the LLMNR/NBT-NS/mDNS channel that hands attackers your credentials.",
+            "INTEGRITY — disabling rogue-RA/mitm6 and NTLM-relay paths stops attackers inserting themselves as your router/DNS or replaying your auth, protecting session integrity.",
+            "AVAILABILITY — the tradeoff to manage: over-silencing (egress deny, mDNS off) breaks legitimate services. The goal is minimal NECESSARY chatter, not a mute host that can't work.",
+        ],
+        "try_cmd": "tcpdump -i eth0 -n 'multicast or broadcast'",
+    },
+    "privacy-hardening": {
+        "summary": "Reduce what a host and its user leak about identity, location, and activity — telemetry, DNS, traffic, metadata, and persistent identifiers — so you are harder to track, profile, or correlate",
+        "typical": "define threat model -> randomize identifiers (MAC/hostname) + kill telemetry -> encrypt resolution (DoH) + transit (VPN/Tor) -> encrypt at rest (LUKS) -> scrub metadata -> verify no leaks",
+        "mental_model": (
+            "Privacy on an OS is about controlling identifiers and observability across four layers: WHO you are "
+            "(identifiers — MAC, hostname, account, hardware IDs), WHAT you ask (DNS + the destinations you "
+            "connect to), WHAT you send (traffic content and its metadata), and WHAT you leave behind (logs, "
+            "caches, file metadata, telemetry). Every layer leaks by default. Hardening means, layer by layer, "
+            "either removing the identifier, encrypting the channel, or anonymizing the source — and accepting "
+            "that perfect privacy is impossible, so you optimize for YOUR specific threat model."
+        ),
+        "analogy": (
+            "Privacy is like mailing a letter. Encryption (TLS/VPN) is a sealed envelope — the contents are "
+            "hidden. But the envelope still shows your return address (your IP/identity), the destination (who "
+            "you talk to = metadata), and the postmark (timing/location). Real privacy means sealing the "
+            "envelope AND removing the return address AND routing through enough relays (Tor) that no single "
+            "observer sees both ends. Most 'privacy' tools only seal the envelope and call it done."
+        ),
+        "flags": {
+            "MAC randomization": "The NIC MAC is a stable cross-network tracker (especially on WiFi). Randomize per-network so you can't be followed venue to venue.",
+            "Hostname / DHCP":   "Your hostname (e.g. 'holdens-laptop') is volunteered to every network you join. Use a generic name and anonymize the DHCP-sent hostname.",
+            "OS telemetry":      "Default OS/app telemetry phones home with usage data + identifiers. Disable it, and block the endpoints at the firewall as a backstop.",
+            "Encrypted DNS (DoH/DoT)":"Plain DNS exposes every site you visit to the network/ISP. DoH (443) / DoT (853) encrypts it to a resolver YOU choose — pick a trusted one (the resolver still sees the queries).",
+            "VPN":               "Hides your IP from the destination and your traffic from the local network — but the VPN provider sees everything. Trust MOVES, it doesn't vanish. Good vs a local/ISP observer; not vs the destination.",
+            "Tor":               "Routes through 3 relays so no single hop links you to the destination. The right tool when the destination or a global observer IS the adversary. Use Tor Browser unmodified — customizing it fingerprints you.",
+            "Disk encryption (LUKS/FDE)":"Encrypts data at rest so theft/seizure of the device doesn't expose files. The single highest-ROI privacy control against physical loss.",
+            "Metadata scrubbing":"Photos carry GPS EXIF; documents carry author + edit history. Strip metadata (mat2, exiftool) BEFORE sharing files.",
+        },
+        "read": [
+            "Privacy is threat-model-relative: name your adversary (ISP? a website? a local sniffer? a nation-state?) — the right controls differ completely, and over-doing it wastes effort or backfires.",
+            "Encryption hides CONTENT, not METADATA. TLS/VPN still leak who you talk to, when, and how much. Source anonymity (Tor) is a different problem than confidentiality (TLS).",
+            "A VPN is NOT anonymity — it relocates trust to the VPN provider. For 'the destination shouldn't know it's me', that's Tor's job, not a VPN's.",
+            "Anonymity loves company: blending into a large crowd (stock Tor Browser, common settings) protects you; bespoke 'privacy' tweaks often make your fingerprint UNIQUE and MORE trackable.",
+            "Identifiers persist across reboots and networks (MAC, hardware IDs, account logins, cookies, browser fingerprint) — these correlate your sessions even when each one looks anonymous on its own.",
+        ],
+        "zoom": {
+            "eli5": "Your computer constantly reveals who and where you are and what you're doing. This teaches you to turn off the leaks you don't need and hide the ones you do — so you're much harder to track.",
+            "operator": "Strip persistent identifiers (random MAC, generic hostname, no telemetry), encrypt name resolution (DoH/DoT) and transit (VPN for a local/ISP observer, Tor for source anonymity), minimize metadata (scrub EXIF/doc properties, reduce logging), and encrypt at rest (LUKS). Match the toolset to your threat model — a journalist, a pentester, and a privacy-conscious user need different things.",
+            "deep": "Identity: per-SSID MAC randomization, hostname/DHCP anonymization, disabling hardware/telemetry phone-home. Resolution: DoH/DoT to a deliberately chosen resolver (encrypt + cut ISP visibility — the resolver still sees queries). Source anonymity: a VPN moves trust to one provider (hides IP from the destination, not from the VPN); Tor distributes trust across 3 relays so no single hop links source to destination. Content/metadata: TLS hides content not endpoints, and traffic analysis still leaks via size/timing. At rest: LUKS FDE + strong passphrase defeats offline theft. Artifacts: scrub EXIF/Office metadata, tighten log retention, clear caches. Anonymity loves company — custom privacy tweaks can paradoxically make you MORE identifiable via fingerprinting.",
+        },
+        "apply": [
+            "Define your threat model in one sentence FIRST ('I don't want the cafe WiFi or the sites I visit to identify or track me'). Every choice below follows from that one line.",
+            "Identity: enable per-network MAC randomization (NetworkManager wifi.cloned-mac-address=random), set a generic hostname, anonymize the DHCP hostname, and turn off OS/app telemetry.",
+            "Resolution + transit: enable DoH/DoT to a chosen resolver; use a VPN against a local/ISP observer, or Tor (Tor Browser, unmodified) when the destination itself is the adversary.",
+            "At rest: enable LUKS full-disk encryption with a strong passphrase — the highest-value control against device theft or seizure.",
+            "Artifacts: scrub file metadata before sharing (`mat2 file`, `exiftool -all= file`), tighten log retention, and clear browser/app caches; assume anything logged can be breached or subpoenaed.",
+            "Verify: confirm your real IP and DNS don't leak (a DNS-leak + IP check), and sniff your own traffic to see what still leaves in the clear.",
+        ],
+        "next": [
+            "network-silence (the LAN-footprint companion lesson)",
+            "tor / torbrowser-launcher (source anonymity done right)",
+            "mat2 / exiftool (metadata scrubbing before you share files)",
+            "wireguard / openvpn (encrypted transit)",
+            "cryptsetup (LUKS full-disk encryption at rest)",
+        ],
+        "caution": "Privacy hardening on systems you own or administer. Strong anonymity tools (Tor, VPNs) are restricted or monitored in some jurisdictions and on some networks — know your local law and your org's policy. Privacy is not a license for wrongdoing; this is about legitimate confidentiality, anti-tracking, and OpSec.",
+        "cia": [
+            "CONFIDENTIALITY — the core: keep your identity, lookups, traffic, and stored data away from observers who have no business seeing them.",
+            "INTEGRITY — secondary but real: encrypted DNS/transit and refusing rogue routes stop attackers tampering with what you receive (poisoned DNS, injected content).",
+            "AVAILABILITY — the cost side: Tor is slow, strict egress/telemetry blocks can break apps, FDE adds a boot step. Privacy is a deliberate tradeoff against convenience — tune it to the threat model.",
+        ],
+        "try_cmd": "nmcli connection modify <con> wifi.cloned-mac-address random",
+    },
     "ghidra": {
         "summary": "NSA's open-source reverse-engineering suite — disassembles AND decompiles binaries into readable C-like pseudocode so you can understand what a compiled program actually does, with no source code",
         "typical": "ghidra   (GUI: new project -> import binary -> auto-analyze -> read the Decompiler)    |    headless: analyzeHeadless <proj_dir> <proj_name> -import <binary> -postScript <Script>",

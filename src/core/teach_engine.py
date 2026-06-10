@@ -17,6 +17,312 @@
 """
 
 LESSONS = {
+    "strings": {
+        "summary": "The 60-second first look at any binary or unknown file — pulls out the human-readable text (URLs, error messages, paths, embedded commands, keys) hiding in compiled or binary data. The first command you run, before any heavy tool",
+        "typical": "strings -n 8 <file>            (printable runs >=8 chars)   |   strings <file> | grep -iE 'http|pass|key|/'",
+        "mental_model": (
+            "A compiled program or binary blob is mostly machine code and data — unreadable. But sprinkled "
+            "through it are runs of actual text the program needs at runtime: URLs it contacts, error and debug "
+            "messages, file paths, registry keys, sometimes hardcoded passwords or API keys. strings just walks "
+            "the file byte by byte and prints every run of printable characters long enough to look "
+            "intentional. It's dumb and instant — and it's astonishing how often the answer is right there in "
+            "the plain text."
+        ),
+        "analogy": (
+            "strings is shaking out the pockets of a jacket before you send it to the lab. You're not analysing "
+            "the fabric yet — you're dumping out the receipts, notes, and keys that fell in, because half the "
+            "time one of them tells you everything you needed to know."
+        ),
+        "flags": {
+            "<file>":      "The file to scan — any binary, executable, firmware image, memory dump, document, or unknown blob.",
+            "-n <len>":    "Minimum run length to print (default 4). Bump to -n 8 to cut noise and surface meaningful text.",
+            "-a, --all":   "Scan the WHOLE file, not just the loaded data section — important for packed files and raw blobs (often the default).",
+            "-t <radix>":  "Print each string's offset (o/d/x = octal/decimal/hex) so you can jump straight to it in a hex editor or RE tool.",
+            "-e <enc>":    "Character encoding/width (s=7-bit, l=16-bit little-endian, b=big-endian). Catches UTF-16 text the default 8-bit scan misses (common in Windows binaries).",
+        },
+        "read": [
+            "Pipe to grep, always: `strings bin | grep -iE 'http|ftp|pass|key|token|BEGIN'` turns a wall of text into leads in one line.",
+            "Use -e l on Windows binaries — tons of text is UTF-16 (wide) and invisible to the default 8-bit scan.",
+            "-t x gives the offset; feed that into Ghidra/radare2/a hex editor to see the code that USES the string.",
+            "No interesting text at all? That's a signal too — the file is probably packed or encrypted (try binwalk entropy next).",
+            "It's read-only and instant: zero risk to run on a sample, so it's always the first triage step before the heavy tools.",
+        ],
+        "zoom": {
+            "eli5": "Programs hide little bits of normal text inside them — web links, messages, sometimes passwords. strings finds and prints all that text so you can read it without understanding the rest of the file.",
+            "operator": "Run strings (with -n 8, and -e l for Windows binaries), pipe to grep for the patterns you care about, and use -t x offsets to pivot into Ghidra/radare2 at the exact spot. First step of any triage.",
+            "deep": "strings scans for maximal runs of printable characters meeting the length threshold, across the encodings you select. In malware triage it surfaces C2 domains, mutex names, dropped-file paths, and command lines; in CTFs it often holds the flag outright. Low or uniform output suggests packing/encryption — pivot to entropy analysis. The offsets (-t) bridge to static RE: the string's cross-references reveal the logic that touches it.",
+        },
+        "apply": [
+            "First look: `strings -n 8 suspicious.bin | less` — skim for domains, paths, messages.",
+            "Hunt secrets/IOCs: `strings suspicious.bin | grep -iE 'http|https|pass|key|token|powershell'`.",
+            "Windows wide text: `strings -e l malware.exe | grep -i http` to catch UTF-16 URLs.",
+            "Locate then pivot: `strings -t x bin | grep 'Access denied'` gives the offset; open it in Ghidra and check cross-references.",
+            "Packed check: if strings is mostly garbage, run binwalk -E for an entropy read before going further.",
+        ],
+        "next": [
+            "ghidra (use the offsets to find the code that references an interesting string)",
+            "binwalk (when strings is sparse — check for packing/embedded files)",
+            "radare2 (iz lists strings inside the binary with full context)",
+            "yara (turn distinctive strings you find into a detection rule)",
+        ],
+        "caution": "strings itself is harmless (read-only), but the FILES you run it on may be live malware — handle samples in an isolated VM. Anything it prints (keys, tokens) may be sensitive; treat findings accordingly.",
+        "cia": [
+            "DEFENSIVE / BLUE — the universal first triage in malware analysis and IR: C2 domains, IOCs, and dropped paths often appear in plaintext.",
+            "CONFIDENTIALITY — surfaces secrets developers left in binaries (API keys, passwords, internal URLs) — a real finding in app assessments.",
+            "OFFENSE — fast recon on a target binary or firmware before committing to full reverse engineering.",
+        ],
+        "try_cmd": "strings -n 8 /bin/ls | head",
+    },
+    "binwalk": {
+        "summary": "The firmware and embedded-file analysis tool — scans any blob for the signatures of files hidden INSIDE it (filesystems, kernels, archives, images, certificates) and extracts them. The go-to for router/IoT firmware, flash dumps, and any 'what's packed in here?' question",
+        "typical": "binwalk <firmware.bin>        (signature scan)   |   binwalk -Me <firmware.bin>   (extract, recursively)",
+        "mental_model": (
+            "A firmware image or a carved blob is usually many files concatenated together: a bootloader, a "
+            "kernel, one or more filesystems, config, certificates — with no directory listing. binwalk reads "
+            "the blob looking for magic bytes that mark the start of known file types, builds a map of what's "
+            "inside and where, then carves each piece out and recurses into it. The whole skill is: find the "
+            "filesystem, extract it, and now you're reading the device's actual code and config on disk."
+        ),
+        "analogy": (
+            "binwalk is an airport scanner for a sealed shipping container with no manifest. It X-rays the whole "
+            "thing, recognises the shape of each item packed inside (here's a filesystem, there's a kernel, "
+            "that's a certificate), and lets you cut them out one by one to inspect."
+        ),
+        "flags": {
+            "<file>":          "The blob to analyse — firmware image, flash/partition dump, unknown binary.",
+            "-B, --signature": "The default: scan for known file signatures (magic bytes) and map what's embedded and at what offset.",
+            "-e, --extract":   "Automatically carve out and extract the known file types it recognises.",
+            "-M, --matryoshka":"Recurse — re-scan and extract files found inside the files it just extracted (nested firmware). Pair as -Me.",
+            "-E, --entropy":   "Plot byte entropy across the file — high flat entropy = compressed/encrypted regions (where the interesting stuff usually hides).",
+            "-A, --opcodes":   "Scan for executable opcode signatures — identify the CPU architecture of embedded code.",
+            "-y <str>":        "Only show results matching <str> — filter the scan, e.g. -y filesystem.",
+        },
+        "read": [
+            "-Me is the workhorse: extract everything, recursively. The prize is almost always an extracted filesystem (squashfs, jffs2, cramfs) — that's the device's real OS.",
+            "After extraction, cd into the _<file>.extracted/ tree and treat it like a normal Linux box: grep for passwords, keys, shadow files, hardcoded creds, startup scripts.",
+            "Use -E (entropy) when a scan finds nothing: a smooth high-entropy plateau means that region is compressed or encrypted, not empty.",
+            "Extraction relies on helper tools (unsquashfs, jefferson, sasquatch) being installed — a missing extractor shows as recognised-but-not-extracted.",
+            "binwalk ties directly to your hardware work: a chip/flash dump or a downloaded firmware update file is exactly its input.",
+        ],
+        "zoom": {
+            "eli5": "Firmware is a bunch of files glued into one big lump with no labels. binwalk recognises the pieces by their fingerprints, pulls them apart, and hands you the device's real files — where the passwords and code live.",
+            "operator": "Scan to map the blob, -Me to extract recursively, then cd into the extracted filesystem and loot it like a normal box (grep for creds/keys/configs). Use -E entropy to spot compressed/encrypted regions when a plain scan comes up empty.",
+            "deep": "binwalk matches libmagic-style signatures against every offset, so it finds files even when concatenated without headers or padding. Recursive extraction handles nested containers (firmware-in-firmware). Entropy analysis separates code/data from compressed/encrypted blobs. It's the front door of hardware/IoT assessment: dump flash (or grab the vendor update), carve the root filesystem, then static-analyse the binaries inside with Ghidra/radare2 and the configs by hand.",
+        },
+        "apply": [
+            "Map it: `binwalk firmware.bin` — read the offset table of what's inside.",
+            "Extract everything recursively: `binwalk -Me firmware.bin`, then `cd _firmware.bin.extracted`.",
+            "Loot the extracted filesystem: `grep -riE 'password|api_key|PRIVATE KEY' squashfs-root/`.",
+            "Stuck / nothing found: `binwalk -E firmware.bin` to check if it's compressed/encrypted.",
+            "Identify embedded code architecture: `binwalk -A firmware.bin` before loading pieces into Ghidra.",
+        ],
+        "next": [
+            "ghidra (reverse the binaries you carved out of the firmware)",
+            "strings (quick triage of the extracted files and the blob itself)",
+            "radare2 (analyse extracted executables)",
+            "the-shell (loot the extracted filesystem with grep/find)",
+        ],
+        "caution": "Analysing firmware you don't own can violate copyright/EULA; extract and study firmware for devices you own or are authorized to assess. Extracted filesystems can contain real secrets — treat as sensitive. Carving runs helper extractors on attacker-controlled data, so work in an isolated VM.",
+        "cia": [
+            "CONFIDENTIALITY — extracted firmware filesystems routinely contain hardcoded credentials, keys, and certificates — the classic IoT finding.",
+            "DEFENSIVE / BLUE — vendors and assessors binwalk their OWN firmware to find leaked secrets and backdoors before shipping; malware analysts carve embedded payloads.",
+            "INTEGRITY — comparing extracted contents against expected images reveals tampered or trojaned firmware.",
+        ],
+        "try_cmd": "binwalk /bin/ls",
+    },
+    "radare2": {
+        "summary": "The command-line reverse-engineering framework — a scriptable do-everything binary analysis suite (disassembler, debugger, hex editor, patcher) driven by a terse command language. The CLI counterpart to Ghidra, loved for speed, scripting, and on-target work",
+        "typical": "r2 -A <binary>     (open + auto-analyse)   then:  afl (list funcs)  ->  s main  ->  pdf (disasm)  ->  VV (graph)",
+        "mental_model": (
+            "radare2 treats a binary as a navigable space you move a cursor (the 'seek' position) through, "
+            "issuing short commands to analyse, view, edit, or run the code wherever you are. The commands look "
+            "cryptic but they're a consistent language: a letter for the action, more letters to refine it "
+            "(a=analyse, p=print, d=debug, w=write). Once 'aaa' has analysed the file you navigate by function "
+            "and cross-reference instead of by raw address — the same mental model as Ghidra, but in a fast, "
+            "scriptable shell you can run over SSH on the target itself."
+        ),
+        "analogy": (
+            "If Ghidra is a furnished RE studio with big windows, radare2 is a master mechanic's CLI toolroll: "
+            "nothing pretty, but every tool is there, it fits in your pocket, it works on the roadside (over "
+            "SSH, on tiny boxes), and once you know the grips you're faster than someone clicking menus."
+        ),
+        "flags": {
+            "r2 <binary>":  "Open the binary in the r2 shell (read-only by default).",
+            "-A":           "Run full auto-analysis on open (same as 'aaa' inside) — recover functions, strings, xrefs up front.",
+            "-d <prog>":    "Open in DEBUG mode — run the program under r2 to inspect it dynamically (breakpoints, registers, memory).",
+            "-w":           "Open in WRITE mode so you can patch bytes/instructions and save the modified binary.",
+            "aaa":          "(in-shell) Analyse all — run it first; builds the function list, strings, and cross-references.",
+            "afl / s / pdf":"(in-shell) afl = list functions; s <name> = seek to one (e.g. s main); pdf = print disassembly of the current function.",
+            "VV / iz / axt":"(in-shell) VV = visual graph view of a function; iz = list strings; axt <addr> = who references this address.",
+        },
+        "read": [
+            "Always 'aaa' (or open with -A) first — without analysis you're staring at raw bytes; after it you navigate by function and xref.",
+            "The command grammar is logical, not random: a=analyse, p=print, s=seek, d=debug, w=write, i=info, x=xref. Learn the prefixes and the rest composes.",
+            "VV (visual graph mode) is the closest thing to Ghidra's view — arrow-key through the control-flow graph of a function.",
+            "iz (strings in the data section) plus axt (xrefs to an address) is the fast 'find the interesting string, jump to the code using it' loop.",
+            "It scripts: r2 -q -c '<commands>' runs headless, and r2pipe drives it from Python — batch-analyse or automate exactly like Ghidra headless.",
+        ],
+        "zoom": {
+            "eli5": "radare2 is a toolbox for taking programs apart, all driven by typing short commands instead of clicking. It does what Ghidra does — see the code, debug it, even edit it — but in a fast terminal that runs anywhere.",
+            "operator": "Open with -A, list functions (afl), seek to the one you care about (s sym.main), read it (pdf) or graph it (VV), chase strings (iz) and cross-references (axt). Debug live with -d; patch with -w. Script it via r2 -c or r2pipe.",
+            "deep": "radare2 is a suite (r2 the shell, plus rabin2, radiff2, rax2, ragg2) over a unified core that abstracts files, debuggers, and remote targets the same way. The decompiler comes via plugins (r2ghidra brings Ghidra's decompiler into r2). It shines for scripting (r2pipe), binary diffing (radiff2 for patch analysis), live debugging, and running on the target over SSH where a GUI can't. Same RE concepts as Ghidra, different ergonomics.",
+        },
+        "apply": [
+            "Triage a binary: `r2 -A ./bin`, then `afl` to list functions and `s main; pdf` to read main.",
+            "Find and follow a string: inside r2, `iz~flag` (grep strings for 'flag'), then `axt <addr>` to see what references it.",
+            "Graph a function visually: seek to it and press `VV` (arrow keys to navigate, q to exit).",
+            "Debug dynamically: `r2 -d ./bin`, breakpoint with `db <addr>`, `dc` to continue, `dr` to read registers.",
+            "Script it headless: `r2 -q -c 'aaa; afl' ./bin`, or drive r2pipe from Python for batch jobs.",
+        ],
+        "next": [
+            "ghidra (the GUI decompiler counterpart — many use both)",
+            "gef (gdb-based dynamic analysis when you prefer gdb's debugger)",
+            "cutter (radare2's official GUI, if you want the graphs without the keystrokes)",
+            "pwntools (build the exploit once RE reveals the bug)",
+        ],
+        "caution": "RE may be limited by software licenses/EULA and local law — analyse your own binaries, CTF/authorized targets, or malware in an isolated VM. Write mode (-w) modifies binaries; always work on copies.",
+        "cia": [
+            "DEFENSIVE / BLUE — malware analysis, patch-diffing (radiff2 to find what a security update changed), and vulnerability research.",
+            "CONFIDENTIALITY — recovers the logic and secrets inside a binary the author meant to keep opaque.",
+            "INTEGRITY — write/patch mode and binary diffing relate to modifying code and detecting modification.",
+        ],
+        "try_cmd": "r2 -A -q -c afl /bin/ls",
+    },
+    "yara": {
+        "summary": "The pattern-matching engine for malware identification — write rules describing the byte patterns, strings, and conditions that fingerprint a malware family, then scan files, processes, or memory for matches. The lingua franca of threat detection and hunting",
+        "typical": "yara rules.yar <file_or_dir>     |   yara -r rules.yar /path     (recurse)   |   yara -s rules.yar sample   (show matches)",
+        "mental_model": (
+            "Antivirus asks 'is this exact file known-bad?'. YARA asks the smarter question: 'does this file "
+            "CONTAIN the patterns that characterise a malware family?'. A YARA rule is a little spec — some "
+            "strings (text, hex byte sequences, or regex) plus a boolean CONDITION over them ('any 3 of these "
+            "strings AND the file starts with MZ'). You write the rule once from what you learned reversing a "
+            "sample, and now you can hunt every file, process, and memory image for anything that shares that "
+            "DNA — including variants AV has never seen."
+        ),
+        "analogy": (
+            "AV is a most-wanted poster: it matches one exact face. YARA is a detective's behavioural profile — "
+            "'tall, left-handed, always uses this phrase, carries this tool'. It catches not just the one "
+            "suspect but the whole crew that shares those traits, even faces never photographed before."
+        ),
+        "flags": {
+            "<rules> <target>":"Run rules against a file or directory; prints which rules matched which files.",
+            "-r, --recursive": "Scan a directory tree recursively — sweep a whole filesystem for matches.",
+            "-s, --print-strings":"Show WHICH strings matched and where — essential for understanding and tuning a rule.",
+            "-m, --print-meta":"Print the rule's metadata (author, description, reference) on a match.",
+            "-C, --compiled-rules":"Load pre-compiled rules (yarac output) — much faster for big rule sets and repeated scans.",
+            "-c, --count":     "Print only the number of matches — good for quick triage across many files.",
+            "-d <var>=<val>":  "Define an external variable a rule can test (e.g. filename, filetype) at scan time.",
+        },
+        "read": [
+            "A rule = meta (info) + strings (the patterns: text, { hex bytes }, or /regex/) + condition (the boolean logic that decides a match). The condition is where the skill lives.",
+            "Hex with wildcards is the power feature: { 6A 40 68 ?? ?? ?? ?? } matches a code pattern even as addresses/values change between variants — that's how you catch a family, not one file.",
+            "Anchor conditions to cut false positives: 'uint16(0) == 0x5A4D' (MZ header) AND your strings is far stronger than strings alone.",
+            "-s while developing, -C in production: see what matched while writing, then compile (yarac) for speed when scanning at scale.",
+            "YARA scans memory and processes too, not just files — pair it with volatility (scan a memory image) or run it on live processes to catch in-memory-only malware.",
+        ],
+        "zoom": {
+            "eli5": "YARA lets you write a description of what a piece of malware looks like — certain words, certain byte patterns — and then search lots of files for anything matching, even new versions the antivirus hasn't seen.",
+            "operator": "Reverse a sample, pull distinctive strings/byte patterns, write a rule (strings + a tight condition), test with -s, compile with yarac, then hunt files/dirs (-r) and memory images (with volatility). Share rules to spread detection.",
+            "deep": "A YARA rule's condition language supports counts, offsets, and file-structure tests via modules (pe, elf, math, hash), plus external variables. Modules let conditions reason about real structure (pe.imphash(), pe sections) instead of raw bytes. Rules are portable across the ecosystem (ClamAV, many EDRs, IR tools, volatility's yarascan) — write once, detect everywhere. The craft is balancing breadth (catch variants) against false positives (a too-loose condition flags benign files).",
+        },
+        "apply": [
+            "Scan a sample with full detail: `yara -s -m myrules.yar sample.bin` (shows which strings hit + rule metadata).",
+            "Sweep a directory: `yara -r apt_rules.yar /home` to hunt across a filesystem.",
+            "Write a minimal rule: meta + a couple of distinctive strings + condition `uint16(0) == 0x5A4D and 2 of them` (a PE file AND 2+ strings).",
+            "Compile for speed at scale: `yarac myrules.yar myrules.yarc` then scan with `yara -C myrules.yarc <target>`.",
+            "Hunt in memory: feed a Volatility memory image (the yarascan plugins) or scan live processes for in-memory-only threats.",
+        ],
+        "next": [
+            "ghidra / strings (where the patterns FOR your rules come from — reverse the sample first)",
+            "volatility (scan a memory image with your YARA rules)",
+            "incident-response (YARA is the detection/hunting workhorse of IR)",
+            "sigma (the log-based detection counterpart to YARA's file/memory detection)",
+        ],
+        "caution": "YARA is defensive/analytical and safe to run, but you point it at potentially malicious samples — keep those in an isolated VM. Over-broad rules cause false positives that erode trust; test against a clean corpus before deploying.",
+        "cia": [
+            "DEFENSIVE / BLUE — the core of malware identification, threat hunting, and IR; the standard way detection knowledge is written and shared.",
+            "INTEGRITY — detecting known-bad patterns in files/memory is how you find tampering and implants that evade exact-hash AV.",
+            "CONFIDENTIALITY — by catching malware (credential stealers, exfil tools) early, YARA-based detection protects the data those threats are after.",
+        ],
+        "try_cmd": "yara --help",
+    },
+    "pwntools": {
+        "summary": "The CTF and exploit-development framework for Python — turns the fiddly parts of binary exploitation (talking to a process/socket, packing addresses, finding offsets, building ROP chains, generating shellcode) into a few clean lines. The de facto standard for writing exploits",
+        "typical": "from pwn import *;  io = remote('host', 1337);  io.sendline(payload);  io.interactive()",
+        "mental_model": (
+            "Writing a binary exploit by hand means endless error-prone plumbing: open a socket or spawn the "
+            "process, pack integers into little-endian bytes exactly right, find the precise overflow offset, "
+            "hand-assemble shellcode, wire a ROP chain from gadget addresses. pwntools collapses each of those "
+            "into a tested one-liner, so your script reads like the ATTACK (find offset -> build payload -> send "
+            "-> get shell) instead of byte-wrangling. It's the difference between fighting the tooling and "
+            "actually doing the exploit."
+        ),
+        "analogy": (
+            "If exploiting is picking a lock, pwntools is the pre-stocked pick kit and jig: you still have to "
+            "understand the lock, but you're not also forging your own picks from wire each time. It hands you "
+            "clean, correct tools so all your attention goes to the actual technique."
+        ),
+        "flags": {
+            "from pwn import *":"Imports the whole toolkit into your exploit script — the conventional first line.",
+            "remote / process":"remote('ip', port) talks to a live service; process('./bin') runs it locally. Same API, so you develop locally then flip to remote.",
+            "p32/p64, u32/u64":"Pack/unpack integers to/from little-endian bytes — turn an address into the exact bytes the target expects (and back).",
+            "cyclic / cyclic_find":"Generate a De Bruijn pattern to send, then find the exact overflow offset from the value that landed in the crash — no manual counting.",
+            "ELF / context":"ELF('./bin') reads symbols, the GOT/PLT, and gadgets from the binary; context.arch/os sets the target so packing and shellcode come out correct.",
+            "ROP / shellcraft":"ROP(elf) auto-builds return-oriented chains from the binary's gadgets; shellcraft generates shellcode (e.g. an exec of a shell) for the target architecture.",
+            "gdb.attach":"Drop into gdb on the running target mid-exploit to debug your payload interactively.",
+        },
+        "read": [
+            "Develop on process('./bin') locally, then change ONE line to remote(host, port) to fire at the real target — the identical API is the whole point.",
+            "cyclic() + cyclic_find() is the fastest way to find an offset: send the pattern, read the value in the crashed instruction pointer, look it up. Stop counting bytes by hand.",
+            "Set context.binary = ELF('./bin') early — it auto-sets arch/bits/endianness so p64, shellcraft, and ROP all behave correctly for the target.",
+            "ROP(elf) plus rop.call(...) builds chains from the binary's own gadgets; print(rop.dump()) to see exactly what you're sending.",
+            "io.interactive() hands you the shell once the exploit lands — the satisfying last line of nearly every script.",
+        ],
+        "steps": [
+            {
+                "cmd": "io = process('./vuln')   # or remote('host', 1337)",
+                "do": "Connect to the target binary locally (or over the network) so the script can send input and read output.",
+                "why_now": "Set up the channel first; develop locally on process(), then swap to remote() to hit the real service.",
+                "watch_for": "A clean connection and the program's initial prompt/output echoed back.",
+                "means": "A scripted I/O channel to the vulnerable program.",
+                "blue": "This is just a client connection. The vuln it targets is a memory-safety bug — the defenses live in the binary (see step 3's mirror), not the connection.",
+            },
+            {
+                "cmd": "io.sendline(cyclic(200));  off = cyclic_find(<crash value>)",
+                "do": "Send a De Bruijn pattern to overflow the buffer, then compute the exact offset to the saved return address from the crash.",
+                "why_now": "You must know precisely where control of the instruction pointer happens before you can hijack it.",
+                "watch_for": "The value sitting in the instruction pointer at the crash — feed it to cyclic_find for the offset.",
+                "means": "The exact padding length to reach and overwrite the return address.",
+                "blue": "The crash itself is the signal: stack canaries detect the overwrite and abort; ASLR and NX make the next steps far harder.",
+            },
+            {
+                "cmd": "payload = flat({off: rop.chain()});  io.sendline(payload);  io.interactive()",
+                "do": "Build the payload (padding + a ROP chain or shellcode address), send it, and drop into the shell you popped.",
+                "why_now": "With the offset known, you redirect execution to your chain/shellcode to gain control.",
+                "watch_for": "An interactive shell prompt — run `id` / `cat flag` to confirm code execution.",
+                "means": "Arbitrary code execution on the target = the exploit works end to end.",
+                "blue": "Defenses that break this chain: NX (no executable stack, forces ROP), ASLR + PIE (randomize gadget addresses), stack canaries (detect the overflow), RELRO (lock the GOT), and -fstack-protector. Modern binaries stack these.",
+            },
+        ],
+        "zoom": {
+            "eli5": "Writing a program that breaks another program involves a lot of fiddly, exact steps. pwntools is a Python toolbox that does the fiddly parts for you, so you can focus on the actual idea of the exploit and getting a shell.",
+            "operator": "Script the exploit with the pwn API: connect (process/remote), find the offset (cyclic), set context from the ELF, build the payload (flat/ROP/shellcraft), send, and io.interactive() for the shell. Develop locally, debug with gdb.attach, then point it at the real target.",
+            "deep": "pwntools is a toolkit over the whole exploit-dev workflow: tubes (uniform I/O over process/remote/ssh), packing (pN/uN, flat), ELF/symbol/GOT-PLT introspection, a ROP engine that resolves gadgets, shellcraft (per-arch shellcode templates), and gdb integration. context propagates arch/os/endianness so every primitive is correct for the target. It doesn't find bugs — it removes the friction between knowing the bug and landing the exploit, which is why it's standard in CTFs and exploit research.",
+        },
+        "next": [
+            "gef / radare2 (find and understand the bug you're exploiting)",
+            "ghidra (decompile to locate the vulnerable function and its layout)",
+            "ropper / ROPgadget (find the gadgets pwntools' ROP engine chains)",
+            "metasploit (the framework side of exploitation once you have a working primitive)",
+        ],
+        "caution": "Exploit development is for systems you own, CTFs, or authorized research — running an exploit against anything else is illegal. pwntools makes exploits easy to WRITE; that doesn't make them legal to FIRE. Keep targets in your lab or in scope.",
+        "cia": [
+            "INTEGRITY / CONFIDENTIALITY / AVAILABILITY — a working memory-corruption exploit usually means arbitrary code execution: full compromise of all three on the target.",
+            "OFFENSE — the standard tooling for binary exploitation and CTF pwn; pairs with RE (find the bug) to turn a vulnerability into a shell.",
+            "DEFENSIVE / BLUE — seeing how cleanly exploits come together motivates the mitigations: NX, ASLR/PIE, stack canaries, RELRO, CFI. The step mirrors show exactly what each defense breaks.",
+        ],
+        "try_cmd": "pwn --help",
+    },
     "searchsploit": {
         "summary": "Offline command-line search of the Exploit-DB archive — find public exploits and PoCs for a product/version locally (no internet needed), then read, copy, or cross-reference them against your scan results",
         "typical": "searchsploit <product> <version>     (then  -x <EDB-ID>  to read,  -m <EDB-ID>  to copy it local)",

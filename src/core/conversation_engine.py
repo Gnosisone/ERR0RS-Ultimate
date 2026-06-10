@@ -266,7 +266,7 @@ class ConversationEngine:
                     "model":      self.model,
                     "messages":   [{"role": "user", "content": "ready"}],
                     "stream":     False,
-                    "keep_alive": "15m",
+                    "keep_alive": -1,
                     "options":    {"num_predict": 5},
                 },
                 timeout=90,
@@ -497,7 +497,7 @@ class ConversationEngine:
             "model":      model or self.model,
             "messages":   messages,
             "stream":     True,
-            "keep_alive": "15m",   # keep model hot in RAM between requests
+            "keep_alive": -1,   # keep model hot in RAM between requests
             "options":    options or {
                 "temperature": 0.7,
                 "num_predict": 2048,

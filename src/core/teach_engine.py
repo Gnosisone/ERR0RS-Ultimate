@@ -17,6 +17,341 @@
 """
 
 LESSONS = {
+    "wireshark": {
+        "summary": "The standard packet analyzer — captures and dissects network traffic frame-by-frame so you can SEE exactly what is on the wire: protocols, conversations, cleartext credentials, and anomalies. tshark is its command-line twin",
+        "typical": "wireshark (GUI: pick interface -> capture -> apply a display filter)   |   CLI: tshark -i <iface> -f '<capture filter>' -w cap.pcapng   then   tshark -r cap.pcapng -Y '<display filter>'",
+        "mental_model": (
+            "A network is invisible — packets fly past in microseconds and vanish. Wireshark taps the wire (or "
+            "your NIC in promiscuous/monitor mode) and freezes every frame so you can inspect it layer by "
+            "layer: Ethernet -> IP -> TCP -> the application protocol on top. Two filter stages matter and are "
+            "DIFFERENT: a CAPTURE filter (BPF) decides what gets recorded (you can't recover what you didn't "
+            "capture), and a DISPLAY filter decides what you SEE from what was recorded (non-destructive, "
+            "change it freely). Master that split and you can find one packet in ten million."
+        ),
+        "analogy": (
+            "Wireshark is a wiretap with instant replay and X-ray vision. The wire is a freeway of sealed "
+            "trucks; Wireshark photographs every truck AND sees inside — what's in it, who sent it, where it's "
+            "going. The capture filter is the toll-gate deciding which trucks get photographed; the display "
+            "filter is your search over the photos you already took."
+        ),
+        "flags": {
+            "wireshark":      "Launch the GUI — pick an interface, capture live, explore with point-and-click + display filters. Best for interactive analysis.",
+            "tshark":         "The terminal twin — scriptable capture/analysis for headless boxes, pipelines, and big files. Same dissectors as the GUI.",
+            "-i <iface>":     "Interface to capture on (tshark -D lists them). On WiFi you need monitor mode to see other stations' frames.",
+            "-f '<bpf>'":     "CAPTURE filter (libpcap/BPF) — limits what is recorded, e.g. 'tcp port 80'. Decided BEFORE capture; you can't get back what you filtered out.",
+            "-Y '<expr>'":    "DISPLAY filter (Wireshark syntax) — limits what you SEE from a capture, e.g. 'http.request' or 'ip.addr==10.0.0.5'. Non-destructive; change anytime.",
+            "-r <file>":      "Read and analyze a saved .pcap/.pcapng instead of capturing live.",
+            "-w <file>":      "Write captured packets to a pcapng file for later — capture now, dissect later.",
+            "-c <n>":         "Stop after n packets — handy for a quick sample.",
+            "-n":             "Disable name resolution (no reverse-DNS/MAC lookups) — faster, and you generate no extra lookup traffic.",
+            "-T fields -e <f>":"Extract specific fields as columns (e.g. -e ip.src -e http.host) — turns packets into greppable/CSV data.",
+            "-z <stat>":      "Statistics (e.g. -z conv,tcp / -z io,phs) — protocol hierarchy, conversations, endpoints; the fast way to characterize a capture.",
+        },
+        "read": [
+            "Start with Statistics -> Protocol Hierarchy and Conversations: characterize the capture (who talks to whom, what protocols) before drilling into single packets.",
+            "Follow Stream (TCP/HTTP/TLS) reassembles a whole conversation from scattered packets into one readable transcript — the single most useful button.",
+            "Cleartext protocols leak everything: HTTP, FTP, Telnet, SMTP, SNMPv1/2 show credentials and data in the open. Seeing that IS the lesson for why TLS exists.",
+            "Color rules and the Expert Info panel flag retransmissions, resets, and oddities — anomalies often jump out visually before you even filter.",
+            "Capture filters use BPF syntax ('host', 'port', 'net'); display filters use Wireshark syntax ('ip.addr', 'tcp.port', '=='). They are NOT interchangeable — a top beginner trip-up.",
+        ],
+        "zoom": {
+            "eli5": "The network is invisible and fast. Wireshark records every little message computers send each other and lets you open them up and read them — so you can see what is really happening, including things sent with no protection.",
+            "operator": "Capture on the right interface (BPF capture filter to keep it small), then analyze with display filters and Follow Stream. Characterize first via Statistics, then drill to the packets that matter. Use tshark -T fields to turn captures into data you can grep and script.",
+            "deep": "Wireshark is a stack of protocol dissectors over libpcap/dumpcap capture. Capture filters compile to BPF in the kernel (cheap, pre-record); display filters run in userspace over dissected fields (rich, post-record). It reassembles TCP streams, decrypts TLS when you supply keys (SSLKEYLOGFILE) or WPA traffic with the PSK, and exposes everything as named fields you can extract (-e) or pivot on. For WiFi, monitor mode plus a capable adapter lets you see management/data frames of other stations (the basis of the wpa-handshake capture).",
+        },
+        "apply": [
+            "List interfaces with `tshark -D`, then capture to a file: `tshark -i eth0 -f 'not port 22' -w /tmp/cap.pcapng` (the BPF capture filter keeps your own SSH session out of the file).",
+            "Analyze offline so you can iterate filters freely: `tshark -r /tmp/cap.pcapng -Y 'http.request' -T fields -e ip.src -e http.host -e http.request.uri`.",
+            "In the GUI, right-click a packet -> Follow -> TCP/HTTP Stream to read a full conversation; use Statistics -> Conversations to find the noisy talkers.",
+            "Teaching exercise on YOUR lab traffic: filter for HTTP basic-auth headers and FTP login commands and watch the credentials appear in the clear — that is why plaintext protocols are dangerous.",
+            "Decrypt your OWN TLS by pointing a browser at SSLKEYLOGFILE and loading it under Preferences -> Protocols -> TLS — inspect HTTPS contents for debugging without touching anyone else's traffic.",
+        ],
+        "next": [
+            "tcpdump (lightweight CLI capture — grab on a server, analyze in Wireshark)",
+            "nmap (active discovery — pair the map with the packet truth)",
+            "networking (the OSI / TCP-IP model these packets ride on)",
+            "wpa-handshake (monitor-mode capture in action)",
+        ],
+        "caution": "Capturing traffic can expose other people's data and credentials — only capture on networks you own or are authorized to monitor. On shared/corporate networks, packet capture is often policy-restricted or unlawful without consent. Analyze your own lab traffic freely; treat any captured creds/PII as sensitive.",
+        "cia": [
+            "CONFIDENTIALITY — capture reveals anything sent in cleartext (creds, PII, tokens); it is the proof of why encryption matters, and an attacker's payoff on an unencrypted segment.",
+            "DEFENSIVE / BLUE — the dominant use: incident response, threat hunting, and forensics. The pcap is ground truth when logs lie or are missing.",
+            "INTEGRITY — spotting injected packets, ARP spoofing, rogue DHCP/RA, and retransmission anomalies that signal tampering or a man-in-the-middle.",
+        ],
+        "try_cmd": "tshark -D",
+    },
+    "volatility": {
+        "summary": "The memory-forensics framework — parses a RAM dump to reconstruct what a machine was DOING at capture time: running processes, network connections, injected code, command history, and secrets that only ever live in memory. Volatility 3 is the `vol` command",
+        "typical": "vol -f <memory.dmp> windows.pslist     (then windows.netscan, windows.cmdline, windows.malfind, windows.hashdump ...)",
+        "mental_model": (
+            "Disk forensics shows what was SAVED; memory forensics shows what was HAPPENING. RAM holds the live "
+            "truth a disk never sees: decrypted data, injected/fileless malware, network sockets, typed "
+            "commands, and credentials. Volatility maps a raw RAM image against the OS's own structures (the "
+            "kernel's process list, handle tables, page tables) to rebuild that live state offline. You capture "
+            "RAM once (the crime-scene photo), then ask it questions with plugins — each plugin walks a "
+            "different kernel structure to answer 'what processes?', 'what connections?', 'what was hidden?'."
+        ),
+        "analogy": (
+            "If the disk is the filing cabinet, RAM is the desk mid-work: papers open, a half-typed letter, the "
+            "phone off the hook. A reboot sweeps the desk clean. Volatility is a photo of that desk you can walk "
+            "around afterward — reading the open papers, seeing who was on the phone, finding the note that was "
+            "never filed."
+        ),
+        "flags": {
+            "vol":            "The Volatility 3 CLI. Usage is `vol -f <image> <plugin> [opts]` — the plugin does the work.",
+            "-f <image>":     "The memory image to analyze (raw/dd, crash dump, VMware .vmem, etc.). Capture it with a tool like winpmem/avml; Volatility reads, never captures.",
+            "windows.pslist / windows.pstree":"Running processes (pstree shows parent/child) — your first look. A child cmd.exe under winword.exe screams macro malware.",
+            "windows.netscan":"Network connections + listening sockets at capture time — find C2 beacons and unexpected listeners.",
+            "windows.cmdline / windows.consoles / windows.cmdscan":"What was actually run — command lines per process and recovered console history.",
+            "windows.malfind":"Hunts injected/unbacked executable memory (classic process injection / fileless malware) — high-signal for 'what is hidden'.",
+            "windows.dlllist / windows.handles":"Loaded modules and open handles per process — spot odd DLLs and what a process was touching.",
+            "windows.hashdump / windows.lsadump / windows.cachedump":"Extract credential material that lived in memory (SAM hashes, LSA secrets, cached domain creds).",
+            "-r json / -o <dir>":"Render as JSON for tooling, and set an output directory for dumped artifacts (processes/files).",
+        },
+        "read": [
+            "Always start with pslist/pstree: the process tree tells the story. Unusual parent-child (Office spawning a shell), misspelled system names, or processes with no disk backing are immediate leads.",
+            "Cross-check pslist against psscan: pslist walks the live list, psscan carve-scans for process structures — a process in psscan but NOT pslist may be hidden/unlinked (rootkit behavior).",
+            "netscan ties a suspicious process to an external IP — that is your pivot from 'weird process' to 'active C2'.",
+            "malfind output with RWX private memory + an MZ header = injected code; dump it and analyze in Ghidra.",
+            "The right symbol tables matter: Vol3 auto-detects from the image build; if plugins return nothing, the symbols/image may be mismatched or the dump truncated.",
+        ],
+        "zoom": {
+            "eli5": "When a computer is on, RAM holds what it is doing right now — even stuff never saved to disk. If you grab a copy of RAM, Volatility lets you look inside afterward to see what programs ran, who they talked to, and what was hidden.",
+            "operator": "Acquire RAM with a dedicated tool, then interrogate it: pslist/pstree for processes, netscan for connections, cmdline/consoles for what ran, malfind for injection, hashdump/lsadump for creds. Dump suspicious processes and hand them to Ghidra. JSON output (-r json) feeds the rest of your pipeline.",
+            "deep": "Volatility 3 parses physical memory by reconstructing virtual address spaces from page tables and walking documented kernel objects (process lists, VAD trees, handle tables, registry hives mapped in memory). It uses ISF symbol tables generated from PDBs to locate structures for the exact build. Anti-forensics (DKOM unlinking) is countered by pool/structure scanning (psscan vs pslist). Beyond Windows it has linux.* and mac.* plugins (linux.bash recovers shell history straight from memory).",
+        },
+        "apply": [
+            "Capture RAM on the live host with a purpose-built acquirer (winpmem on Windows, avml/LiME on Linux) to a file — Volatility analyzes that file, it does not capture.",
+            "Triage: `vol -f mem.raw windows.pstree` then `vol -f mem.raw windows.netscan` — processes and their connections in two commands.",
+            "What ran: `vol -f mem.raw windows.cmdline` and `windows.consoles`; hidden code: `vol -f mem.raw windows.malfind` (add -o to extract injected regions).",
+            "Pull a suspicious process to disk and reverse it in Ghidra — memory forensics feeds RE.",
+            "Linux box? `vol -f mem.lime linux.pslist` / `linux.bash` recovers processes and the attacker's typed shell history.",
+        ],
+        "next": [
+            "ghidra (reverse the injected code volatility dumps)",
+            "incident-response (where memory forensics sits in the IR workflow)",
+            "wireshark (correlate netscan connections with captured packets)",
+            "yara (scan the memory image for known-bad signatures)",
+        ],
+        "caution": "Memory images contain everything that was in RAM — passwords, keys, personal data. Handle them as highly sensitive evidence: chain-of-custody for real IR, and only acquire memory from systems you own or are authorized to investigate.",
+        "cia": [
+            "DEFENSIVE / BLUE — the core use: incident response, malware analysis, and threat hunting. Memory is where fileless/injected threats are caught when disk and logs show nothing.",
+            "CONFIDENTIALITY — RAM holds decrypted secrets (keys, tokens, passwords); a memory image both exposes them to a forensicator and is itself sensitive if it leaks.",
+            "INTEGRITY — detecting hidden/unlinked processes and injected code reveals tampering with the running system that disk artifacts miss.",
+        ],
+        "try_cmd": "vol -h",
+    },
+    "burp": {
+        "summary": "The web-app testing workhorse — an intercepting HTTP(S) proxy that sits between your browser and the target so you can SEE, PAUSE, EDIT, and REPLAY every request. Manual web testing lives here",
+        "typical": "configure browser -> Burp proxy (127.0.0.1:8080) -> install Burp's CA cert -> browse the app (Proxy/HTTP history) -> send interesting requests to Repeater/Intruder",
+        "mental_model": (
+            "A browser hides the HTTP that powers a web app — it just shows you the rendered page. Burp inserts "
+            "itself as a man-in-the-middle on YOUR OWN traffic so the raw requests/responses become visible and "
+            "editable. Once you can change any field of any request before it reaches the server — a parameter, "
+            "a header, a cookie, a hidden field — you can test what the server does with input it never "
+            "expected. That single capability (controlled request tampering + replay) is the foundation of "
+            "nearly all manual web testing."
+        ),
+        "analogy": (
+            "Your browser is a polite waiter who only shows you the finished plate. Burp is standing in the "
+            "kitchen doorway: you read every order ticket going in, rewrite it ('hold the auth check', 'table 5 "
+            "is now admin'), and watch what the kitchen sends back — then re-send the same ticket a hundred ways "
+            "until something interesting happens."
+        ),
+        "flags": {
+            "Proxy":          "The MITM core — intercept, view, and modify requests/responses; HTTP history is the record of everything the app did. Where you start.",
+            "Repeater":       "Hand-edit a single request and resend it endlessly — the manual testing scalpel (tweak a param, read the response, repeat).",
+            "Intruder":       "Automate a request with payload positions — fuzzing, brute-forcing, enumeration. Community edition throttles it; Pro is full-speed.",
+            "Target / Site map":"The discovered structure of the app and your scope — keeps testing inside authorized boundaries.",
+            "Decoder / Comparer":"Encode/decode (URL, base64, hashes) and diff two responses — small tools you reach for constantly.",
+            "Scanner (Pro)":  "Automated crawl + vuln scanning — Pro-only; the free edition is manual-first (the better way to learn anyway).",
+            "Extensions (BApp)":"Add capability via the BApp store or custom extensions (authz testing, JWT tooling, session handling).",
+        },
+        "steps": [
+            {
+                "cmd": "Proxy -> Intercept ON -> browse the target through Burp",
+                "do": "Route the browser through Burp and capture live requests as you use the app.",
+                "why_now": "You can't test what you can't see; first make the app's real HTTP visible and mapped (HTTP history + Site map).",
+                "watch_for": "Parameters, cookies, hidden fields, and API calls. Note anything that looks like an ID, a role, a redirect, or a file path.",
+                "means": "A map of the attack surface and a pile of real requests to tamper with.",
+                "blue": "All of this is normal client traffic — invisible to the server as 'an attack'. Defense starts server-side: never trust client input, enforce authz on the server.",
+            },
+            {
+                "cmd": "Right-click a request -> Send to Repeater -> edit a field -> Send",
+                "do": "Take one interesting request and hand-modify a parameter/header/cookie, then resend and read the response.",
+                "why_now": "This is the heart of manual testing — probe how the server handles unexpected input (IDOR, auth bypass, injection) one controlled change at a time.",
+                "watch_for": "Changed behavior: another user's data (IDOR), an error leaking a stack trace (injection), a 200 where you expected 403 (broken access control).",
+                "means": "Confirmation of a specific flaw, reproducible from a single request you control.",
+                "blue": "These map to OWASP A01/A03. Defenses: server-side authorization checks, parameterized queries, input validation, and generic error messages.",
+            },
+            {
+                "cmd": "Send to Intruder -> mark payload positions -> load a wordlist -> Start",
+                "do": "Automate the same request across many payloads — fuzz a parameter, enumerate IDs, or test a login.",
+                "why_now": "When one manual test shows promise, Intruder scales it to find the needle (the one ID/payload that behaves differently).",
+                "watch_for": "Outliers in status code, response length, or time — the row that differs is usually the hit.",
+                "means": "Enumerated objects, a working payload, or valid creds — the exploit candidate.",
+                "blue": "Detectable: bursts of similar requests. Defenses: rate limiting, lockout, WAF anomaly rules, and per-object authorization so enumeration yields nothing.",
+            },
+        ],
+        "read": [
+            "HTTP history is your evidence log — every request the app made flows through it; filter by host/MIME to cut noise.",
+            "Repeater is where understanding happens; Intruder is where you scale it. Learn Repeater cold before automating.",
+            "Scope matters: set Target scope and 'show only in-scope' so you never accidentally hammer something out of bounds.",
+            "The community (free) edition throttles Intruder and has no Scanner — fine for learning; the manual workflow is the skill that transfers.",
+            "Burp's CA cert must be trusted by the browser or HTTPS breaks — installing it is the usual first-time snag.",
+        ],
+        "zoom": {
+            "eli5": "A website talks to its server in messages you normally don't see. Burp catches those messages so you can read them, change them, and send them again — which is how you find security holes in web apps.",
+            "operator": "Proxy your browser through Burp, map the app via HTTP history/Site map, then drive findings with Repeater (manual) and Intruder (automated). Keep everything in scope. Decode/compare as needed; extend with BApps.",
+            "deep": "Burp is a TLS-terminating intercepting proxy with a toolchain over the request store: Repeater (manual replay), Intruder (payload engine with sniper/cluster-bomb/pitchfork modes), Sequencer (token entropy), and in Pro a crawler+scanner. It re-signs TLS with its own CA so it can read/modify HTTPS. Extensions via the Montoya API let you script request handling, custom scan checks, and complex session auth.",
+        },
+        "next": [
+            "zap (the free, open-source alternative proxy)",
+            "sqlmap (automate the SQLi that Repeater reveals)",
+            "owasp (the Top 10 categories you're testing for)",
+            "nuclei (template scanning to complement manual testing)",
+        ],
+        "caution": "An intercepting proxy lets you send the server anything — only point Burp at applications you own or are explicitly authorized to test, and keep Target scope set so automated tools (Intruder/Scanner) can't stray. Active scanning/Intruder can damage or knock over fragile apps; throttle on production-like targets.",
+        "cia": [
+            "CONFIDENTIALITY — request tampering surfaces IDOR/broken access control that exposes other users' data (OWASP A01).",
+            "INTEGRITY — replaying/altering requests tests whether the server lets you change state you shouldn't (forged actions, privilege escalation).",
+            "DEFENSIVE — every finding maps to a server-side fix (authz checks, input validation, parameterized queries); Burp is also how defenders validate those fixes hold.",
+        ],
+        "try_cmd": "burpsuite",
+    },
+    "impacket": {
+        "summary": "A Python toolkit of ready-made implementations of Windows network protocols (SMB, MSRPC, Kerberos, LDAP, NTLM) — packaged as a suite of impacket-* scripts that perform classic Active Directory attacks and admin tasks straight from Linux",
+        "typical": "impacket-GetUserSPNs <dom>/<user>:<pass> -dc-ip <DC> -request   (Kerberoast)   |   impacket-secretsdump <dom>/<user>:<pass>@<DC> -just-dc   (dump AD hashes)   |   impacket-psexec <dom>/<user>:<pass>@<host>   (exec)",
+        "mental_model": (
+            "Windows networks run on a stack of protocols (SMB, RPC, Kerberos, LDAP, NTLM). Microsoft's tools "
+            "speak them from Windows; Impacket re-implements them in pure Python so an operator on Kali can "
+            "speak them too — authenticate, query the directory, request tickets, exec commands, relay auth. "
+            "Each impacket-* script is one protocol interaction weaponized into a single task. Knowing the suite "
+            "is really knowing the AD attack PRIMITIVES: get a foothold credential, roast tickets, dump secrets, "
+            "move laterally."
+        ),
+        "analogy": (
+            "Active Directory is a giant office that only speaks a set of bureaucratic dialects (forms in "
+            "triplicate, signed tickets, badge readers). Windows employees speak them natively. Impacket is a "
+            "fluent outsider who learned every dialect perfectly — so they can walk in, file the right forms, "
+            "request the right tickets, and ask the records office for everything, all without a Windows machine."
+        ),
+        "flags": {
+            "impacket-GetUserSPNs":"KERBEROASTING — request service tickets (TGS) for accounts with SPNs; the hashes crack offline to reveal service-account passwords. -request outputs hashcat format.",
+            "impacket-secretsdump":"Dump credential material: local SAM + LSA from a host, or the whole domain's NTLM hashes from a DC with -just-dc (DCSync). The credential jackpot.",
+            "impacket-psexec / -wmiexec / -smbexec / -atexec":"Remote command execution over different protocols (named-pipe service, WMI, SMB, scheduled task) — pick by footprint; wmiexec/atexec are quieter than psexec.",
+            "impacket-ntlmrelayx":"Relay captured NTLM authentication to other services (SMB/LDAP/HTTP) — the back half of the responder -> relay attack; can dump or create accounts.",
+            "impacket-GetNPUsers":"ASREPROAST — pull crackable material for accounts that don't require Kerberos pre-auth (no creds needed if you have a user list).",
+            "impacket-getTGT / -getST":"Request Kerberos TGT/service tickets directly (pass-the-ticket, ticket abuse) given a key or hash.",
+            "Auth syntax":"Most scripts take [domain/]user[:password]@target, plus -hashes LM:NT for pass-the-hash, -k for Kerberos, -dc-ip to point at the domain controller.",
+        },
+        "steps": [
+            {
+                "cmd": "impacket-GetNPUsers <dom>/ -dc-ip <DC> -usersfile users.txt -no-pass",
+                "do": "ASREProast — ask the DC for any user that has Kerberos pre-auth disabled; the response is crackable offline.",
+                "why_now": "It needs no credentials — just a user list — so it's an early, low-noise way to turn a username into a crackable hash.",
+                "watch_for": "A returned $krb5asrep$ hash. That's a candidate password to crack with hashcat.",
+                "means": "A first foothold credential if anyone has pre-auth disabled (a common misconfig).",
+                "blue": "Detect: TGT requests / pre-auth failures for many users. Defend: require pre-auth on all accounts, strong passwords, alert on AS-REQ enumeration.",
+            },
+            {
+                "cmd": "impacket-GetUserSPNs <dom>/<user>:<pass> -dc-ip <DC> -request",
+                "do": "Kerberoast — request service tickets for SPN-bearing accounts; the ticket is encrypted with the service account's password hash.",
+                "why_now": "Any authenticated user can request these, so a single low-priv credential can yield high-value service-account hashes.",
+                "watch_for": "$krb5tgs$ hashes, especially for accounts in privileged groups — crack them offline with hashcat.",
+                "means": "Often a service account with elevated rights — a big privilege jump if the password is weak.",
+                "blue": "Detect: bulk TGS-REQs (Event 4769). Defend: 30+ char managed service-account passwords (gMSA), least-privilege SPNs, AES-only.",
+            },
+            {
+                "cmd": "impacket-secretsdump <dom>/<admin>:<pass>@<DC> -just-dc-ntlm",
+                "do": "DCSync — with domain-admin-equivalent rights, ask the DC to replicate every account's password hash.",
+                "why_now": "It's the endgame credential grab: the whole domain's hashes, including krbtgt (the keys to forge any ticket).",
+                "watch_for": "The full directory dump — every user:hash, and the krbtgt hash.",
+                "means": "Total domain compromise (pass-the-hash anywhere, golden-ticket capability).",
+                "blue": "Detect: replication (DRSUAPI) sourced from non-DC hosts. Defend: tier-0 isolation, restrict replication rights, monitor for DCSync, rotate krbtgt twice on suspicion.",
+            },
+        ],
+        "read": [
+            "Impacket is the PLUMBING under many other tools (CrackMapExec, BloodHound ingestors, ntlmrelayx) — learning it explains how they actually work.",
+            "The credential you hold dictates the script: cleartext (user:pass), a hash (-hashes for pass-the-hash), or a ticket (-k for pass-the-ticket). Same attacks, different key material.",
+            "Exec choice is an OpSec choice: psexec drops a service (loud, logged), wmiexec/atexec are quieter and more fileless. Pick by detection risk.",
+            "Roasting outputs feed hashcat directly (modes 18200 AS-REP, 13100 TGS) — impacket gets the hash, hashcat cracks it, the cycle repeats deeper into the domain.",
+            "Almost everything keys off the DC: -dc-ip and accurate time (Kerberos is time-sensitive; sync your clock or tickets fail).",
+        ],
+        "zoom": {
+            "eli5": "Windows networks talk in special languages to log in, hand out tickets, and run commands. Impacket is a set of Linux tools that speak those languages perfectly, so a tester can do Windows-network tasks — and classic attacks — without a Windows computer.",
+            "operator": "Use the right script for the primitive: GetNPUsers/GetUserSPNs to turn access into crackable hashes, secretsdump to harvest credentials (DCSync on a DC), the *exec family to run commands, ntlmrelayx to relay captured auth. Drive auth with passwords, -hashes, or -k tickets; always point -dc-ip at the controller.",
+            "deep": "Impacket implements the wire protocols directly (SMB1-3, DCE/RPC including DRSUAPI for DCSync and SAMR/LSARPC, full Kerberos AS/TGS exchanges, LDAP, NTLMSSP). That is why it can DCSync (replicate via DRSUAPI), forge tickets (krbtgt -> golden; a service hash -> silver), pass-the-hash via NTLMSSP, and relay NTLM where signing isn't enforced. It is a library first (used programmatically) and the scripts are thin CLIs over it.",
+        },
+        "next": [
+            "crackmapexec (swiss-army sweep that wraps much of this across hosts)",
+            "bloodhound (find WHICH accounts to roast/target — the attack-path map)",
+            "hashcat (crack the roasted hashes impacket produces)",
+            "mimikatz (the on-host Windows counterpart for credential extraction)",
+        ],
+        "caution": "These are real Active Directory attack tools. Use ONLY in your own lab or an engagement with explicit written authorization and defined scope — DCSync, relay, and ticket attacks against a production domain are high-impact and illegal without permission. The value here is understanding the primitives so you can DEFEND them (detection + hardening above).",
+        "cia": [
+            "CONFIDENTIALITY — secretsdump/roasting expose the domain's credentials, the ultimate confidentiality breach in a Windows environment.",
+            "INTEGRITY — ticket forgery (golden/silver) and relay let an attacker impersonate any identity and forge authenticated actions — total loss of authentication integrity.",
+            "DEFENSIVE / BLUE — each technique has concrete detections (4769/4768 anomalies, DRSUAPI from non-DCs, relay signatures) and hardening (gMSA, pre-auth, signing/EPA, tiering, krbtgt rotation). Teaching the attack IS teaching the defense.",
+        ],
+        "try_cmd": "impacket-GetUserSPNs -h",
+    },
+    "mimikatz": {
+        "summary": "The infamous Windows credential-extraction tool — pulls hashes, Kerberos tickets, and (on legacy configs) plaintext passwords out of memory and the registry, and performs pass-the-hash / pass-the-ticket / golden-ticket attacks. The reason modern Windows credential defenses exist",
+        "typical": "(on a Windows host, elevated)  privilege::debug  ->  sekurlsa::logonpasswords   |   lsadump::sam   |   sekurlsa::tickets   (Windows-only and heavily monitored — study the concepts here)",
+        "mental_model": (
+            "To support single sign-on, Windows historically kept usable credential material in the memory of "
+            "the LSASS process — sometimes reversibly, so it could re-auth you to network resources. Mimikatz's "
+            "core trick is simply READING LSASS memory (and registry hives) and decoding those structures back "
+            "into passwords, hashes, and tickets. From there, because Windows auth accepts a hash or a ticket as "
+            "proof (not just a password), the same secrets enable impersonation WITHOUT cracking anything: "
+            "pass-the-hash, pass-the-ticket, and — with the domain's krbtgt key — forging a 'golden ticket' that "
+            "is any user, anywhere. Understanding mimikatz is understanding why credentials in memory are the "
+            "crown-jewel target."
+        ),
+        "analogy": (
+            "LSASS is the building's badge office, which in the old design kept a copy of everyone's master key "
+            "so doors would open smoothly. Mimikatz is someone who walks into that office and photographs the "
+            "key drawer. Worse, the building's locks accept a photo of a key as readily as the key itself (that "
+            "is pass-the-hash) — and if you photograph the master-key stamping machine (krbtgt), you can mint a "
+            "key for any door (the golden ticket)."
+        ),
+        "flags": {
+            "privilege::debug":"Acquire SeDebugPrivilege — the prerequisite for reading other processes' memory. Fails without local admin; that requirement is itself a control.",
+            "sekurlsa::logonpasswords":"The signature action — dump credentials (hashes, and on legacy/WDigest-enabled systems plaintext) of logged-on users from LSASS memory.",
+            "sekurlsa::tickets / kerberos::list":"Extract Kerberos tickets from memory for pass-the-ticket; list cached tickets.",
+            "lsadump::sam / ::lsa / ::secrets":"Read local SAM hashes and LSA secrets from registry hives (works offline against saved hives too).",
+            "sekurlsa::pth":"Pass-the-hash — start a process authenticated as a user using only their NTLM hash, no password.",
+            "kerberos::golden / ::silver":"Forge Kerberos tickets — golden (krbtgt hash = any user, long-lived) or silver (a service hash = that service). The impersonation/persistence endgame.",
+            "dpapi:: / vault::":"Decrypt DPAPI-protected secrets and Windows Credential Vault items (saved/browser credentials).",
+        },
+        "read": [
+            "Mimikatz is WINDOWS-ONLY and one of the most-signatured tools in existence — modern EDR/AV flag the binary, its strings, and its LSASS access on sight. Operators rarely run it raw; the VALUE for you here is conceptual: what's possible and how it's stopped.",
+            "The headline defenses largely killed the scariest part: WDigest plaintext is off by default since Windows 8.1/2012R2, Credential Guard isolates LSASS secrets in a VBS enclave, and LSASS-as-PPL (RunAsPPL) blocks easy memory reads.",
+            "Detection is mature: Sysmon Event 10 (process access to lsass.exe), Defender ASR 'block credential stealing from LSASS', and EDR memory-read telemetry. LSASS touched by a non-system process is a top alert.",
+            "Hash/ticket = access: because Windows accepts NTLM hashes and Kerberos tickets as proof of identity, stolen secrets enable impersonation without ever cracking a password — which is why the secrets themselves must be protected, not just made 'strong'.",
+            "Kali bundles mimikatz under /usr/share/windows-resources/mimikatz (Windows binaries you'd deploy to a Windows target) and ships kiwi_passwords.yar — a YARA rule to DETECT it, which shows you exactly how defenders hunt it.",
+        ],
+        "zoom": {
+            "eli5": "When you log into Windows, the computer keeps some login secrets in memory so you don't retype them. Mimikatz reads those secrets out of memory. Newer Windows hides them much better — and security software watches for anyone trying to peek.",
+            "operator": "Conceptually: with local admin you enable debug, read LSASS for hashes/tickets or read registry hives for SAM/LSA secrets, then reuse them via pass-the-hash / pass-the-ticket / golden ticket. In practice it's heavily detected and often blocked by Credential Guard / LSASS PPL; operators favor lower-signature methods and assume EDR is watching LSASS.",
+            "deep": "Mimikatz parses LSASS's in-memory credential providers (msv1_0 NTLM, kerberos, wdigest, tspkg, livessp) and decrypts cached secrets using LSASS's own keys; lsadump reads the SAM/SECURITY/SYSTEM hives. Because Kerberos trusts anything encrypted with krbtgt's key, knowing that hash lets it forge TGTs (golden tickets) with arbitrary membership and lifetime; a service account hash forges service tickets (silver). Defenses break the chain at each link: Credential Guard (VBS isolation of LSASS secrets), RunAsPPL (protected LSASS), disabling WDigest, Restricted Admin / Remote Credential Guard (don't expose creds over RDP), tiered administration, and rotating krbtgt twice to invalidate golden tickets.",
+        },
+        "next": [
+            "impacket (the Linux/remote counterpart — DCSync, roasting, relay from off-host)",
+            "bloodhound (find whose credentials are worth stealing — the path to DA)",
+            "crackmapexec (spray reused hashes/creds across the network)",
+            "incident-response (the detect/contain/evict side of a credential-theft compromise)",
+        ],
+        "caution": "Mimikatz performs real credential theft and is illegal to use on systems you don't own or aren't explicitly authorized to test. It's Windows-only (won't run on this Pi) and is taught here for understanding and DEFENSE — every module above maps to a concrete control (Credential Guard, LSASS PPL, WDigest off, tiering, krbtgt rotation, LSASS-access monitoring). Don't deploy it outside a lab or authorized engagement.",
+        "cia": [
+            "CONFIDENTIALITY — it directly steals the most sensitive secrets a Windows host holds: passwords, hashes, and tickets in memory.",
+            "INTEGRITY — pass-the-hash/ticket and golden tickets let an attacker authenticate AS anyone and forge trusted actions, destroying authentication integrity domain-wide.",
+            "DEFENSIVE / BLUE — the entire modern Windows credential-protection stack (Credential Guard, PPL, WDigest-off, tiering, Sysmon LSASS monitoring, the bundled YARA rule) exists specifically to counter what mimikatz demonstrates. Learn it to defend it.",
+        ],
+        "try_cmd": "cat /usr/share/windows-resources/mimikatz/kiwi_passwords.yar",
+    },
     "network-silence": {
         "summary": "Keep the OS quiet on a network — silence the chatty protocols that announce your presence, name, and intentions — to blend in (red-team OpSec) AND shrink your attack surface (blue-team hardening)",
         "typical": "audit with tcpdump -> disable LLMNR/NBT-NS/mDNS -> tame IPv6 -> randomize MAC + blank hostname -> default-deny egress -> re-verify with a sniffer",

@@ -17,6 +17,336 @@
 """
 
 LESSONS = {
+    "searchsploit": {
+        "summary": "Offline command-line search of the Exploit-DB archive — find public exploits and PoCs for a product/version locally (no internet needed), then read, copy, or cross-reference them against your scan results",
+        "typical": "searchsploit <product> <version>     (then  -x <EDB-ID>  to read,  -m <EDB-ID>  to copy it local)",
+        "mental_model": (
+            "Exploit-DB is a giant public archive of known exploits, indexed by product and version. searchsploit "
+            "is a local mirror of that archive with a fast text search over titles and paths. The skill isn't "
+            "running it — it's matching a SPECIFIC product+version you found in recon to a known exploit, while "
+            "filtering out the noise (wrong OS, crash-only, unrelated). It turns 'I see Apache 2.4.49' into 'here "
+            "is the path-traversal write-up for exactly that build.'"
+        ),
+        "analogy": (
+            "searchsploit is the index at the back of a huge book of documented break-ins, kept on your shelf so "
+            "you don't need the library. You look up the exact make and model of a lock, and it points you to the "
+            "page with the published way in — if one exists."
+        ),
+        "flags": {
+            "<terms>":        "Space-separated terms matched against title AND path (case-insensitive). Use product + version: 'apache 2.4.49'. Fewer, accurate terms beat many.",
+            "-t, --title":    "Search the title ONLY (not the path) — cuts false matches when a term appears in unrelated file paths.",
+            "--exclude=":     "Remove noise, chained with '|': --exclude='dos|/PoC/' drops crash-only and proof-of-concept-only entries.",
+            "-x, --examine":  "Open the exploit in your PAGER to READ it — always read before you run anything.",
+            "-m, --mirror":   "Copy the exploit file into your current directory so you can inspect and adapt it.",
+            "-p, --path":     "Print the full local path to an EDB-ID (and copy it to the clipboard).",
+            "-w, --www":      "Show Exploit-DB.com URLs instead of local paths — handy for the write-up and context.",
+            "-j, --json":     "Emit JSON — for scripting and feeding other tools.",
+            "--nmap <f.xml>": "Read an nmap -oX scan and auto-search every detected service/version — recon-to-exploit in one move.",
+        },
+        "read": [
+            "Match on PRODUCT + VERSION, not just product — 'openssh' returns hundreds; 'openssh 8.2' narrows to what's actually relevant.",
+            "Read before you run: -x the exploit and understand it. Public PoCs are often broken, mis-targeted, or trojaned; never fire blind.",
+            "Filter aggressively with --exclude: drop crash-only and PoC-only entries unless that's specifically what you want.",
+            "Keep it fresh: 'searchsploit -u' updates the local copy so you aren't searching a stale archive.",
+            "--nmap on your -oX output is the power move: it cross-references every service it found against Exploit-DB automatically.",
+        ],
+        "zoom": {
+            "eli5": "It's an offline search engine for known hacks. You type the software and version you found, and it tells you whether someone has already published a way to break it — and lets you read that write-up.",
+            "operator": "Take versions from your nmap/whatweb output, search product+version, --exclude the noise, -x to read the candidate, -m to copy and adapt it in a lab. Or feed nmap XML with --nmap to auto-match everything at once.",
+            "deep": "searchsploit queries a local clone of Exploit-DB (the exploitdb package's CSV index + the exploit tree). It's a recon-to-weaponization bridge: it doesn't exploit anything, it tells you what's publicly known. Pair it with version data from nmap -sV and confirmations from nuclei; treat hits as leads to validate, not turnkey weapons.",
+        },
+        "apply": [
+            "From a service version (nmap says 'vsftpd 2.3.4'): `searchsploit vsftpd 2.3.4` then `searchsploit -x <EDB-ID>` to read it.",
+            "Cut the noise: `searchsploit apache 2.4.49 --exclude='dos'`.",
+            "Auto-match a whole scan: `nmap -sV -oX scan.xml <target>` then `searchsploit --nmap scan.xml`.",
+            "Copy one to study safely in your lab: `searchsploit -m <EDB-ID>` (lands in the current dir); read every line before running.",
+            "Refresh the archive periodically: `searchsploit -u`.",
+        ],
+        "next": [
+            "nmap (the -sV versions that feed your searches; -oX for --nmap)",
+            "metasploit (often has a polished module for what searchsploit finds raw)",
+            "nuclei (template scanning that confirms many of these CVEs are live)",
+            "ghidra (when you must understand or fix a raw PoC before trusting it)",
+        ],
+        "caution": "A searchsploit hit is a LEAD, not permission. Only run exploits against systems you own or are authorized to test, and only after reading the code — public PoCs can be destructive, mis-targeted, or backdoored. Validate in a lab first.",
+        "cia": [
+            "CIA impact depends entirely on the exploit — many give code execution (all three), some are crash-only (availability). Read the entry to know which before you act.",
+            "OFFENSE — it's the bridge from 'what version is this' to 'what's the known way in', the heart of the vulnerability-analysis phase.",
+            "DEFENSIVE / BLUE — defenders run the SAME search on their own inventory: if searchsploit has a public exploit for your version, patching it just became urgent. A free prioritization signal.",
+        ],
+        "try_cmd": "searchsploit -h",
+    },
+    "tcpdump": {
+        "summary": "The lightweight command-line packet capture tool — grab traffic on any interface with surgical BPF filters, save to pcap, or read it live. The tool you reach for on a headless box where Wireshark's GUI can't go",
+        "typical": "tcpdump -i <iface> -nn '<bpf filter>' -w cap.pcap     (capture)   |   tcpdump -nn -r cap.pcap '<filter>'   (read back)",
+        "mental_model": (
+            "tcpdump is Wireshark's capture engine without the GUI: it puts the NIC in promiscuous mode, applies "
+            "a BPF filter in the kernel (so only matching packets are even copied to userspace), and prints or "
+            "saves them. Because the filter runs in-kernel it's cheap enough to run on a router, a server, or a "
+            "Pi. The workflow is split: capture lean on the box with tcpdump, then pull the .pcap into Wireshark "
+            "for the deep, visual analysis."
+        ),
+        "analogy": (
+            "If Wireshark is a forensics lab, tcpdump is the field recorder you clip on at the scene: small, "
+            "fast, runs anywhere, captures exactly what you tell it. You record in the field, then bring the "
+            "tape back to the lab to study it frame by frame."
+        ),
+        "flags": {
+            "-i <iface>":     "Interface to capture on (tcpdump -D lists them); 'any' captures across all interfaces.",
+            "-w <file.pcap>": "Write raw packets to a pcap file (for Wireshark) instead of printing — capture now, analyze later.",
+            "-r <file.pcap>": "Read and filter a saved capture instead of going live.",
+            "-n / -nn":       "Don't resolve names (-n) or names AND ports (-nn) — faster, quieter, and your capture box emits no extra lookups.",
+            "-c <count>":     "Stop after N packets — a quick sample without flooding the terminal.",
+            "-s <snaplen>":   "Bytes captured per packet; -s0 = the whole packet, a small value = headers only (lighter).",
+            "-A / -X":        "Print payload as ASCII (-A) or hex+ASCII (-X) — read cleartext protocols right in the terminal.",
+            "-e":             "Show link-layer (Ethernet) headers — MAC addresses, VLAN tags.",
+            "BPF filter":     "host/port primitives select traffic: 'host 10.0.0.5', 'port 443', 'tcp'; combine with and/or/not, and filter a whole subnet by range.",
+        },
+        "read": [
+            "Always pair -w (save pcap) with a tight filter — capturing everything fills the disk fast and buries the signal. Filter at capture time.",
+            "Use -nn by default during analysis: name/port resolution is slow, adds noise, and without -n your capture host emits its own lookups.",
+            "Capture lean on the target box, analyze rich in Wireshark — `tcpdump -w` on the server, open the pcap on your workstation.",
+            "tcpdump's filter is the same kernel filter Wireshark calls a 'capture filter' — host/port/subnet primitives with and/or/not. It is NOT Wireshark's display-filter syntax.",
+            "-s0 grabs full payloads (needed to reconstruct files/creds); a small snaplen grabs headers only (lighter, for flow analysis).",
+        ],
+        "zoom": {
+            "eli5": "tcpdump records the little messages flying across a network cable, and only the ones you ask for. It has no windows or buttons — it runs in the terminal, so it works on servers and tiny computers where Wireshark can't.",
+            "operator": "Pick the interface (-D to list), write a tight BPF filter so you only capture what matters, -w to a pcap, then move the pcap to Wireshark for analysis. For quick looks, -nn -A reads cleartext straight in the terminal.",
+            "deep": "tcpdump uses libpcap: your filter compiles to BPF bytecode that runs in the kernel, so non-matching packets are dropped before the copy to userspace (low overhead). snaplen controls capture depth; promiscuous mode grabs frames not addressed to you on the segment. The output .pcap is the universal format Wireshark, Zeek, Suricata, and Scapy all consume.",
+        },
+        "apply": [
+            "List interfaces: `tcpdump -D`. Capture web traffic: `tcpdump -i eth0 -nn -w /tmp/web.pcap 'tcp port 80 or tcp port 443'`.",
+            "Read it back filtered: `tcpdump -nn -r /tmp/web.pcap 'host 10.0.0.5'` — or just open /tmp/web.pcap in Wireshark.",
+            "Watch a host live with payloads: `tcpdump -i eth0 -nn -A 'host 10.0.0.5 and tcp port 80'`.",
+            "Sample without flooding: add `-c 50` to stop after 50 packets.",
+            "Hand off to the deep tools: the .pcap feeds Wireshark, Zeek, or Suricata for analysis you can't do in the terminal.",
+        ],
+        "next": [
+            "wireshark (open the pcap for deep, visual analysis — Follow Stream, decode, stats)",
+            "network-silence (use tcpdump to VERIFY your host actually went quiet)",
+            "networking (the protocol layers you're capturing)",
+            "nmap (active map to pair with the passive capture)",
+        ],
+        "caution": "Packet capture can record other people's credentials and private data — only capture on networks you own or are authorized to monitor. On shared/corporate networks it's often policy-restricted or unlawful without consent. Treat saved pcaps as sensitive.",
+        "cia": [
+            "CONFIDENTIALITY — capture exposes anything sent in cleartext; both an attacker's prize on an open segment and the defender's proof that encryption is needed.",
+            "DEFENSIVE / BLUE — the go-to for quick capture in incident response and monitoring on systems without a GUI; it feeds the heavier analysis tools.",
+            "INTEGRITY — reveals spoofing, rogue services, and injected/anomalous traffic on the wire.",
+        ],
+        "try_cmd": "tcpdump -D",
+    },
+    "smbclient": {
+        "summary": "An FTP-like client for SMB/CIFS shares — list, connect to, and transfer files from Windows/Samba file shares from the Linux command line. The hands-on way to actually browse what enum4linux only listed",
+        "typical": "smbclient -L //<host> -N     (list shares, no password)   |   smbclient //<host>/<share> -U <user>     (connect)",
+        "mental_model": (
+            "SMB is the Windows file-sharing protocol. enum4linux/crackmapexec TELL you which shares exist; "
+            "smbclient lets you actually OPEN one and walk it like an FTP session — ls, cd, get, put. The "
+            "security story is mostly about what you can reach WITHOUT good credentials: null sessions (-N) and "
+            "guest access to shares that should have been locked down are a classic foothold for loot — configs, "
+            "backups, scripts, and password files left sitting on an open share."
+        ),
+        "analogy": (
+            "If enum4linux is reading the directory board in a building lobby ('floors 1-5, IT on 3'), smbclient "
+            "is taking the elevator up and trying each door. Some are locked; the ones left on 'anonymous' swing "
+            "right open, and you walk out with whatever was sitting inside."
+        ),
+        "flags": {
+            "-L //<host>":    "List the shares a host offers (the share catalogue) rather than connecting to one.",
+            "-N":             "No password — try a null/anonymous session. The key test: what is reachable with no creds at all.",
+            "-U <user>":      "Authenticate as a user; inline as -U 'domain/user%password', or it will prompt. Add --pw-nt-hash to pass a hash.",
+            "//<host>/<share>":"Connect to a specific share, dropping you into an interactive smb prompt.",
+            "-c '<cmds>'":    "Run share commands non-interactively, e.g. -c 'ls; get secrets.txt' — great for scripting.",
+            "-I <ip>":        "Target by IP when name resolution is unreliable.",
+            "-m SMB3":        "Pin the SMB dialect when negotiating with stubborn or legacy servers.",
+        },
+        "read": [
+            "The first test is always `-L //host -N`: shares you can list or read with NO credentials are the immediate finding.",
+            "Inside a share it's FTP muscle memory: ls, cd, get <file>, put <file>, mget * (with 'prompt off' + 'recurse on' to pull a whole tree).",
+            "Hunt loot, not just files: configs, .bak, scripts, keepass/.kdbx, unattend.xml, web.config — credentials get left on shares constantly.",
+            "Admin shares (C$, ADMIN$, IPC$) need privileged creds; a readable IPC$ null session is what enum4linux rides for its enumeration.",
+            "If it refuses to connect, the server may demand SMB signing or a newer dialect — pin with -m SMB3 or check the security mode.",
+        ],
+        "zoom": {
+            "eli5": "Windows computers share folders over the network. smbclient opens those shared folders from Linux and copies files out of them — and checks which ones were accidentally left open to anybody.",
+            "operator": "List shares with -L -N first (what's open to nobody?), then connect to interesting shares with -U or -N, browse like FTP (ls/cd/get), and loot for credentials and config. Script bulk pulls with -c.",
+            "deep": "smbclient is part of Samba and speaks SMB1/2/3. It authenticates via NTLM (password, or --pw-nt-hash = pass-the-hash for file access) or Kerberos (-k). Null sessions (-N to IPC$) historically leak users/shares/policy; modern Windows restricts them, but Samba and legacy hosts still allow read access far too often. The interactive prompt is a mini-shell over the share (get/put/recurse/mask).",
+        },
+        "apply": [
+            "Enumerate with no creds: `smbclient -L //10.0.0.5 -N` — note any share you can see.",
+            "Open one anonymously: `smbclient //10.0.0.5/Public -N`, then `recurse on; prompt off; mget *` to pull everything.",
+            "Authenticated browse: `smbclient //10.0.0.5/share -U 'CORP/jdoe'` (it prompts for the password).",
+            "Scripted grab: `smbclient //10.0.0.5/share -U user -c 'get config.bak'`.",
+            "Pass-the-hash for file access: `smbclient //10.0.0.5/C$ -U Administrator --pw-nt-hash <NThash>` (lab/authorized only).",
+        ],
+        "next": [
+            "enum4linux (the broad SMB enumeration that points you at the shares)",
+            "crackmapexec (sweep share access across many hosts at once)",
+            "impacket (psexec/secretsdump once you have working SMB creds)",
+            "hashcat (crack creds the share loot might contain)",
+        ],
+        "caution": "Accessing shares you aren't authorized to is unlawful access. Only connect to systems you own or have written authorization to test. Files pulled from shares may hold real personal data or credentials — handle as sensitive and stay within scope.",
+        "cia": [
+            "CONFIDENTIALITY — open or guessable shares leak exactly the files they hold; loot often includes the credentials that unlock everything else.",
+            "INTEGRITY — write access (put) to a share can plant files, tamper with content, or stage a payload.",
+            "DEFENSIVE / BLUE — admins use smbclient to audit their OWN shares: run `-L -N` and connect anonymously to find what's exposed without creds, then lock it down (no null sessions, least-privilege share ACLs, SMB signing).",
+        ],
+        "try_cmd": "smbclient -L //localhost -N",
+    },
+    "wpscan": {
+        "summary": "The WordPress security scanner — fingerprints WP core, themes, and plugins, matches them to known vulnerabilities, enumerates users, and runs password attacks. WordPress runs a huge slice of the web, so this is a bread-and-butter web tool",
+        "typical": "wpscan --url https://<site> -e vp,vt,u     (enumerate vuln plugins/themes + users)   then   wpscan --url https://<site> -U users.txt -P rockyou.txt",
+        "mental_model": (
+            "WordPress is a core engine plus a sprawl of third-party plugins and themes — and the plugins are "
+            "where most real-world WP breaches live (outdated, abandoned, vulnerable). wpscan's job is to "
+            "identify EXACTLY which versions of core/plugins/themes a site runs, then look each up in its "
+            "vulnerability database. Add user enumeration and a password attack against the login, and you've "
+            "covered the two ways most WP sites fall: a vulnerable plugin, or a weak admin password."
+        ),
+        "analogy": (
+            "A WordPress site is a house where the owner keeps bolting on cheap add-on rooms (plugins) from "
+            "different builders. wpscan walks the property cataloguing every add-on and its model number, checks "
+            "a recall list for the ones with known broken locks, and rattles the front door to see if the key is "
+            "weak."
+        ),
+        "flags": {
+            "--url <URL>":    "The target WordPress site to scan.",
+            "-e, --enumerate":"What to enumerate: vp (vuln plugins), ap (all plugins), vt (vuln themes), u (users), cb (config backups). e.g. -e vp,vt,u.",
+            "--plugins-detection":"Mode: 'passive' (quiet, reads pages) vs 'aggressive' (probes every known plugin path — thorough but loud).",
+            "-U, --usernames":"Username list for the password attack (or the users that enumeration finds).",
+            "-P, --passwords":"Password list for the login attack — point it at a wordlist like rockyou.txt.",
+            "--password-attack":"Force the method (wp-login vs xmlrpc); xmlrpc batches guesses and is often faster and less rate-limited.",
+            "--api-token":    "Your WPScan API token — REQUIRED for the actual vulnerability data (without it you get versions, not the CVE matches).",
+            "--random-user-agent":"Rotate the User-Agent to blend in or dodge simple blocks.",
+        },
+        "read": [
+            "Plugins are the real attack surface: '-e vp' (vulnerable plugins) is usually where the win is, far more than core itself.",
+            "Without an --api-token you only get fingerprints (versions), not the vulnerability lookups. The free token is worth getting.",
+            "User enumeration feeds the password attack: find the usernames, then target them — WP leaks users via author archives and the REST API.",
+            "xmlrpc.php is the brute-force express lane: --password-attack xmlrpc can be much faster than wp-login and is often left enabled.",
+            "Aggressive plugin detection is thorough but noisy (a request per known plugin path) — start passive, escalate only if needed.",
+        ],
+        "steps": [
+            {
+                "cmd": "wpscan --url https://<site> -e vp,vt --api-token <TOKEN>",
+                "do": "Fingerprint core/plugins/themes and match them against the vulnerability database.",
+                "why_now": "Identify the known-vulnerable components first — that's where most WordPress compromises actually come from.",
+                "watch_for": "Plugins/themes flagged with [!] and a CVE/title — outdated versions with public exploits are your leads.",
+                "means": "A list of concrete, version-specific vulnerabilities to chase (often with a ready exploit).",
+                "blue": "Detectable as version-probing traffic. Defense: keep core/plugins/themes updated, remove unused plugins, run a WAF.",
+            },
+            {
+                "cmd": "wpscan --url https://<site> -e u",
+                "do": "Enumerate valid usernames via author archives, the login error oracle, and the REST API.",
+                "why_now": "You can't run a targeted password attack without valid usernames — get them first.",
+                "watch_for": "A clean list of real usernames (admin and editor accounts).",
+                "means": "The user half of a credential attack.",
+                "blue": "Defense: block user enumeration (disable author archives / REST users endpoint) and don't reveal which half of a login was wrong.",
+            },
+            {
+                "cmd": "wpscan --url https://<site> -U users.txt -P rockyou.txt --password-attack xmlrpc",
+                "do": "Run a password attack against the enumerated users via the (often faster) xmlrpc endpoint.",
+                "why_now": "A weak admin password is the other classic WP fall; with users known, test it directly.",
+                "watch_for": "A green 'valid combinations found' line — that's an admin login.",
+                "means": "Authenticated WP admin = the dashboard, the theme/plugin editor, and usually code execution on the server.",
+                "blue": "Detect: bursts of login/xmlrpc attempts. Defense: strong passwords, an MFA plugin, login rate-limiting, disable xmlrpc if unused.",
+            },
+        ],
+        "zoom": {
+            "eli5": "Most websites run WordPress, and most break-ins come through outdated add-ons or a weak admin password. wpscan checks a site for both — which add-ons are known-broken, and whether the login password is guessable.",
+            "operator": "Enumerate vulnerable plugins/themes (with an API token for the CVE data), enumerate users, then run a targeted password attack via xmlrpc or wp-login. Start with passive detection; escalate if needed.",
+            "deep": "wpscan fingerprints by hashing static assets and reading readme/version markers, then matches against the WPScan vulnerability DB (API-token gated). Enumeration abuses author ?author=N redirects, the wp-json REST users endpoint, and login error differences. The password attack hits wp-login.php or the xmlrpc system.multicall endpoint (which batches many guesses per request — faster, and a reason to disable xmlrpc).",
+        },
+        "next": [
+            "whatweb (confirm it IS WordPress and the broad stack first)",
+            "burp (manually test the specific plugin vuln wpscan flags)",
+            "hydra (generic login brute-forcing when it's not WordPress)",
+            "searchsploit (pull the exploit for a flagged plugin version)",
+        ],
+        "caution": "Scanning and password-attacking a site you don't own is illegal. Only run wpscan against WordPress sites you own or are explicitly authorized to test; aggressive enumeration and password attacks are noisy and can lock out accounts or trip abuse protections.",
+        "cia": [
+            "CONFIDENTIALITY — admin access or a vulnerable plugin exposes the site's data, its users, and often the underlying server.",
+            "INTEGRITY — WP admin lets you edit themes/plugins = code execution = full control of the site's content and behavior.",
+            "DEFENSIVE / BLUE — defenders run wpscan on their OWN sites to find the vulnerable plugin or weak password before an attacker does; it's a direct hardening checklist.",
+        ],
+        "try_cmd": "wpscan --url https://example.com -e vp",
+    },
+    "evil-winrm": {
+        "summary": "The standard WinRM shell for post-exploitation — once you have valid Windows credentials (or an NTLM hash), it gives you a full interactive PowerShell on the target, plus built-in file upload/download and in-memory script/binary loading",
+        "typical": "evil-winrm -i <host> -u <user> -p <pass>     (or  -H <NTLMhash>  for pass-the-hash)",
+        "mental_model": (
+            "WinRM is Windows' built-in remote-management service (the transport behind PowerShell Remoting), "
+            "listening on 5985/5986. It's a LEGITIMATE admin channel — which is exactly why attackers love it: "
+            "using it looks like normal administration. evil-winrm is a polished client for it. The key point: "
+            "this is a POST-exploitation tool. It doesn't break in; it's what you use AFTER you already hold "
+            "valid creds or a hash, to turn that credential into an interactive foothold and run your tooling."
+        ),
+        "analogy": (
+            "evil-winrm isn't the lockpick — it's the master key you already copied, used at the staff entrance. "
+            "Walking in through the official admin door (WinRM) looks like an employee doing their job, which is "
+            "what makes it both convenient for you and hard for defenders to spot."
+        ),
+        "flags": {
+            "-i <ip>":        "Target host (the WinRM endpoint).",
+            "-u <user>":      "Username to authenticate as.",
+            "-p <pass>":      "Password. Omit it and use -H to authenticate with a hash instead.",
+            "-H <hash>":      "PASS-THE-HASH — authenticate with the NTLM hash, no plaintext password (e.g. a hash from secretsdump/mimikatz).",
+            "-S":             "Use SSL (WinRM over HTTPS on 5986) when the service requires encryption.",
+            "-s <path>":      "Local folder of PowerShell .ps1 scripts to make loadable in-session (the 'menu' command lists them).",
+            "-e <path>":      "Local folder of executables for Invoke-Binary (run a .exe in memory, no file on disk).",
+            "-r <realm>":     "Kerberos realm — authenticate with a ticket instead of a password or hash.",
+        },
+        "read": [
+            "It's POST-auth only: evil-winrm needs working creds/hash AND the user must be in 'Remote Management Users' (or admin). No creds = no evil-winrm.",
+            "Pass-the-hash is first-class: '-H <NThash>' logs in with a hash straight from secretsdump/mimikatz — no cracking required.",
+            "Built-in helpers beat manual work: 'upload'/'download' move files, 'menu' exposes loaded .ps1 scripts, 'Invoke-Binary' runs an .exe in memory (no disk artifact = quieter).",
+            "It is LOUD to a tuned defender: WinRM logons, PowerShell script-block logging, and AMSI all see you. It blends into admin traffic but is heavily logged on mature hosts.",
+            "5985 is plaintext HTTP WinRM, 5986 is HTTPS (-S). Many environments enable only one — check which port is open first.",
+        ],
+        "steps": [
+            {
+                "cmd": "evil-winrm -i 10.0.0.5 -u Administrator -H <NThash>",
+                "do": "Authenticate to WinRM with a credential or hash and drop into an interactive PowerShell.",
+                "why_now": "This is the step that converts a stolen credential into a usable foothold on the host.",
+                "watch_for": "An 'Evil-WinRM PS>' prompt — you now have a shell as that user.",
+                "means": "Interactive command execution on the target as the authenticated account.",
+                "blue": "Detect: WinRM logons (4624 type 3 to 5985/5986) from unusual sources. Defense: restrict Remote Management Users, segment WinRM, alert on it.",
+            },
+            {
+                "cmd": "PS> upload tooling.ps1   then   menu / Invoke-Binary",
+                "do": "Stage tooling — upload a script, load it via menu, or run an .exe in memory with Invoke-Binary.",
+                "why_now": "With a shell, you bring your post-exploitation toolkit (enumeration, privesc checks) onto the host.",
+                "watch_for": "Successful load and output from your enumeration/privesc script.",
+                "means": "Local situational awareness and a path to escalate from user toward SYSTEM.",
+                "blue": "Detect: PowerShell script-block logging (4104), AMSI, EDR on in-memory execution. Defense: Constrained Language Mode, app control (WDAC), script-block logging.",
+            },
+            {
+                "cmd": "PS> (enumerate -> escalate -> reuse creds)",
+                "do": "Use the foothold to hunt local secrets and reusable credentials, then pivot to the next host.",
+                "why_now": "A single host is a beachhead; the goal is to find creds that work elsewhere and move laterally.",
+                "watch_for": "Cached creds, tokens, or admin rights that unlock other machines.",
+                "means": "Lateral movement — the same hash/credential opens the next box (back to crackmapexec/impacket).",
+                "blue": "Detect: one account authenticating across many hosts fast. Defense: LAPS (unique local admin passwords), tiering, credential hygiene, MFA.",
+            },
+        ],
+        "zoom": {
+            "eli5": "Once you've got a Windows username and password (or its hash), evil-winrm uses Windows' own remote-control feature to give you a command window on that computer — like remote desktop, but text, and it looks like ordinary IT admin work.",
+            "operator": "With valid creds or a hash, connect (-u/-p or -H, add -S for SSL), get a PowerShell, then use upload/download, menu-loaded scripts, and Invoke-Binary to run your toolkit in memory while staying as quiet as the channel allows.",
+            "deep": "evil-winrm rides WS-Management (SOAP over HTTP 5985 / HTTPS 5986), the same protocol as PowerShell Remoting, authenticating via NTLM (password or hash) or Kerberos. Because it's a sanctioned admin channel the traffic is unremarkable — but the activity inside (script-block logging, AMSI, module logging, EDR) is highly visible on a defended host. Invoke-Binary uses reflective in-memory loading to avoid touching disk; defenders counter with AMSI, WDAC/app-control, and Constrained Language Mode.",
+        },
+        "next": [
+            "crackmapexec (validate which hosts your creds/hash actually open before connecting)",
+            "impacket (secretsdump to GET the hash you pass here; psexec as an alternative shell)",
+            "mimikatz (where the hashes/tickets you authenticate with come from)",
+            "linpeas (the Linux cousin for local privilege-escalation enumeration)",
+        ],
+        "caution": "evil-winrm gives real interactive control of a Windows host — use ONLY with valid authorization on in-scope systems. It is post-exploitation: it assumes credentials you obtained legally (your lab, or an authorized engagement). Unauthorized use is computer intrusion.",
+        "cia": [
+            "CONFIDENTIALITY — a shell on the host exposes its files, secrets, and the credentials needed to reach further.",
+            "INTEGRITY — full command execution lets an attacker alter the system, plant persistence, or stage further attacks.",
+            "DEFENSIVE / BLUE — every step has detections (WinRM logons, 4104 script-block logs, AMSI, EDR) and controls (restrict Remote Management Users, WDAC, Constrained Language Mode, LAPS, tiering). Knowing the tool is knowing what to monitor.",
+        ],
+        "try_cmd": "evil-winrm",
+    },
     "wireshark": {
         "summary": "The standard packet analyzer — captures and dissects network traffic frame-by-frame so you can SEE exactly what is on the wire: protocols, conversations, cleartext credentials, and anomalies. tshark is its command-line twin",
         "typical": "wireshark (GUI: pick interface -> capture -> apply a display filter)   |   CLI: tshark -i <iface> -f '<capture filter>' -w cap.pcapng   then   tshark -r cap.pcapng -Y '<display filter>'",

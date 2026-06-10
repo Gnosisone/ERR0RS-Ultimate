@@ -94,6 +94,14 @@ def _ensure_collection():
             log.info("chromadb not installed — RAG retrieval disabled")
             return None
 
+        # Silence ChromaDB's bundled ONNX embedder probing for a GPU the
+        # Pi doesn't have (harmless /sys/class/drm/cardN misses -> CPU).
+        try:
+            import onnxruntime
+            onnxruntime.set_default_logger_severity(3)  # 3=ERROR (hide WARNING)
+        except Exception:
+            pass
+
         if not _DB_PATH.exists():
             log.info(f"RAG DB path missing — disabled: {_DB_PATH}")
             return None

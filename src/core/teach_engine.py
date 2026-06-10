@@ -17,6 +17,326 @@
 """
 
 LESSONS = {
+    # ───────────────────────────────────────────────────────────────────
+    # PYTHON FOR PENTESTERS — a real, ordered curriculum that teaches the
+    # Python language through an offensive-security lens. Every concept
+    # lands on something you'd actually build (scanner, cracker, fuzzer).
+    # Code lessons use: mental_model + zoom + syntax + code + notes +
+    # exercise (rendered by format_lesson's code-lesson fields).
+    # ───────────────────────────────────────────────────────────────────
+    "python-intro": {
+        "summary": "Why Python is the hacker's first language, and how to actually run it — the REPL for experimenting, scripts for tools, pip for the ecosystem. Your on-ramp before the real lessons",
+        "mental_model": (
+            "Python is the duct tape of security work: readable enough to learn fast, powerful enough that a "
+            "huge share of modern tooling (sqlmap, pwntools, impacket, scapy) is written in or driven by it. You "
+            "don't learn Python to admire it — you learn it so that when no existing tool does exactly what you "
+            "need, you can build the 20-line script that does. Two ways to run it: the REPL (an interactive "
+            "prompt to try one line at a time — your lab bench) and scripts (.py files you save and run — your "
+            "tools)."
+        ),
+        "analogy": (
+            "Learning Python for hacking is like a mechanic learning to weld. You're not becoming a "
+            "metallurgist — you're gaining the one skill that lets you fabricate the exact bracket the job needs "
+            "when the parts store doesn't stock it. Every custom exploit, every glue script between tools, every "
+            "parser for weird output is a weld."
+        ),
+        "zoom": {
+            "eli5": "Python is an easy-to-read programming language. You can type one line at a time to test ideas, or save lines as a file and run it as your own little tool. Hackers use it to build exactly what they need.",
+            "operator": "Use python3 (the REPL) to prototype a line at a time; save working logic to a .py file and run `python3 tool.py`. Install libraries with `pip install <name>` inside a venv to stay clean. Try-in-REPL, save-to-script, install-a-lib is 90% of the workflow.",
+            "deep": "CPython compiles your .py to bytecode then runs it on an interpreter — slower than C, fast to write. The ecosystem (PyPI) is the superpower: requests, scapy, impacket, pwntools. Virtual environments (python3 -m venv) isolate a project's dependencies so a library you install for one engagement doesn't break another; for exploit work you pin versions so a payload stays reproducible.",
+        },
+        "typical": "python3            # start the REPL    |    python3 myscript.py    # run a script",
+        "syntax": {
+            "python3":             "Start the interactive REPL — type expressions, see results instantly. Ctrl-D to exit.",
+            "python3 file.py":     "Run a saved script.",
+            "print(x)":            "Show a value — your basic output and the simplest debugging tool.",
+            "# comment":           "Everything after # on a line is ignored — notes to yourself.",
+            "pip install <lib>":   "Install a library from PyPI (do it inside a venv to stay clean).",
+            "python3 -m venv .venv":"Create an isolated environment; activate with 'source .venv/bin/activate'.",
+        },
+        "code": """#!/usr/bin/env python3
+# tiny_wordlist.py  --  your first 'tool': build candidate passwords
+base = "admin"
+years = [2023, 2024, 2025]
+for y in years:
+    print(f"{base}{y}")     # admin2023, admin2024, admin2025
+    print(f"{base}{y}!")    # add a trailing !  ->  admin2023!
+# Run it:        python3 tiny_wordlist.py
+# Save output:   python3 tiny_wordlist.py > words.txt
+""",
+        "notes": [
+            "The REPL is your friend: when unsure what a line does, paste it into python3 and watch. Hackers prototype in the REPL constantly.",
+            "Scripts start fresh every run; the REPL remembers everything until you close it. Explore in the REPL, keep in scripts.",
+            "Use a venv per project (python3 -m venv .venv) — it stops one tool's library versions from breaking another's. pip installs into the active venv.",
+            "Indentation is SYNTAX, not decoration: the spaces under a 'for' or 'if' define the block. Be consistent (4 spaces). This trips up everyone at first.",
+            "Call it python3, not python — on Kali and most Linux 'python' may be missing or point elsewhere; 'python3' is the safe call.",
+        ],
+        "exercise": "Open the REPL (python3) and make it print your name 5 times with a for loop. Then save the tiny_wordlist idea into a file, add a second base word like 'root', and run it piping to a file: python3 tiny_wordlist.py > words.txt. How many lines did you get?",
+        "next": [
+            "python-basics (variables, numbers, and the all-important str vs bytes)",
+            "python-strings (encoding and payload crafting)",
+            "the-shell (where you run your scripts)",
+            "python-files (read wordlists, write loot)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-basics": {
+        "summary": "Python's core data types through a hacker's eyes — and the single most important distinction in offensive Python: str (text) vs bytes (raw data). Get this right and networking, crypto, and exploitation stop fighting you",
+        "mental_model": (
+            "Everything in Python is an object with a type. The types you'll live in: int (numbers, including hex "
+            "like 0x41), str (human text, Unicode), and bytes (raw 8-bit data — what actually travels over "
+            "sockets and sits in files). The number-one beginner pain in security Python is mixing str and "
+            "bytes: a socket sends bytes, not text; a hash wants bytes; a payload is bytes. You convert with "
+            ".encode() (str to bytes) and .decode() (bytes to str). Internalize that one conversion and half "
+            "your TypeErrors vanish."
+        ),
+        "analogy": (
+            "str vs bytes is the difference between a sentence and the actual ink-and-paper it's printed on. "
+            "Humans read the sentence (str); the network, the disk, and the CPU only ever move the physical "
+            "bytes. .encode() prints the sentence onto paper; .decode() reads the paper back into a sentence. "
+            "Send paper down a wire, not sentences."
+        ),
+        "zoom": {
+            "eli5": "Python has numbers, text, and raw data. Text (str) is for humans; raw data (bytes, written b'...') is what computers actually send and store. Switch between them with .encode() and .decode(). Mixing them up causes most beginner errors.",
+            "operator": "int for counts/ports/hex; str for anything you print or read; bytes for anything you send on a socket, hash, or write to a binary file. Convert at the boundary: text.encode() before sending, data.decode() after receiving real text. XOR and bit ops work on the integer values of the bytes.",
+            "deep": "str is a sequence of Unicode code points; bytes is a sequence of ints 0-255. Indexing bytes gives an int (payload[0] -> 119), not a 1-char bytes — a classic gotcha (slice [0:1] for a byte). Encodings (utf-8, latin-1) map str<->bytes; latin-1 is handy in exploitation as a lossless 1:1 byte<->char map. Bitwise ops (^ & | << >>) act on ints, so XOR obfuscation iterates the byte values. Numbers are arbitrary-precision, so big-integer crypto math just works.",
+        },
+        "typical": "payload = b'whoami'      # bytes literal -- the raw data you'd send",
+        "syntax": {
+            "int / 0x41 / 0b101":  "Whole numbers; 0x = hex, 0b = binary. ord('A') is 65, chr(65) gives 'A'.",
+            "str    'text'":       "Human text (Unicode). f'...' interpolates values into it.",
+            "bytes    b'raw'":     "Raw 8-bit data — what sockets, files, and hashes use. Indexing one gives an int.",
+            ".encode() / .decode()":"str to bytes / bytes to str. The conversion you will use constantly.",
+            "^  &  |  <<  >>":     "Bitwise ops on integers — XOR (^) is the workhorse of simple obfuscation.",
+            ".hex() / bytes.fromhex()":"bytes to hex text / hex text to bytes.",
+        },
+        "code": """# str vs bytes -- the distinction that matters most
+text = "whoami"          # str: human text
+raw  = text.encode()     # bytes: b'whoami'  (what you'd send on a socket)
+print(type(raw).__name__, raw)        # bytes b'whoami'
+print(raw[0])                          # 119   <- indexing bytes gives an INT
+
+# XOR 'encryption' (the classic obfuscation trick), byte by byte
+key = 0x42
+enc = bytes(b ^ key for b in raw)
+print(enc, enc.hex())                  # b'5*-#/+' 352a2d232f2b
+dec = bytes(b ^ key for b in enc)      # XOR again, same key = original back
+print(dec.decode())                    # whoami   (bytes -> str)
+""",
+        "notes": [
+            "Indexing bytes returns an int, not a character: b'whoami'[0] is 119. For a 1-byte slice use b'whoami'[0:1]. This surprises everyone once.",
+            "TypeError: can't concat str to bytes? You mixed the two. Pick one side and .encode()/.decode() to match — sockets and hashes want bytes.",
+            "XOR with the same key twice returns the original — that's why it's the simplest reversible obfuscation, and why it's weak (key reuse leaks).",
+            "Numbers are arbitrary precision: 2**4096 just works, which is why Python is comfortable for crypto and CTF math.",
+            "Hex (0x), the .hex() method, and bytes.fromhex() are everywhere in exploitation — addresses, shellcode, and hashes are all hex.",
+        ],
+        "exercise": "In the REPL: take 'admin', .encode() it, XOR every byte with 0x13, and print the .hex(). Then XOR the result with 0x13 again and .decode() to prove you recovered 'admin'. Bonus: compare b'admin'[0] against b'admin'[0:1] — why are they different types?",
+        "next": [
+            "python-strings (slicing, f-strings, and base64/hex/url encoding)",
+            "python-collections (lists and dicts for wordlists and results)",
+            "python-intro (if you skipped the setup)",
+            "hashcat (where the bytes-as-hashes idea pays off)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-strings": {
+        "summary": "String surgery for offensive work — slicing, splitting, f-string interpolation, and the encodings every hacker lives in: base64, hex, and URL. Where you craft payloads and decode captured data",
+        "mental_model": (
+            "Half of practical hacking is reshaping text and data: build a URL with an injected parameter, "
+            "decode a base64 token from a cookie, hex-encode shellcode, URL-encode a payload so it survives an "
+            "HTTP request. Python gives you all of it built in. The mental split: str methods (.split, .strip, "
+            ".replace, slicing, f-strings) reshape TEXT; the base64/urllib modules convert BETWEEN human text "
+            "and the encoded forms data travels in. Master encode/decode and you stop being blocked by 'why "
+            "won't this payload go through?'."
+        ),
+        "analogy": (
+            "Encodings are shipping containers for data. base64 packs raw bytes into a safe alphanumeric box so "
+            "they survive systems that choke on binary (cookies, JSON, email). URL-encoding wraps characters so "
+            "a payload survives the trip through a URL without being misread as syntax. You're not changing "
+            "what's inside — only the container it travels in, so it arrives intact."
+        ),
+        "zoom": {
+            "eli5": "Strings are text you can cut, join, and search. Encodings like base64 and hex repackage data so it can travel safely through web requests, cookies, and JSON. Python does each in one line, so you can build payloads and read back captured data.",
+            "operator": "Reshape text with slicing ([start:stop]), .split()/.join(), .replace(), and f-strings for building URLs/requests. Convert with base64.b64encode/decode, .hex()/bytes.fromhex(), and urllib.parse.quote/unquote. Decode tokens you capture; encode payloads you send.",
+            "deep": "Strings are immutable — methods return NEW strings. f-strings compile to fast concatenation and embed expressions (f'{port+1}'). base64 maps 3 bytes to 4 ASCII chars (hence the = padding); it is encoding, NOT encryption — anyone can decode it, which is exactly why you check cookies/tokens for it. URL percent-encoding escapes reserved characters so a payload isn't parsed as URL syntax; double-encoding is a classic filter bypass.",
+        },
+        "typical": "f'http://{host}:{port}/?q={payload}'   # build a request URL with an injected param",
+        "syntax": {
+            "s[1:4]   s[::-1]":    "Slice (substring) / reverse. Strings are immutable — slices return new strings.",
+            ".split(x) / x.join(L)":"Break a string into a list / join a list into a string. Parse and build.",
+            ".strip()  .replace(a,b)":"Trim whitespace / swap substrings — clean up captured data.",
+            "f'...{var}...'":      "f-string: interpolate variables and expressions directly into text.",
+            "base64.b64encode/decode":"Raw bytes <-> base64 text (cookies, tokens, JSON-safe data).",
+            ".hex() / bytes.fromhex()":"bytes <-> hex text (addresses, shellcode, hashes).",
+            "urllib.parse.quote/unquote":"URL-encode/decode a payload so it survives an HTTP request.",
+        },
+        "code": """import base64, urllib.parse
+
+# 1) decode a token you captured (base64 is ENCODING, not encryption)
+token = 'YWRtaW46cGFzc3dvcmQ='
+print(base64.b64decode(token))         # b'admin:password'   <- creds in the clear
+
+# 2) build a request URL with an injected parameter
+host, port = '10.0.0.5', 8080
+payload = "1' OR '1'='1"
+url = f"http://{host}:{port}/login?user={urllib.parse.quote(payload)}"
+print(url)   # http://10.0.0.5:8080/login?user=1%27%20OR%20%271%27%3D%271
+
+# 3) hex round-trip (how you handle shellcode / hashes)
+print(b'AAAA'.hex())                   # 41414141
+print(bytes.fromhex('41414141'))       # b'AAAA'
+""",
+        "notes": [
+            "base64 is ENCODING, not encryption — if a cookie/token looks like base64 (alphanumeric, ends in =), decode it first; secrets hide there constantly.",
+            "Strings are immutable: .replace()/.upper()/slicing return NEW strings, they don't change the original. Reassign to keep the result.",
+            "f-strings can run expressions: f'{port+1}', f'{data.hex()}'. Use them to build requests cleanly instead of clumsy concatenation.",
+            "URL-encode payloads with urllib.parse.quote so special chars (space, ', =, &) survive the request instead of being parsed as URL syntax — and double-encoding is a common filter bypass.",
+            "Encoding works on bytes: base64/hex want bytes in, so .encode() your str first, e.g. base64.b64encode('x'.encode()).",
+        ],
+        "exercise": "In the REPL: base64-decode 'cm9vdDp0b29y' (what creds drop out?). Then URL-encode the payload <script>alert(1)</script> with urllib.parse.quote and build an f-string URL like http://target/search?q=<encoded>. Bonus: hex-encode the bytes of 'flag{' and convert back.",
+        "next": [
+            "python-collections (parse results into lists/dicts; wordlists)",
+            "python-requests (send the URLs you just built)",
+            "python-basics (str vs bytes, if encoding errors bite)",
+            "xsstrike / sqlmap (the payloads you're encoding by hand)",
+        ],
+        "caution": "The injection payloads here are illustrative strings — only SEND them at targets you own or are explicitly authorized to test (covered in python-requests). Crafting and decoding locally is harmless; firing them is not.",
+        "try_cmd": "python3",
+    },
+    "python-collections": {
+        "summary": "The containers that hold your data — lists (ordered), dicts (key->value), sets (unique), tuples (fixed). In practice: wordlists, scan results keyed by host, deduping targets, and parsing 'ip:port' lines into structure",
+        "mental_model": (
+            "Real tools work on COLLECTIONS, not single values: a list of ports to scan, a wordlist of "
+            "passwords, a dict mapping each host to its open ports, a set of unique IPs you've seen. Picking the "
+            "right container is half the design: list when order/duplicates matter (a wordlist), set when you "
+            "want uniqueness and fast membership (dedup discovered hosts), dict when you look things up by a key "
+            "(host -> services), tuple when it's a fixed record. Moving data between them is most of what a "
+            "recon script does."
+        ),
+        "analogy": (
+            "The containers are kinds of evidence storage. A list is a numbered photo log (order matters, "
+            "duplicates allowed). A set is a fingerprint database (each entry unique, instant 'seen it?'). A "
+            "dict is a labelled evidence locker (look it up by case number, don't dig). A tuple is a sealed bag "
+            "you don't reopen. Choosing the right one keeps the case manageable."
+        ),
+        "zoom": {
+            "eli5": "Collections hold many values at once. A list is an ordered line of items, a set keeps only unique ones, a dict looks things up by a label, a tuple is a fixed little group. Hackers use them for wordlists, results, and deduping targets.",
+            "operator": "list = wordlists/ordered results (append, slice, comprehensions). set = dedup + fast membership (if ip in seen). dict = lookups (results[host] = ports). tuple = fixed records (ip, port). sorted(set(L)) dedups and orders in one line.",
+            "deep": "Lists are dynamic arrays (fast append/index, slow O(n) membership). Sets and dicts are hash tables (O(1) membership/lookup — 'ip in big_set' is instant, 'ip in big_list' is slow). Dict keys and set members must be hashable (immutable) — that's why a tuple can be a key but a list can't. Comprehensions read as intent; dict.get(k, default) avoids KeyError on missing keys when parsing messy output.",
+        },
+        "typical": "results = {}        # host -> list of open ports: the shape of a scan result",
+        "syntax": {
+            "[1, 2, 3]   list":    "Ordered, allows duplicates. .append(x), index [0], slice [1:3].",
+            "{1, 2, 3}   set":     "Unique items, fast 'x in s'. set(my_list) dedups instantly.",
+            "{'k': 'v'}   dict":   "Key -> value lookup. d['k'], d.get('k', default), d.items().",
+            "(ip, port)   tuple":  "Fixed, immutable record — can be a dict key or set member.",
+            "[x for x in xs if c]":"Comprehension — filter/transform a collection in one readable line.",
+            "len(x)   sorted(x)":  "Count items / return a new sorted list.",
+        },
+        "code": """# a scan result as a dict: host -> list of open ports
+results = {}
+results['10.0.0.5'] = [22, 80, 443]
+results['10.0.0.6'] = [3389]
+for host, ports in results.items():
+    print(f"{host} has {len(ports)} open: {ports}")
+
+# dedup + sort a noisy port list in ONE line
+ports = [80, 443, 22, 80, 8080, 443]
+print(sorted(set(ports)))              # [22, 80, 443, 8080]
+
+# parse an 'ip:port' line into usable pieces
+ip, port = '10.0.0.5:8080'.split(':')
+print(ip, int(port))                   # 10.0.0.5 8080   (int(): split gives str)
+
+# count UNIQUE hosts seen
+seen = {'10.0.0.1', '10.0.0.1', '10.0.0.2'}
+print(len(seen))                       # 2
+""",
+        "notes": [
+            "set membership is instant, list membership is slow: keep a SET of 'already seen' hosts/IPs in a big scan, not a list.",
+            "split() returns strings — wrap a port in int() before comparing or sorting numerically, or '9' sorts after '100'.",
+            "dict.get(key, default) won't crash on a missing key; results[key] raises KeyError. Use .get when parsing data you don't fully trust.",
+            "Comprehensions read as intent: [p for p in ports if p < 1024] = 'the privileged ports'. Prefer them over a manual loop+append.",
+            "Only immutable things (str, int, tuple) can be dict keys or set members — that's why (ip, port) works as a key but [ip, port] doesn't.",
+        ],
+        "exercise": "Build a dict mapping 3 hostnames to lists of open ports. Loop it and print only hosts with more than one open port. Then take a list with duplicate IPs and print how many UNIQUE ones there are. Bonus: from ['10.0.0.5:22','10.0.0.6:80'] build {ip: int(port)} with a comprehension.",
+        "next": [
+            "python-controlflow (loop and branch over these collections)",
+            "python-files (load a wordlist into a list, write results out)",
+            "python-functions (package your parsing into reusable tools)",
+            "python-strings (the .split that feeds your parsing)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-controlflow": {
+        "summary": "Making Python DO things at scale — if/elif/else to decide, for/while to repeat, range to count, comprehensions to filter. This is the loop at the heart of every scanner: 'for each target, try this, branch on the result'",
+        "mental_model": (
+            "Every offensive script is the same skeleton: iterate over a collection (ports, hosts, passwords), "
+            "DO something to each, and BRANCH on the outcome (open/closed, success/fail, found/not-found). "
+            "That's control flow: 'for' walks a collection, 'while' repeats until a condition, 'if/elif/else' "
+            "chooses a path, comprehensions express 'the items matching a condition' in one line. Once you can "
+            "loop over a wordlist and branch on each result, you can write a brute-forcer, a scanner, or a "
+            "fuzzer — they are all that one pattern."
+        ),
+        "analogy": (
+            "Control flow is the lockpicking rake versus the single pick. A 'for' loop is raking every pin in "
+            "turn; the 'if' is feeling which pin set; 'break' is stopping the instant the lock opens. A scanner "
+            "is just you, methodically trying each door (loop), checking if it gave (if), and noting the ones "
+            "that did — at machine speed."
+        ),
+        "zoom": {
+            "eli5": "Control flow is how a program decides and repeats. 'if' picks what to do, 'for' repeats for each item in a list, 'while' repeats until something changes. A scanner is just a loop over targets with an 'if' on each result.",
+            "operator": "for item in collection: to walk ports/hosts/words. if/elif/else to branch on each result. range(1,255) to count an octet/port range. break to stop on first success, continue to skip a bad item. Comprehensions to filter in one line. enumerate(xs, 1) when you want a counter.",
+            "deep": "for iterates any iterable (lists, files line-by-line, generators) lazily where it can — looping a huge file doesn't load it all into RAM. while + a condition handles 'until' loops (retry until connected). break/continue/else give precise control (for...else runs else only if no break fired — clean 'not found' logic). Comprehensions are faster than the equivalent append loop; generator expressions stream instead of building a list, which matters for big wordlists.",
+        },
+        "typical": "for port in [22, 80, 443]:   # the loop at the heart of every scanner",
+        "syntax": {
+            "if c: / elif c: / else:":"Branch on a condition — the decision.",
+            "for x in collection:": "Repeat once per item (ports, hosts, words, file lines).",
+            "while condition:":     "Repeat until the condition goes false (retry loops).",
+            "range(1, 255)":        "Count 1..254 — iterate an IP octet or a port range.",
+            "break / continue":     "Stop the loop entirely / skip to the next item.",
+            "[x for x in xs if c]": "Comprehension — the filtered/transformed items in one line.",
+            "enumerate(xs, 1)":     "Loop with a counter: for i, x in enumerate(xs, 1).",
+        },
+        "code": """# the scanner skeleton: loop targets, branch on each result
+ports = [22, 80, 443, 3389, 8080]
+for i, port in enumerate(ports, 1):
+    if port < 1024:
+        print(f"[{i}] port {port:<5} -> privileged service")
+    else:
+        print(f"[{i}] port {port:<5} -> high port")
+
+# comprehension: just the privileged ports, one line
+priv = [p for p in ports if p < 1024]
+print(priv)                            # [22, 80, 443]
+
+# walk an IP range with range()
+for octet in range(1, 4):
+    print(f"would scan 10.0.0.{octet}")   # .1  .2  .3
+
+# while: retry until 'connected' (simulated)
+tries = 0
+while tries < 3:
+    tries += 1
+    print(f"attempt {tries}")          # attempt 1, 2, 3
+""",
+        "notes": [
+            "for over a file object reads it line-by-line WITHOUT loading the whole file — that's how you loop a 14-million-line wordlist on a Pi without running out of RAM (next: python-files).",
+            "break stops on first success (found the password, stop brute-forcing); continue skips a bad item (dead host) and moves on. Use them to stay efficient.",
+            "for...else: the else runs only if the loop finished WITHOUT a break — a clean way to say 'tried everything, nothing matched'.",
+            "Prefer comprehensions over manual append loops: [p for p in ports if p < 1024] is faster and clearer. Use a generator (round brackets) for huge inputs to stream instead of storing.",
+            "Indentation defines the block — lines under for/if must be consistently indented (4 spaces). Mixed tabs/spaces is the classic IndentationError.",
+        ],
+        "exercise": "Write a loop over a list of ports that prints 'common' for 22/80/443 and 'uncommon' otherwise (use 'in' + if/else). Then use a comprehension to build a list of only the ports above 1000. Bonus: loop a small password list and 'break' with a printed 'cracked!' when you hit 'toor'.",
+        "next": [
+            "python-functions (wrap your loop into a reusable scan() function)",
+            "python-files (loop a real wordlist from disk)",
+            "python-sockets (turn this skeleton into a real port scanner)",
+            "python-errors (so a dead host doesn't crash the loop)",
+        ],
+        "try_cmd": "python3",
+    },
     "strings": {
         "summary": "The 60-second first look at any binary or unknown file — pulls out the human-readable text (URLs, error messages, paths, embedded commands, keys) hiding in compiled or binary data. The first command you run, before any heavy tool",
         "typical": "strings -n 8 <file>            (printable runs >=8 chars)   |   strings <file> | grep -iE 'http|pass|key|/'",
@@ -3156,13 +3476,28 @@ def format_lesson(topic: str) -> str:
                 lines.append(f"    [{_lbl}]")
                 for _ln in _wrap(_z[_lvl]):
                     lines.append(f"      {_ln}")
-    lines.append(f"\n  Typical use:  {lesson['typical']}\n")
-    lines.append("  FLAGS / OPTIONS:")
-    for flag, desc in lesson['flags'].items():
-        lines.append(f"    {flag:<22} {desc}")
-    lines.append("\n  READING THE OUTPUT:")
-    for r in lesson['read']:
-        lines.append(f"    • {r}")
+    if lesson.get('typical'):
+        lines.append(f"\n  Typical use:  {lesson['typical']}\n")
+    if lesson.get('syntax'):
+        lines.append("  🔑 KEY SYNTAX:")
+        for _k, _v in lesson['syntax'].items():
+            lines.append(f"    {_k:<22} {_v}")
+    if lesson.get('flags'):
+        lines.append("  FLAGS / OPTIONS:")
+        for flag, desc in lesson['flags'].items():
+            lines.append(f"    {flag:<22} {desc}")
+    if lesson.get('code'):
+        lines.append("\n  💻 CODE — a working example (read the comments):")
+        for _cl in str(lesson['code']).split("\n"):
+            lines.append(f"    {_cl}")
+    if lesson.get('read'):
+        lines.append("\n  READING THE OUTPUT:")
+        for r in lesson['read']:
+            lines.append(f"    • {r}")
+    if lesson.get('notes'):
+        lines.append("\n  📌 KEY POINTS — what to remember & the gotchas:")
+        for _n in lesson['notes']:
+            lines.append(f"    • {_n}")
 
     # ── CIA TRIAD PLACEMENT (optional) ───────────────────────────────────
     # Every tool/concept has a place in the Confidentiality-Integrity-
@@ -3206,6 +3541,14 @@ def format_lesson(topic: str) -> str:
         for _i, _st in enumerate(lesson['steps'], 1):
             lines.append("")
             lines.append(format_step(_st, _i))
+    if lesson.get('exercise'):
+        lines.append("\n  🎯 YOUR TURN — practice (type it, run it, break it):")
+        _ex = lesson['exercise'] if isinstance(lesson['exercise'], list) else [lesson['exercise']]
+        for _e in _ex:
+            _ew = _wrap(_e)
+            lines.append(f"    • {_ew[0]}")
+            for _c in _ew[1:]:
+                lines.append(f"      {_c}")
     lines.append(f"\n  LOGICAL NEXT STEPS:  {', '.join(lesson['next'])}")
     if lesson.get('caution'):
         lines.append(f"\n  ⚠️  {lesson['caution']}")

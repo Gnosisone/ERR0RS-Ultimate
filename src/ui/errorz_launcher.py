@@ -392,9 +392,11 @@ try:
     # Also load the expanded core teach engine
     from src.core.teach_engine import format_lesson as _core_format, lookup as _core_lookup, list_topics as _core_list_topics
     TEACH_ENGINE = True
+    TEACH_TOPIC_COUNT = len(_core_list_topics())
     print("[ERR0RS] Teach engine ready")
 except Exception as e:
     TEACH_ENGINE = False
+    TEACH_TOPIC_COUNT = 0
     print(f"[ERR0RS] Teach engine unavailable: {e}")
 
 # ── Flipper Zero Evolution Engine ─────────────────────────────────────────────
@@ -4136,7 +4138,7 @@ def main():
   {C}Live Term:{N}  {'YES - PTY streaming' if LIVE_TERMINAL else 'NO - install on Linux'}
   {C}WebSockets:{N} {'YES' if WEBSOCKETS_OK else 'NO - pip3 install websockets'}
   {C}Conv Engine:{N}{'YES - streaming LLM chat' if CONV_ENGINE else 'NO'}
-  {C}Teach Engine:{N}{'YES - 23 topics offline' if TEACH_ENGINE else 'NO'}
+  {C}Teach Engine:{N}{'YES - ' + str(TEACH_TOPIC_COUNT) + ' topics offline' if TEACH_ENGINE else 'NO'}
   {C}Demo Mode:{N}  {'YES - run: python3 src/ui/errorz_launcher.py --demo' if not DEMO_MODE else 'ACTIVE'}
 {O}  ═══════════════════════════════════════════════════{N}
 """)

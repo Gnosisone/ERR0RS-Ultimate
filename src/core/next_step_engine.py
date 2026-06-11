@@ -155,7 +155,7 @@ State:
 JSON array:"""
         import urllib.request as _u
         _req = _u.Request("http://127.0.0.1:11434/api/generate",
-                          data=json.dumps({"model": "gemma3:1b", "prompt": prompt, "stream": False,
+                          data=json.dumps({"model": "gemma3:1b", "prompt": prompt, "stream": False, "keep_alive": -1,
                                            "options": {"temperature": 0.2, "num_predict": 220, "num_ctx": 2048}}).encode(),
                           headers={"Content-Type": "application/json"})
         with _u.urlopen(_req, timeout=45) as _r:

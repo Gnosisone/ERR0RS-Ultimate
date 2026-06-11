@@ -17,6 +17,198 @@
 """
 
 LESSONS = {
+    "python-functions": {
+        "summary": "Packaging logic into reusable, named tools — def, parameters, return, default arguments, *args/**kwargs, and import. The jump from 'a script that does one thing' to 'a toolkit you call again and again'",
+        "mental_model": (
+            "A function is a named, reusable block: give it inputs (parameters), it does work and hands back a "
+            "result (return). The moment your scanner logic lives in scan(host) instead of being copy-pasted, "
+            "you can call it in a loop over 1000 hosts, import it into another tool, and test it in isolation. "
+            "Default arguments (timeout=3) make functions flexible without forcing every caller to specify "
+            "everything; *args/**kwargs let a function accept any number of inputs. Functions are how a pile of "
+            "one-off lines becomes a library you build on."
+        ),
+        "analogy": (
+            "A function is a custom tool you forge once and hang on the wall. The first time you write 'grab a "
+            "banner from a host' you're machining the tool; every call after is just reaching for it. A script "
+            "without functions does every job freehand each time; a script with them is a workbench of "
+            "labelled, reusable instruments."
+        ),
+        "zoom": {
+            "eli5": "A function is a chunk of code with a name. You feed it inputs and it gives back a result. Write it once, use it everywhere — that's how you stop copy-pasting and start building real tools.",
+            "operator": "def name(params): ... return result. Use default args (timeout=3) for optional knobs, keyword args at the call site for clarity (scan(host, timeout=5)), and import to pull functions from another file/library. Group related functions into a module = your own tool library.",
+            "deep": "Parameters are local to the function (scope); assigning a name inside makes it local unless declared global/nonlocal. *args collects extra positional args into a tuple, **kwargs extra keyword args into a dict — how wrappers pass things through. Functions are first-class: store them in a dict (a tool->function dispatch table), pass them, return them. return ends the function and hands back a value (None if omitted). Default args evaluate ONCE at definition — never use a mutable default like [].",
+        },
+        "typical": "def scan(host, ports=(22, 80, 443), timeout=3):   # reusable, with sane defaults",
+        "syntax": {
+            "def f(a, b):":        "Define a function with parameters a and b.",
+            "return x":            "Hand a value back to the caller (ends the function; None if omitted).",
+            "f(1, b=2)":           "Call it; b=2 is a keyword argument — clearer at the call site.",
+            "def f(x, n=3):":      "Default argument — callers may omit n (never default to a mutable like []).",
+            "*args / **kwargs":    "Collect extra positional args (tuple) / extra keyword args (dict) — for wrappers.",
+            "from mod import f":   "Import a function from another file/module — reuse across tools.",
+            "docstring":           "First line inside a function = its help text; shows in help(f).",
+        },
+        "code": """def mutate(word, years=(2024, 2025), leet=True):
+    '''Generate password candidates from a base word.'''
+    out = [word, word.capitalize()]
+    for y in years:
+        out.append(f"{word}{y}")        # admin2024
+        out.append(f"{word}{y}!")       # admin2024!
+    if leet:
+        out.append(word.replace('a', '@').replace('o', '0'))
+    return out
+
+# call with defaults; override a knob by keyword if you want
+for w in ('admin', 'root'):
+    print(w, '->', mutate(w))
+# admin -> ['admin', 'Admin', 'admin2024', 'admin2024!', 'admin2025', 'admin2025!', '@dmin']
+# root  -> ['root', 'Root', 'root2024', 'root2024!', 'root2025', 'root2025!', 'r00t']
+""",
+        "notes": [
+            "Default args make functions flexible: def scan(host, timeout=3) — callers override only when needed (scan(h, timeout=10)).",
+            "NEVER use a mutable default like def f(x, acc=[]) — it's created ONCE and shared across calls (a classic bug). Use acc=None then acc = acc or [] inside.",
+            "return hands a value back AND ends the function; with no return you get None. A scanner function should return its findings so the caller can collect them.",
+            "Put related functions in a .py file and 'from mytools import scan' elsewhere — that file is now your reusable module/library.",
+            "*args/**kwargs let one function pass arguments straight through to another — the pattern behind wrappers and decorators.",
+        ],
+        "exercise": "Write port_state(port) that returns 'privileged' for ports < 1024 and 'high' otherwise. Then write scan(host, ports=(22,80,443)) that loops the ports and prints each with its state, using port_state. Call it for two hosts. Bonus: override the default 'ports' on one call.",
+        "next": [
+            "python-files (read wordlists / write results from your functions)",
+            "python-errors (make your functions survive bad input)",
+            "python-sockets (wrap a real connection in a scan() function)",
+            "python-collections (return findings as a dict/list)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-files": {
+        "summary": "Reading and writing files the Pythonic way — open with a 'with' block, iterate huge wordlists line-by-line without blowing your RAM, and write loot/results to disk. The bridge between your tools and rockyou.txt",
+        "mental_model": (
+            "Files are how tools get input (a wordlist, a target list, a captured log) and save output (results, "
+            "loot, a report). The key Python idea is 'with open(...) as f': it opens the file, gives you a "
+            "handle, and GUARANTEES it closes even if your code errors. The second key idea: iterating a file "
+            "object ('for line in f') reads it lazily, line-by-line — so you can loop a 14-million-line wordlist "
+            "on a Pi without loading it all into memory. Read mode 'r', write 'w' (truncates!), append 'a'. "
+            "That's most of file work in offensive tooling."
+        ),
+        "analogy": (
+            "A file handle is like checking out a case file from records. The 'with' block is signing it out and "
+            "being forced to sign it back in when you leave the room — no forgotten open files, no locks left "
+            "dangling. Reading line-by-line is reading one page at a time instead of photocopying all 14 million "
+            "pages onto your desk at once."
+        ),
+        "zoom": {
+            "eli5": "Files let tools read input (a password list) and save output (results). Python's 'with open' safely opens and closes them, and you can read a giant file one line at a time so it doesn't fill up memory.",
+            "operator": "with open(path) as f: for line in f: ... reads lazily (huge-file safe). open(path, 'w') writes (truncates), 'a' appends. .strip() each line to drop the trailing newline. Use absolute paths. For binary (pcap, images) use 'rb'/'wb'.",
+            "deep": "open() returns a file object; the 'with' context manager calls .close() on exit even on exception — never leak handles. Iterating the object streams via a buffer, so memory stays flat regardless of size — essential for wordlists. Modes: r/w/a (+ '+' read-write, 'b' binary, 'x' exclusive-create). Text mode decodes with an encoding (default utf-8); pass encoding=/errors= for messy data, or open 'rb' for raw bytes. pathlib.Path is the modern path API.",
+        },
+        "typical": "with open('rockyou.txt') as f:    # iterate a huge wordlist, line by line",
+        "syntax": {
+            "with open(p) as f:":  "Open p and auto-close it when the block ends (even on error). The safe way.",
+            "for line in f:":      "Iterate a file line-by-line WITHOUT loading it all into RAM (huge-file safe).",
+            "open(p, 'w') / 'a'":  "Write mode ('w' TRUNCATES the file) / append mode (adds to the end).",
+            "f.read() / readlines()":"Whole file as one string / as a list of lines (loads it all — careful on big files).",
+            "line.strip()":        "Drop leading/trailing whitespace incl. the trailing newline from a line.",
+            "open(p, 'rb')":       "Binary mode — raw bytes, for pcaps, images, firmware, non-text files.",
+        },
+        "code": """# write 'results' out (one host per line)
+with open('/tmp/loot.txt', 'w') as f:          # 'w' creates/truncates
+    for host in ['10.0.0.5', '10.0.0.6']:
+        f.write(f"{host}:open\\n")              # remember the newline
+
+# read it back line-by-line (this scales to rockyou.txt)
+with open('/tmp/loot.txt') as f:
+    for line in f:
+        host, state = line.strip().split(':')  # strip drops the \\n
+        print(host, '->', state)               # 10.0.0.5 -> open
+
+# count lines WITHOUT loading the whole file into memory
+with open('/tmp/loot.txt') as f:
+    print('lines:', sum(1 for _ in f))         # lines: 2
+""",
+        "notes": [
+            "'for line in f' is the single most important file pattern in offensive Python: it streams a wordlist line-by-line so a 14M-line rockyou.txt uses almost no RAM — vital on a Pi.",
+            "'w' mode TRUNCATES the file to empty before writing — if you meant to add, use 'a' (append). This eats data if you forget.",
+            "Always .strip() lines you read — they carry a trailing newline that breaks comparisons (admin-newline != admin).",
+            "The 'with' block guarantees the file closes even if your code crashes mid-loop — never go back to bare open()/close().",
+            "Text mode assumes utf-8 and chokes on binary or odd encodings; open 'rb' for raw bytes (pcaps, firmware) or pass errors='ignore' for messy logs.",
+        ],
+        "exercise": "Write load_words(path) that returns a list of stripped lines (skip blanks). Make a small file with a few passwords, load it, print how many you got. Bonus: write a results file where each line is 'host,port,open' and read it back splitting on ','.",
+        "next": [
+            "python-errors (handle a missing file without crashing)",
+            "python-functions (wrap file loading in a reusable loader)",
+            "python-sockets (feed the wordlist into a real login attempt)",
+            "hashcat (the wordlists you're now loading)",
+        ],
+        "caution": "Only read/write files you're authorized to touch, and treat loot you pull (creds, configs, captures) as sensitive — it often contains real personal data.",
+        "try_cmd": "python3",
+    },
+    "python-errors": {
+        "summary": "Writing tools that don't fall over — try/except/finally, specific exception types, and the discipline that lets one dead host or one bad line not crash your whole scan. The difference between a script and a tool",
+        "mental_model": (
+            "In the real world things fail: a host is down, a connection times out, a line is malformed, a file "
+            "is missing. Without error handling the FIRST failure crashes your entire scan and you lose all "
+            "progress. try/except lets you attempt something risky and gracefully handle the failure — log it, "
+            "skip it, retry it — and keep going. The pattern at the heart of every robust scanner: 'try to "
+            "connect; except (timeout, refused): mark it closed and continue to the next target.' Catching the "
+            "RIGHT exception (not a blanket except) means you handle expected failures while real bugs still "
+            "surface."
+        ),
+        "analogy": (
+            "Error handling is the seatbelt and crumple zones of your code. You don't expect a crash on every "
+            "host, but when one comes — a refused connection, a garbled response — you want the tool to absorb it "
+            "and keep driving, not wrap itself around the first pole. A bare 'except:' is airbags that also "
+            "deploy when you tap the brakes: it hides problems you needed to see."
+        ),
+        "zoom": {
+            "eli5": "Things go wrong: hosts are down, input is bad. try/except lets your program attempt something, catch the failure if it happens, and keep running instead of crashing. That's what makes a tool reliable.",
+            "operator": "Wrap the risky line in try:, catch the SPECIFIC exception in except SomeError:, and continue/log/retry. Use finally: for cleanup that must always run (close sockets/files). In a scan loop, except the connection errors and 'continue' so one dead host doesn't kill the run.",
+            "deep": "Exceptions are objects in a hierarchy (ConnectionRefusedError < OSError < Exception). Catch the narrowest type that fits; 'except Exception' is broad and bare 'except:' even catches Ctrl-C and hides bugs — avoid both. except (A, B): catches multiple; 'as e' binds the object for logging. else: runs if no exception; finally: ALWAYS runs (cleanup). raise re-raises or raises your own (raise ValueError('bad target')). Common in tooling: TimeoutError, ConnectionRefusedError, FileNotFoundError, ValueError, KeyError.",
+        },
+        "typical": "try: connect()  except (ConnectionRefusedError, TimeoutError): continue   # one dead host -> next",
+        "syntax": {
+            "try: ... except E:":   "Attempt the block; if exception E fires, run the except block instead of crashing.",
+            "except (A, B) as e:":  "Catch multiple exception types; 'as e' gives you the object to log.",
+            "finally:":             "Cleanup that ALWAYS runs (close sockets/files) whether or not there was an error.",
+            "else:":                "Runs only if the try block raised NO exception.",
+            "raise ValueError(m)":  "Signal your own error (or bare 'raise' to re-throw the current one).",
+            "continue":             "In a loop's except, skip the failed item and move on (dead host -> next host).",
+        },
+        "code": """# bad input shouldn't crash the loop -- catch the SPECIFIC error and skip
+for p in ['22', '80', 'oops', '443']:
+    try:
+        port = int(p)                      # ValueError if not a number
+    except ValueError:
+        print(f"skip bad port: {p!r}")     # skip bad port: 'oops'
+        continue
+    print(f"would scan port {port}")
+
+# catch a specific failure; finally always runs (put cleanup there)
+def safe_div(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return None                        # handle the expected failure
+    finally:
+        pass                               # e.g. close a socket/file here
+
+print(safe_div(10, 2), safe_div(10, 0))    # 5.0 None
+""",
+        "notes": [
+            "Catch SPECIFIC exceptions (except ValueError), never a bare 'except:' — a blanket catch hides real bugs and even swallows Ctrl-C. Name the failures you expect.",
+            "The robust-scanner pattern: 'try: connect() / except (ConnectionRefusedError, TimeoutError): continue' — one unreachable host skips, the scan keeps going.",
+            "finally: ALWAYS runs (exception or not) — it's where you close sockets and files so a crash doesn't leak resources.",
+            "Use 'as e' to log WHAT failed (except OSError as e: log(e)) instead of silently swallowing it — a silent except is how bugs hide for weeks.",
+            "raise lets you signal your own errors (raise ValueError('target required')); a bare 'raise' inside an except re-throws the original for the caller to handle.",
+        ],
+        "exercise": "Wrap an open() in try/except FileNotFoundError so a missing file prints a friendly message instead of crashing. Then loop over a list of 'ip:port' strings, try/except the .split(':')/int(), and 'continue' past malformed lines. Bonus: add a finally that prints 'done' every pass.",
+        "next": [
+            "python-sockets (where ConnectionRefusedError and timeout actually fire)",
+            "python-functions (wrap risky calls in safe, reusable functions)",
+            "python-files (handle the missing-file case cleanly)",
+            "python-requests (catch HTTP/network errors gracefully)",
+        ],
+        "try_cmd": "python3",
+    },
     # ───────────────────────────────────────────────────────────────────
     # PYTHON FOR PENTESTERS — a real, ordered curriculum that teaches the
     # Python language through an offensive-security lens. Every concept

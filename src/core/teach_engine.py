@@ -17,6 +17,73 @@
 """
 
 LESSONS = {
+    "python-sockets": {
+        "summary": "Building an actual TCP port scanner — socket(), settimeout(), connect_ex(), and the connect-scan technique. This is where functions + files + errors converge into a working tool: nmap's baby brother in ~15 lines",
+        "mental_model": (
+            "A socket is your program's phone line to a host:port. A TCP 'connect scan' just tries to complete "
+            "the 3-way handshake: if the connect succeeds the port is OPEN, if it's actively refused the port is "
+            "CLOSED, if it hangs until your timeout it's FILTERED (a firewall silently dropping you). "
+            "connect_ex() is the scanner's friend — it returns an error code (0 == success/open) instead of "
+            "raising, so you don't need a try/except around every port. The one non-negotiable: set a timeout, or "
+            "a single filtered host hangs your whole scan forever. Loop the ports, collect the open ones, write "
+            "them to loot. That's nmap -sT, demystified."
+        ),
+        "analogy": (
+            "A socket is dialing a phone number (the host) at a specific extension (the port). OPEN = someone "
+            "picks up. CLOSED = an instant 'this extension is not in service' click (the refusal). FILTERED = it "
+            "just rings and rings forever because a firewall ate your call. A port scan is speed-dialing every "
+            "extension in the building and writing down who answers."
+        ),
+        "zoom": {
+            "eli5": "A socket is how your program talks to another computer over the network. To scan a port you try to connect: if it answers, it's open; if it slams the door, it's closed; if it ignores you, a firewall is blocking it.",
+            "operator": "s = socket.socket(); s.settimeout(1); rc = s.connect_ex((host, port)); rc == 0 means OPEN. ALWAYS settimeout or filtered hosts hang you. Wrap the socket in 'with' so it closes. This is a connect scan (-sT) — full handshake, no root needed but it IS logged by the target.",
+            "deep": "socket(AF_INET, SOCK_STREAM) = IPv4 TCP. connect_ex returns an errno (0 ok, 111 ECONNREFUSED = closed, timeout raises socket.timeout) — connect() instead RAISES, which is why scanners prefer connect_ex. A full TCP connect (-sT) completes the handshake and is logged; a SYN/half-open scan (nmap -sS) sends SYN, reads SYN-ACK, never ACKs — stealthier but needs raw sockets (root). Speed comes from concurrency: hundreds of sockets in threads (concurrent.futures) since each one is I/O-bound waiting on the network.",
+        },
+        "typical": "s = socket.socket(); s.settimeout(1); open = s.connect_ex((host, port)) == 0",
+        "syntax": {
+            "socket.socket()":     "Create a TCP/IPv4 socket (defaults: AF_INET, SOCK_STREAM).",
+            "s.settimeout(1)":     "MANDATORY for scanning — cap the wait so filtered ports don't hang you.",
+            "s.connect_ex((h,p))": "Try to connect; returns 0 if OPEN, an error code otherwise (does NOT raise).",
+            "s.connect((h,p))":    "Like connect_ex but RAISES on failure — wrap in try/except if you use it.",
+            "with socket.socket() as s:":"Auto-close the socket when the block ends (no leaked file descriptors).",
+            "s.recv(1024)":        "Read up to 1024 bytes back — grab a service banner after connecting.",
+        },
+        "code": """import socket
+
+def scan_port(host, port, timeout=1.0):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)              # never skip this
+        return s.connect_ex((host, port)) == 0   # 0 == open
+
+# stand up a throwaway listener so this demo is reproducible
+srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(('127.0.0.1', 9999)); srv.listen(1)
+
+for p in (9999, 9998):
+    state = 'open' if scan_port('127.0.0.1', p) else 'closed'
+    print(f"127.0.0.1:{p:<5} {state}")
+srv.close()
+# 127.0.0.1:9999  open
+# 127.0.0.1:9998  closed
+""",
+        "notes": [
+            "ALWAYS s.settimeout(...) before connecting — without it, one firewalled (filtered) port hangs your scan indefinitely. 0.5-1.0s is a sane LAN default.",
+            "connect_ex() returns 0 for open and an error number otherwise — that's why scanners use it instead of connect(), which raises and forces a try/except on every port.",
+            "This is a TCP CONNECT scan (nmap -sT): it finishes the full handshake, needs no root, but completes a real connection that the target logs. A SYN scan (-sS) is stealthier but needs raw sockets/root.",
+            "Speed = concurrency. Port scanning is I/O-bound (you're waiting on the network), so threading hundreds of sockets with concurrent.futures.ThreadPoolExecutor turns minutes into seconds — that's the next lesson's payoff.",
+            "After connect, s.recv(1024) often returns a service banner (SSH/FTP/HTTP version) — that's banner grabbing, the bridge from 'port open' to 'what's running there'.",
+        ],
+        "caution": "Port scanning is an active, logged action. Scan only hosts you own or have explicit written authorization to test — a connect scan completes real connections that show up in the target's logs.",
+        "exercise": "Turn scan_port into scan_host(host, ports) that returns a list of the open ports. Feed it range(1, 1025) against a box you own (or 127.0.0.1) and print only the open ones. Bonus 1: read the port list from a file (python-files). Bonus 2: after a successful connect, s.recv(1024) and print the banner.",
+        "next": [
+            "python-threading (make this scanner 100x faster with concurrent.futures)",
+            "python-requests (move up to the HTTP layer once you find port 80/443)",
+            "python-argparse (give your scanner a real CLI: scan.py --host x --ports 1-1024)",
+            "nmap (the production tool you just reimplemented the core of)",
+        ],
+        "try_cmd": "python3",
+    },
     "python-functions": {
         "summary": "Packaging logic into reusable, named tools — def, parameters, return, default arguments, *args/**kwargs, and import. The jump from 'a script that does one thing' to 'a toolkit you call again and again'",
         "mental_model": (

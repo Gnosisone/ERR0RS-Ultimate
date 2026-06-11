@@ -17,6 +17,76 @@
 """
 
 LESSONS = {
+    "python-threading": {
+        "summary": "Concurrency for I/O-bound tools — concurrent.futures.ThreadPoolExecutor to scan hundreds of ports at once. Turns a minutes-long scan into seconds, and explains why the GIL doesn't get in the way here",
+        "mental_model": (
+            "A single-threaded scanner waits on each port's timeout one at a time: 1000 ports x up to 1s each can "
+            "be 15+ minutes — and the whole time the CPU is idle, just WAITING on the network. Threads let you "
+            "have hundreds of sockets waiting simultaneously. Python's GIL means threads don't speed up CPU work "
+            "(only one thread runs Python bytecode at a time), but port scanning is I/O-bound — you're blocked on "
+            "the network, not computing — so threads are exactly right. ThreadPoolExecutor manages a pool of "
+            "workers: you hand it the port list, it runs scan_port across the pool, you collect the open ones. "
+            "Same logic as before, ~100x faster."
+        ),
+        "analogy": (
+            "Single-threaded scanning is one phone: dial an extension, wait for it to ring out, then dial the "
+            "next. Threading is a call-center floor with 200 operators all dialing at once. The work — waiting "
+            "for a ring — is identical; you just do it in parallel. The GIL is the house rule 'only one operator "
+            "may do arithmetic at the desk at a time' — irrelevant here, because they're all just holding phones, "
+            "not doing math."
+        ),
+        "zoom": {
+            "eli5": "Doing one slow thing at a time is slow when each thing is mostly waiting. Threads let your program wait on hundreds of network connections at once, so a scan that took minutes takes seconds.",
+            "operator": "from concurrent.futures import ThreadPoolExecutor. with ThreadPoolExecutor(max_workers=100) as ex: ex.map(fn, items). Great for I/O-bound work (network, disk). Tune max_workers (50-200 for scanning). Use as_completed() if you want results the instant each finishes.",
+            "deep": "The GIL serializes Python bytecode, so threads do NOT speed up CPU-bound work (hashing, crypto) — for that use multiprocessing or a C-extension tool. But blocking I/O (socket connect, recv, file reads) RELEASES the GIL, so threads overlap their waits and scale well. ThreadPoolExecutor.map preserves input order; submit()+as_completed() yields finishers first. Sharing mutable state across threads needs a lock or a queue.Queue — or, cleaner, just return values and let the executor collect them (what the demo does).",
+        },
+        "typical": "with ThreadPoolExecutor(max_workers=100) as ex:  results = ex.map(scan, ports)",
+        "syntax": {
+            "from concurrent.futures import ThreadPoolExecutor":"The high-level thread pool — almost always what you want.",
+            "ThreadPoolExecutor(max_workers=N)":"A pool of N worker threads; tune N (50-200 for scanning).",
+            "ex.map(fn, items)":   "Run fn over every item across the pool; returns results in input order.",
+            "ex.submit(fn, x)":    "Schedule one call; returns a Future you can collect later.",
+            "as_completed(futures)":"Iterate Futures in the order they FINISH (live results, not input order).",
+            "with ... as ex:":     "The 'with' block waits for all workers to finish before exiting.",
+        },
+        "code": """import socket
+from concurrent.futures import ThreadPoolExecutor
+
+def scan_port(host, port, timeout=0.5):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        return port if s.connect_ex((host, port)) == 0 else None
+
+# throwaway listener so the demo is reproducible
+srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(('127.0.0.1', 9999)); srv.listen(1)
+
+ports = range(9990, 10000)                 # scan 10 ports
+with ThreadPoolExecutor(max_workers=50) as ex:
+    results = ex.map(lambda p: scan_port('127.0.0.1', p), ports)
+
+open_ports = sorted(p for p in results if p is not None)
+print("open:", open_ports)                 # open: [9999]
+srv.close()
+""",
+        "notes": [
+            "Threads speed up I/O-bound work (network, disk) because blocking calls release the GIL. They do NOT speed up CPU-bound work (hashing, cracking) — use multiprocessing or a dedicated tool (hashcat) for that.",
+            "ex.map() returns results in INPUT order and waits for all; submit()+as_completed() gives you each result the moment it finishes — better for a live 'found open port!' feed.",
+            "Tune max_workers: too few and you're slow, too many and you exhaust file descriptors / hammer the target for no extra speed. 50-200 is a sane scanning range.",
+            "Let the executor collect return values instead of appending to a shared list from threads — it sidesteps race conditions. If you MUST share state, use threading.Lock or queue.Queue.",
+            "This is the same parallelism real scanners use; nmap/masscan go further with asynchronous raw packets, but the I/O-overlap idea is identical.",
+        ],
+        "caution": "More workers = more simultaneous connections = a louder scan that can overwhelm a fragile target or trip rate-limit/IDS alarms. Throttle the pool size, and only scan what you're authorized to.",
+        "exercise": "Thread scan_host over range(1, 1025). Time it against the single-threaded version with time.time() and print the speedup factor. Bonus: switch to submit()+as_completed() and print each open port the instant it's found.",
+        "next": [
+            "python-argparse (give your now-fast scanner a real CLI)",
+            "python-requests (HTTP layer once you've found web ports)",
+            "python-subprocess (or just wrap and parse nmap itself)",
+            "nmap (compare your scanner's speed to the production tool)",
+        ],
+        "try_cmd": "python3",
+    },
     "python-sockets": {
         "summary": "Building an actual TCP port scanner — socket(), settimeout(), connect_ex(), and the connect-scan technique. This is where functions + files + errors converge into a working tool: nmap's baby brother in ~15 lines",
         "mental_model": (

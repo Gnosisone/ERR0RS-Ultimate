@@ -17,6 +17,187 @@
 """
 
 LESSONS = {
+    "python-subprocess": {
+        "summary": "Driving other tools from Python — subprocess.run to execute nmap/gobuster/anything, capture stdout/stderr, check exit codes, and orchestrate a whole toolchain. This is how ERR0RS itself shells out",
+        "mental_model": (
+            "Most of offensive tooling is gluing existing tools together. subprocess.run launches an external "
+            "program, waits for it, and hands you a result: .returncode (0 = success), .stdout, .stderr. The "
+            "golden rule: pass the command as a LIST of args (['nmap','-sV',target]), NOT a shell string — that "
+            "one habit closes the door on command injection. capture_output=True + text=True give you the output "
+            "as strings you can parse (with regex) and act on. Add timeout= so a hung tool can't freeze you. "
+            "That's the whole loop: run a tool -> capture -> parse -> pick the next tool. A pentest framework is "
+            "that loop, automated."
+        ),
+        "analogy": (
+            "subprocess is your program's hands on the keyboard of every other tool in the box. Instead of you "
+            "typing 'nmap ...' and reading the screen, your code types it, reads the output, and decides what to "
+            "run next — a tireless operator wiring the whole toolchain together."
+        ),
+        "zoom": {
+            "eli5": "subprocess lets your Python program run other programs — like nmap — and read what they print, so you can automate using every tool on the system, not just Python.",
+            "operator": "subprocess.run([prog, arg1, arg2], capture_output=True, text=True, timeout=N). Read r.returncode / r.stdout / r.stderr. Pass args as a LIST (never shell=True with untrusted input). Then parse r.stdout with regex and chain the next tool.",
+            "deep": "run() builds on Popen; it blocks until the child exits and returns a CompletedProcess. returncode is the child's exit status (0 ok); run() does NOT raise on non-zero unless check=True. capture_output pipes stdout/stderr; text=True decodes them. shell=True runs the string through /bin/sh — convenient but a command-injection hole if any part is attacker-influenced; the list form skips the shell entirely. For streaming tools use Popen and read the pipe line-by-line; always timeout= to avoid a hang.",
+        },
+        "typical": "r = subprocess.run(['nmap','-sV',target], capture_output=True, text=True, timeout=300)",
+        "syntax": {
+            "subprocess.run([...])":  "Run a command (args as a LIST) and wait; returns a CompletedProcess.",
+            "capture_output=True":    "Capture stdout and stderr instead of letting them print.",
+            "text=True":              "Decode stdout/stderr as str, not raw bytes.",
+            "r.returncode":           "Exit code — 0 = success; check it yourself (run won't raise unless check=True).",
+            "r.stdout / r.stderr":    "The captured output / error text — feed stdout to your parser.",
+            "timeout=N / check=True": "Kill the child after N seconds / raise if it exits non-zero.",
+        },
+        "code": """import subprocess
+
+# run a tool, capture its output -- args as a LIST (no shell = no injection)
+r = subprocess.run(['echo', 'err0rs-scanner'],
+                   capture_output=True, text=True, timeout=10)
+print('rc:', r.returncode)            # rc: 0
+print('out:', r.stdout.strip())       # out: err0rs-scanner
+
+# a non-zero exit is DATA, not a crash -- you check returncode yourself
+r = subprocess.run(['ls', '/nope-not-here'], capture_output=True, text=True)
+print('rc:', r.returncode)            # rc: 2
+print('err:', r.stderr.strip()[:34])  # err: ls: cannot access '/nope-not-here'
+""",
+        "notes": [
+            "Pass args as a LIST: subprocess.run(['nmap','-sV',target]). This skips the shell, so a target like '; rm -rf' is just a harmless literal argument — not command injection.",
+            "shell=True runs your string through /bin/sh — handy for pipes, but NEVER with any value a user or target controls. That's the classic subprocess vulnerability.",
+            "run() does NOT raise on a non-zero exit — check r.returncode yourself, or pass check=True. A tool 'failing' (host down, no results) is normal data to handle, not an error.",
+            "Always timeout= so a wedged tool can't freeze your orchestrator; wrap it in try/except subprocess.TimeoutExpired (python-errors).",
+            "capture_output=True + text=True hands you r.stdout as a string — pipe that straight into your regex parser (python-regex) to pull out hosts, ports, and findings.",
+        ],
+        "caution": "Only run tools against authorized targets, and treat any string you interpolate into a command as hostile — use the list form, never shell=True with untrusted input, to avoid command injection.",
+        "exercise": "Wrap nmap: write run_nmap(target) that calls subprocess.run(['nmap','-sV',target], capture_output=True, text=True, timeout=300) and returns r.stdout. Handle the not-installed and timeout cases with try/except. Bonus: feed the output to python-regex to extract the open ports.",
+        "next": [
+            "python-regex (parse the output you just captured)",
+            "python-errors (handle TimeoutExpired / missing tools)",
+            "nmap (the tool you're now orchestrating)",
+            "python-argparse (let the user pick the target and tool)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-regex": {
+        "summary": "Pattern-matching with the re module — search/findall/groups to rip IPs, emails, hashes, tokens, and version strings out of tool output and HTTP responses. The parser behind every 'extract the loot' step",
+        "mental_model": (
+            "Tools and servers spit out walls of text; regex is how you pull the signal out. A regex is a tiny "
+            "pattern language: \\d is a digit, \\w a word char, + means one-or-more, ( ) captures a group. "
+            "re.findall returns every match (great for 'all IPs in this nmap dump'); re.search finds the first "
+            "and lets you grab groups. The offensive workflow: capture output (subprocess) or a response body "
+            "(requests), then regex out the hosts, ports, emails, API keys, hashes, or CVE IDs you care about. "
+            "Write patterns as raw strings (r'...') so backslashes mean what you think."
+        ),
+        "analogy": (
+            "Regex is a metal detector for text. You tune it to a shape — an IP, a hash, a token — sweep it over "
+            "a pile of output, and it beeps on every match while ignoring the dirt. Tune it loose and it beeps on "
+            "junk (false positives); tune it tight and it only sings for real gold."
+        ),
+        "zoom": {
+            "eli5": "Regex is a way to describe a pattern — like 'four numbers separated by dots' for an IP — and then find everything matching that pattern inside a big blob of text.",
+            "operator": "import re. re.findall(pat, text) -> list of all matches. re.search(pat, text) -> first match (.group()). Always write patterns raw: r'...'. Building blocks: \\d digit, \\w word char, . any char, + one-or-more, {n} exactly n, ( ) capture, | or.",
+            "deep": "re compiles a pattern to a state machine. findall returns matches (or group tuples if you use groups); search scans, match anchors at the start. ( ) captures, (?:...) groups without capturing, (?P<name>...) names it. Quantifiers (+, *) are greedy — add ? to go lazy (+?). \\b is a word boundary, ^/$ line ends. re.compile() once if you reuse a pattern in a loop. Watch for catastrophic backtracking on pathological patterns.",
+        },
+        "typical": "re.findall(r'\\d{1,3}(?:\\.\\d{1,3}){3}', text)   # every IPv4 in a blob",
+        "syntax": {
+            "re.findall(pat, s)":     "Return a LIST of every non-overlapping match in s.",
+            "re.search(pat, s)":      "Find the FIRST match anywhere; .group() reads it.",
+            "\\d  \\w  \\s  .":          "A digit / word char / whitespace / any char (the building blocks).",
+            "+   *   {n}   ?":        "One-or-more / zero-or-more / exactly n / optional (or lazy after a quantifier).",
+            "( ... )":                "Capture a group — pull a sub-part out of the match (.group(1)).",
+            "r'...' (raw string)":    "ALWAYS write patterns raw so Python doesn't eat the backslashes.",
+        },
+        "code": r"""import re
+
+text = "host 10.0.0.5 open 22,80; admin@corp.local; MD5 5f4dcc3b5aa765d61d8327deb882cf99"
+
+ips    = re.findall(r'\d{1,3}(?:\.\d{1,3}){3}', text)   # every IPv4
+emails = re.findall(r'[\w.+-]+@[\w-]+\.[\w.-]+', text)  # every email
+md5    = re.search(r'\b[a-f0-9]{32}\b', text)           # first 32-hex hash
+
+print('ips:', ips)          # ['10.0.0.5']
+print('emails:', emails)    # ['admin@corp.local']
+print('md5:', md5.group())  # 5f4dcc3b5aa765d61d8327deb882cf99
+""",
+        "notes": [
+            "re.findall returns a list of ALL matches — perfect for 'every IP/port/email in this nmap dump'. re.search returns just the first (with .group()).",
+            "ALWAYS write patterns as raw strings (r'...') — without the r, Python eats the backslashes before regex sees them and \\d quietly breaks.",
+            "Quantifiers are greedy by default (+ grabs as much as it can); add ? to make them lazy (.+?) when matching inside delimiters.",
+            "Use ( ) to CAPTURE the part you want: re.search(r'Server: (.+)', headers).group(1) pulls just the value. (?:...) groups without capturing.",
+            "Compile a reused pattern once with re.compile() for speed in a loop, and prefer specific classes ([a-f0-9]) over . to cut false positives.",
+        ],
+        "caution": "A sloppy pattern can hit catastrophic backtracking (ReDoS) and hang on crafted input — keep patterns specific and anchored, especially when matching attacker-controlled text.",
+        "exercise": "From a captured nmap line like '22/tcp open ssh OpenSSH 8.9', use a regex with groups to pull the port, state, service, and version. Then findall every IP in a block of text. Bonus: extract all Set-Cookie names from a pile of HTTP headers.",
+        "next": [
+            "python-subprocess (regex the tool output you capture)",
+            "python-requests (regex tokens/paths out of response bodies)",
+            "python-strings (the encoding layer underneath the text)",
+            "burp (where you'll grep responses by hand too)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-scapy": {
+        "summary": "Crafting and dissecting packets with Scapy — the layered IP()/TCP()/ICMP() model, sr1() send-receive, and building a raw SYN by hand. The layer beneath nmap, where you control every bit on the wire",
+        "mental_model": (
+            "High-level tools (nmap, requests) hide the packet. Scapy hands it to you. You build a packet by "
+            "STACKING layers with /: IP(dst=...)/TCP(dport=80, flags='S') is a SYN. Scapy fills in sane defaults "
+            "(your source IP, checksums, sequence) so you only set what matters. To send and get one reply you "
+            "use sr1(); for a sweep, sr(). You can serialize a packet to raw bytes and re-dissect them — which "
+            "is exactly what a SYN scan, an ARP sweep, or a custom protocol probe does under the hood. This is "
+            "the same raw-socket layer nmap -sS uses; Scapy just lets you script it bit-by-bit. (Sending needs root.)"
+        ),
+        "analogy": (
+            "If requests is ordering off the menu, Scapy is walking into the kitchen and assembling the dish "
+            "yourself — every ingredient (layer), every garnish (flag), exactly how you want it. nmap cooks fast "
+            "from a fixed menu; Scapy is the chef's table where you invent a packet no tool ships with."
+        ),
+        "zoom": {
+            "eli5": "Scapy lets you build network packets piece by piece and send them yourself instead of letting a tool do it. You stack layers like IP and TCP, set the flags, and fire it at a target.",
+            "operator": "from scapy.all import *. Stack layers with /: pkt = IP(dst=t)/TCP(dport=80, flags='S'). Send+recv one reply: r = sr1(pkt, timeout=2). 'SA' back = open. sr() for many; srp()/Ether() at layer 2 (ARP). Raw send/recv needs root.",
+            "deep": "Scapy models a packet as stacked layers; / composes them and pkt[TCP] indexes a layer. Unset fields auto-resolve at send time (src IP from the route table, checksums, seq). SYN scan: send IP/TCP flags='S' — a SYN-ACK ('SA') = open, RST ('R') = closed, nothing = filtered (that's nmap -sS in ~10 lines). raw(pkt) serializes to bytes; IP(bytes) re-dissects — the basis of parsing sniffed traffic (sniff(), rdpcap()). Layer-2 work (ARP, custom Ether) uses srp()/sendp(). All raw send/recv needs root.",
+        },
+        "typical": "ans = sr1(IP(dst=target)/TCP(dport=80, flags='S'), timeout=2)   # one SYN, one reply",
+        "syntax": {
+            "IP(dst=...)/TCP(...)":   "Stack layers with / to build a packet (Scapy fills the rest).",
+            "flags='S'":              "Set TCP flags — 'S'=SYN, 'SA'=SYN-ACK, 'R'=RST, 'A'=ACK, 'F'=FIN.",
+            "sr1(pkt, timeout=2)":    "Send a packet, return the FIRST reply (needs root).",
+            "sr(pkts) / srp(...)":    "Send many -> answered/unanswered / the same at layer 2 (Ether/ARP).",
+            "pkt[TCP].flags":         "Index into a layer to read a field from a packet or a reply.",
+            "raw(pkt) / sniff()":     "Serialize a packet to bytes / capture packets off the wire.",
+        },
+        "code": """from scapy.all import IP, TCP, raw
+
+# craft a TCP SYN by stacking layers (Scapy fills src IP, checksums, seq)
+pkt = IP(dst='10.0.0.5') / TCP(dport=80, flags='S')
+print('dst:',   pkt[IP].dst)        # 10.0.0.5
+print('proto:', pkt[IP].proto)      # 6   (TCP)
+print('dport:', pkt[TCP].dport)     # 80
+print('flags:', pkt[TCP].flags)     # S
+
+# serialize to raw bytes and re-dissect -- what sniffers/scanners do
+pkt2 = IP(raw(pkt))
+print('rebuilt dport:', pkt2[TCP].dport)   # 80
+
+# to actually scan you would send it (needs root):
+#   ans = sr1(pkt, timeout=2)
+#   open if ans and ans[TCP].flags == 'SA'
+""",
+        "notes": [
+            "Stack layers with /: IP()/TCP()/Raw(load=b'...'). Scapy auto-fills unset fields (source IP from your route table, checksums, sequence numbers) at send time.",
+            "A SYN scan in Scapy: send IP/TCP flags='S'; a 'SA' (SYN-ACK) reply = OPEN, 'R' (RST) = CLOSED, no reply = FILTERED. That's nmap -sS, rebuildable in ~10 lines.",
+            "Sending/receiving raw packets needs root (raw sockets). Building and dissecting packets in memory — like the demo above — does NOT, so it's a safe way to learn the packet model.",
+            "sr1() returns the first reply; sr() returns (answered, unanswered) for a batch; srp()/sendp() work at layer 2 for ARP and custom Ethernet frames.",
+            "sniff() and rdpcap() pull packets off the wire / out of a pcap, and the SAME indexing (pkt[IP].src) reads them — Scapy is both your crafter and your dissector.",
+        ],
+        "caution": "Crafting and sending raw packets is active, root-level, and very visible — SYN sweeps, ARP spoofing, and custom probes all put real, detectable traffic on the wire and can disrupt a network. Only fire packets at lab targets you own or are explicitly authorized to test.",
+        "exercise": "Build a single-port SYN checker: craft IP(dst)/TCP(dport, flags='S') and (on a lab box, as root) sr1() it; print 'open' if the reply flags are 'SA', else 'closed/filtered'. No-root version: build the packet, raw() it, re-dissect, and print every TCP field. Bonus: craft an ICMP echo (IP()/ICMP()) and read the reply.",
+        "next": [
+            "nmap (the -sS SYN scan you just hand-built)",
+            "python-sockets (the higher-level connect-scan cousin)",
+            "wireshark (watch your crafted packets on the wire)",
+            "python-threading (fan out your packet probes)",
+        ],
+        "try_cmd": "python3",
+    },
     "python-argparse": {
         "summary": "Giving your tool a real command-line interface — argparse for positional args, flags, types, defaults, and auto-generated help. Turns scan.py into 'scan.py 10.0.0.5 --ports 1-1024 --threads 100 -v'",
         "mental_model": (

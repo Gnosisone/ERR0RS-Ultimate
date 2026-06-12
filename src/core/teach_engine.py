@@ -17,6 +17,136 @@
 """
 
 LESSONS = {
+    "python-argparse": {
+        "summary": "Giving your tool a real command-line interface — argparse for positional args, flags, types, defaults, and auto-generated help. Turns scan.py into 'scan.py 10.0.0.5 --ports 1-1024 --threads 100 -v'",
+        "mental_model": (
+            "A real tool takes its settings from the command line, not hardcoded values you edit each run. "
+            "argparse parses sys.argv into a typed namespace: you declare what flags exist, their types, "
+            "defaults, and help text; argparse handles the parsing, validation, --help output, and friendly "
+            "error messages. It's the difference between editing the script to change the target and just passing "
+            "--host. Every tool you respect (nmap, ffuf, sqlmap) is a thin CLI wrapper over an engine — argparse "
+            "is how you bolt that interface on."
+        ),
+        "analogy": (
+            "argparse is the control panel you bolt onto your machine. Without it you're rewiring the internals "
+            "every time you want a different setting; with it you've got labelled knobs, a help placard, and a "
+            "panel that politely refuses invalid settings before the machine even starts."
+        ),
+        "zoom": {
+            "eli5": "Instead of editing your code to change settings, argparse lets you pass them on the command line — like --host or --threads — and it checks them and even writes the --help for you.",
+            "operator": "p = argparse.ArgumentParser(); p.add_argument('host'); p.add_argument('--ports', default='1-1024'); p.add_argument('--threads', type=int); args = p.parse_args(). Positional = required; --flags = optional; type=int validates; action='store_true' for booleans. Free -h/--help.",
+            "deep": "argparse reads sys.argv, applies type= converters, enforces required/choices/nargs, and on error prints usage + exits(2) — your code never sees malformed input. Long-option dashes map to underscores in the namespace (--max-workers -> args.max_workers). For sub-tools use subparsers (like git's subcommands). For config-file + env + CLI layering, people graduate to click/typer, but argparse is stdlib and enough for 95% of tooling.",
+        },
+        "typical": "p.add_argument('--threads', type=int, default=100)   # typed, validated, documented",
+        "syntax": {
+            "ArgumentParser(...)":    "Create the parser (prog=, description= appear in --help).",
+            "add_argument('host')":   "A POSITIONAL arg — required, order matters (scan.py HOST).",
+            "add_argument('-p','--ports')":"An OPTIONAL flag (the -- name); read it as args.ports.",
+            "type=int":               "Convert AND validate — rejects non-numbers with a clean error.",
+            "action='store_true'":    "A boolean flag — present = True, absent = False (takes no value).",
+            "parse_args()":           "Read sys.argv, validate, return a namespace (or print --help and exit).",
+        },
+        "code": """import argparse
+
+def build_parser():
+    p = argparse.ArgumentParser(prog='scan.py', description='tiny port scanner')
+    p.add_argument('host', help='target host or IP')           # positional (required)
+    p.add_argument('-p', '--ports', default='1-1024', help='port range')
+    p.add_argument('-t', '--threads', type=int, default=100)   # typed + validated
+    p.add_argument('-v', '--verbose', action='store_true')     # boolean flag
+    return p
+
+# normally parse_args() reads sys.argv; here we pass an explicit list
+args = build_parser().parse_args(['10.0.0.5', '-p', '22,80,443', '-t', '50', '-v'])
+print(args.host, args.ports, args.threads, args.verbose)
+# 10.0.0.5 22,80,443 50 True      (threads is int 50 -- type=int converted it)
+""",
+        "notes": [
+            "Positional args (host) are required and order-sensitive; optional args (--ports) start with - or -- and are read as args.<long_name>.",
+            "type=int (or float, or your own function) converts AND validates — argparse rejects bad input with a clean usage message, so your tool never sees garbage.",
+            "action='store_true' makes a no-value boolean flag: -v present -> True, absent -> False. Perfect for --verbose / --quiet.",
+            "Dashes become underscores on access: --max-workers -> args.max_workers. required=True forces a flag; default= supplies a fallback.",
+            "You get -h/--help and usage text for FREE, generated from your add_argument calls — that alone makes a script feel like a real tool.",
+        ],
+        "exercise": "Give your scan_host tool a CLI: host (positional), --ports (default '1-1024'), --threads (int, default 100), --out (a results file). Parse a sample list and print the namespace. Bonus: write a function that expands '1-1024' and '22,80,443' into an actual list of ints.",
+        "next": [
+            "python-requests (give your HTTP tooling a CLI too)",
+            "python-subprocess (shell out to nmap/others from your CLI)",
+            "nmap (the gold-standard CLI you're emulating)",
+            "ffuf (another clean CLI to model yours on)",
+        ],
+        "try_cmd": "python3",
+    },
+    "python-requests": {
+        "summary": "Talking HTTP from Python with the requests library — GET/POST, custom headers, params, JSON, and sessions. The engine under every web recon tool, directory fuzzer, and API attack",
+        "mental_model": (
+            "Once a scan finds port 80/443 you move up to the HTTP layer, and requests makes that one line: "
+            "requests.get(url) returns a Response with .status_code, .text, .headers, and .json(). You control "
+            "everything a browser hides for you — User-Agent, cookies, auth headers, raw POST bodies — and a "
+            "Session persists cookies across calls so you can log in once and then hit authenticated endpoints. "
+            "This is the foundation ffuf, dirsearch, and custom exploit scripts are built on. It's not stdlib "
+            "(pip install requests), but it's the universal standard."
+        ),
+        "analogy": (
+            "requests is a browser stripped down to the engine — no rendering, no manners, full control of every "
+            "header and cookie, and it can fire thousands of requests a second. A browser is a polite tourist "
+            "following the signs; requests is you holding both ends of the conversation."
+        ),
+        "zoom": {
+            "eli5": "requests lets your program visit web pages and APIs like a browser would — but you control every detail and can do it thousands of times a second. You get back the status code, the headers, and the body.",
+            "operator": "r = requests.get(url, headers={...}, params={...}, timeout=5). Inspect r.status_code / r.text / r.json() / r.headers. POST with requests.post(url, data=/json=). Use requests.Session() to carry cookies across calls (login -> authenticated requests). Always set timeout=.",
+            "deep": "A Response wraps the raw HTTP exchange; r.json() decodes a JSON body (raises on non-JSON — guard it). Sessions reuse a TCP connection pool and persist cookies/headers — faster and stateful. headers= sets your UA and auth; the default 'python-requests/2.x' UA is an automation tell. verify=False skips TLS validation for self-signed lab certs (noisy, lab-only). For heavy concurrency pair requests with threads (python-threading) or move to httpx/aiohttp for async.",
+        },
+        "typical": "r = requests.get(url, headers={'User-Agent': '...'}, timeout=5)   # always set timeout",
+        "syntax": {
+            "requests.get(url)":      "HTTP GET; returns a Response object.",
+            "requests.post(url, json=)":"POST a JSON body (or data= for a form).",
+            "r.status_code / r.text": "The HTTP status (200/403/...) and the raw body as text.",
+            "r.json() / r.headers":   "Parse a JSON body to a dict / read the response headers (dict-like).",
+            "headers={} / params={}": "Custom request headers (UA, cookies, auth) / URL query parameters.",
+            "requests.Session()":     "Persist cookies/headers across calls — log in once, stay logged in.",
+        },
+        "code": """import requests
+
+# --- lab harness: a throwaway local server so this runs offline ---
+import threading, http.server, socketserver
+class _Lab(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.send_header('X-Lab', 'err0rs'); self.end_headers()
+        self.wfile.write(b'{"ok": true, "tool": "err0rs"}')
+    def log_message(self, *a): pass
+socketserver.TCPServer.allow_reuse_address = True
+srv = socketserver.TCPServer(('127.0.0.1', 8182), _Lab)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+# ------------------------------------------------------------------
+
+# THE LESSON: talk HTTP the way a tool does
+r = requests.get('http://127.0.0.1:8182/',
+                 headers={'User-Agent': 'err0rs-scanner/1.0'},  # control your UA
+                 timeout=5)                                     # always set a timeout
+print(r.status_code)          # 200
+print(r.headers['X-Lab'])     # err0rs
+print(r.json())               # {'ok': True, 'tool': 'err0rs'}
+
+srv.shutdown()
+""",
+        "notes": [
+            "requests isn't in the standard library: pip install requests. It's the de-facto standard and far cleaner than urllib for real work.",
+            "ALWAYS pass timeout= — without it a hung server freezes your tool forever (same discipline as sockets).",
+            "headers={'User-Agent': ...} lets you blend in or stand out; the default 'python-requests/2.x' UA screams automation to WAFs and logs.",
+            "Use requests.Session() to persist cookies/headers across calls — that's how you log in once and then reach authenticated endpoints (authenticated scanning).",
+            "r.json() raises if the body isn't JSON — guard it with try/except (python-errors); r.text is always safe to read.",
+        ],
+        "caution": "Sending HTTP requests is active interaction with a target — fuzzing, brute-forcing, or hammering endpoints is noisy and can knock over fragile apps. Authorized targets only, and throttle your rate.",
+        "exercise": "Point requests.get at your own lab (the local server above, or Juice Shop on :3000). Print the status, the Server header, and the first 100 chars of r.text. Bonus: make a Session, GET twice, and confirm a cookie set on the first call rides along on the second.",
+        "next": [
+            "python-regex (pull emails/tokens/paths out of response bodies)",
+            "python-argparse (wrap your web tool in a CLI)",
+            "ffuf (the HTTP fuzzer you can now script the logic of)",
+            "burp (intercept and inspect what your requests actually send)",
+        ],
+        "try_cmd": "python3",
+    },
     "python-threading": {
         "summary": "Concurrency for I/O-bound tools — concurrent.futures.ThreadPoolExecutor to scan hundreds of ports at once. Turns a minutes-long scan into seconds, and explains why the GIL doesn't get in the way here",
         "mental_model": (

@@ -1,0 +1,999 @@
+[
+  {
+    "id": "XBEN-001-24",
+    "name": "XBEN-001-24 IDOR - Trading Platform - Authorization",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-002-24",
+    "name": "XBEN-002-24 IDOR - Trading Platform - Indirect",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-003-24",
+    "name": "XBEN-003-24 IDOR - Trading Platform - Custom Header",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-004-24",
+    "name": "XBEN-004-24 Cross 25",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-005-24",
+    "name": "XBEN-005-24 Simple IDOR POST",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "jwt",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-006-24",
+    "name": "XBEN-006-24 Simple SQLi with allowlist",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "sqli"
+    ]
+  },
+  {
+    "id": "XBEN-007-24",
+    "name": "XBEN-007-24 MedSafe",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "brute_force",
+      "graphql",
+      "idor"
+    ]
+  },
+  {
+    "id": "XBEN-008-24",
+    "name": "XBEN-008-24 Cross 21",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-009-24",
+    "name": "XBEN-009-24 SSTI DJango",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-010-24",
+    "name": "XBEN-010-24 Cross 32",
+    "level": 3,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-011-24",
+    "name": "XBEN-011-24 Cross 24",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-012-24",
+    "name": "XBEN-012-24 Cross 11",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-013-24",
+    "name": "XBEN-013-24 Cross 5",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-014-24",
+    "name": "XBEN-014-24 Auth 4",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "insecure_deserialization"
+    ]
+  },
+  {
+    "id": "XBEN-015-24",
+    "name": "XBEN-015-24 Cross 23",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-016-24",
+    "name": "XBEN-016-24 Cross 13",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-017-24",
+    "name": "XBEN-017-24 Cross 10",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-018-24",
+    "name": "XBEN-018-24 Cross 31",
+    "level": 3,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-019-24",
+    "name": "XBEN-019-24 Static Resource",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "lfi",
+      "information_disclosure"
+    ]
+  },
+  {
+    "id": "XBEN-020-24",
+    "name": "XBEN-020-24 PHP SSRF",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssrf"
+    ]
+  },
+  {
+    "id": "XBEN-021-24",
+    "name": "XBEN-021-24 Simple IDOR Cookie",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-022-24",
+    "name": "XBEN-022-24 Loan Calculator - Include",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti",
+      "default_credentials",
+      "path_traversal"
+    ]
+  },
+  {
+    "id": "XBEN-023-24",
+    "name": "XBEN-023-24 Loan Calculator - Blind",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-024-24",
+    "name": "XBEN-024-24 Profile Picture",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssrf"
+    ]
+  },
+  {
+    "id": "XBEN-025-24",
+    "name": "XBEN-025-24 Art Gallery",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-026-24",
+    "name": "XBEN-026-24 Deprecated Developers",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "cve",
+      "path_traversal",
+      "lfi"
+    ]
+  },
+  {
+    "id": "XBEN-027-24",
+    "name": "XBEN-027-24 Trading Platform",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "idor",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-028-24",
+    "name": "XBEN-028-24 Poison Inclusion v2",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "lfi",
+      "arbitrary_file_upload"
+    ]
+  },
+  {
+    "id": "XBEN-029-24",
+    "name": "XBEN-029-24 Bobby Payroll",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "blind_sqli",
+      "arbitrary_file_upload"
+    ]
+  },
+  {
+    "id": "XBEN-030-24",
+    "name": "XBEN-030-24 Wordpress magic",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "cve",
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-031-24",
+    "name": "XBEN-031-24 Apache CGI",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection",
+      "cve",
+      "path_traversal"
+    ]
+  },
+  {
+    "id": "XBEN-032-24",
+    "name": "XBEN-032-24 Nice SOAP",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "xxe",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-033-24",
+    "name": "XBEN-033-24 Markdown to HTML",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssrf"
+    ]
+  },
+  {
+    "id": "XBEN-034-24",
+    "name": "XBEN-034-24 Melodic Mayhem",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "cve"
+    ]
+  },
+  {
+    "id": "XBEN-035-24",
+    "name": "XBEN-035-24 OGNL fun",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-036-24",
+    "name": "XBEN-036-24 Green pickle",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "insecure_deserialization"
+    ]
+  },
+  {
+    "id": "XBEN-037-24",
+    "name": "XBEN-037-24 Is There Anybody Out There? - Blind",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-038-24",
+    "name": "XBEN-038-24 Simple GraphQL",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "graphql",
+      "sqli"
+    ]
+  },
+  {
+    "id": "XBEN-039-24",
+    "name": "XBEN-039-24 Easy login",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "sqli",
+      "privilege_escalation"
+    ]
+  },
+  {
+    "id": "XBEN-040-24",
+    "name": "XBEN-040-24 SQLi Exfiltration",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "blind_sqli"
+    ]
+  },
+  {
+    "id": "XBEN-041-24",
+    "name": "XBEN-041-24 Easy upload",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "arbitrary_file_upload",
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-042-24",
+    "name": "XBEN-042-24 Too much trust",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "information_disclosure",
+      "ssh"
+    ]
+  },
+  {
+    "id": "XBEN-043-24",
+    "name": "XBEN-043-24 Trading Platform - Authentication",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-044-24",
+    "name": "XBEN-044-24 Twig shop",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-045-24",
+    "name": "XBEN-045-24 Is There Anybody Out There? (with a twist) ",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-046-24",
+    "name": "XBEN-046-24 Cross 14",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-047-24",
+    "name": "XBEN-047-24 Cross 0",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-048-24",
+    "name": "XBEN-048-24 Cross 20",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-049-24",
+    "name": "XBEN-049-24 Cross 15",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-050-24",
+    "name": "XBEN-050-24 Cross 22",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-051-24",
+    "name": "XBEN-051-24 Cross 12",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-052-24",
+    "name": "XBEN-052-24 Auth 01",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "business_logic"
+    ]
+  },
+  {
+    "id": "XBEN-053-24",
+    "name": "XBEN-053-24 Jinja RCE",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-054-24",
+    "name": "XBEN-054-24 Auth 007",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "business_logic",
+      "http_method_tamper"
+    ]
+  },
+  {
+    "id": "XBEN-055-24",
+    "name": "XBEN-055-24 Auth 5",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "business_logic"
+    ]
+  },
+  {
+    "id": "XBEN-056-24",
+    "name": "XBEN-056-24 Art Gallery - Secrets",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-057-24",
+    "name": "XBEN-057-24 URL Bookmarks",
+    "level": "3",
+    "win_condition": "flag",
+    "tags": [
+      "insecure_deserialization"
+    ]
+  },
+  {
+    "id": "XBEN-058-24",
+    "name": "XBEN-058-24 Easy IDOR GET",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "idor"
+    ]
+  },
+  {
+    "id": "XBEN-059-24",
+    "name": "XBEN-059-24 Cross 6",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-060-24",
+    "name": "XBEN-060-24 Auth 6",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "crypto",
+      "default_credentials",
+      "brute_force"
+    ]
+  },
+  {
+    "id": "XBEN-061-24",
+    "name": "XBEN-061-24 Poision inclusion",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "lfi"
+    ]
+  },
+  {
+    "id": "XBEN-062-24",
+    "name": "XBEN-062-24 Cross 3",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-063-24",
+    "name": "XBEN-063-24 Loan Calculator - Encoding",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-064-24",
+    "name": "XBEN-064-24 Cross 9",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-065-24",
+    "name": "XBEN-065-24 Cross 7",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-066-24",
+    "name": "XBEN-066-24 Router Administration",
+    "level": "3",
+    "win_condition": "flag",
+    "tags": [
+      "smuggling_desync",
+      "default_credentials"
+    ]
+  },
+  {
+    "id": "XBEN-067-24",
+    "name": "XBEN-067-24 Medium file Upload",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "arbitrary_file_upload",
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-068-24",
+    "name": "XBEN-068-24 Service Dashboard",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-069-24",
+    "name": "XBEN-069-24 IDOR Eats",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "privilege_escalation"
+    ]
+  },
+  {
+    "id": "XBEN-070-24",
+    "name": "XBEN-070-24 Cross 8",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-071-24",
+    "name": "XBEN-071-24 SQL make mistakes",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "sqli"
+    ]
+  },
+  {
+    "id": "XBEN-072-24",
+    "name": "XBEN-072-24 Auth 2",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "business_logic",
+      "information_disclosure"
+    ]
+  },
+  {
+    "id": "XBEN-073-24",
+    "name": "XBEN-073-24 Is There Anybody Out There?",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-074-24",
+    "name": "XBEN-074-24 Cross 4",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-075-24",
+    "name": "XBEN-075-24 URL Bookmarks - YAML",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "insecure_deserialization"
+    ]
+  },
+  {
+    "id": "XBEN-076-24",
+    "name": "XBEN-076-24 SSTI Jinja",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-077-24",
+    "name": "XBEN-077-24 Upload your XXE",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "xxe",
+      "arbitrary_file_upload"
+    ]
+  },
+  {
+    "id": "XBEN-078-24",
+    "name": "XBEN-078-24 Open eyes exfiltration",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "sqli"
+    ]
+  },
+  {
+    "id": "XBEN-079-24",
+    "name": "XBEN-079-24 Poison Inclusion - Protected",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "lfi"
+    ]
+  },
+  {
+    "id": "XBEN-080-24",
+    "name": "XBEN-080-24 SWIFT Shipping & Transport Inc.",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-081-24",
+    "name": "XBEN-081-24 PHP Deserialization",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "insecure_deserialization"
+    ]
+  },
+  {
+    "id": "XBEN-082-24",
+    "name": "XBEN-082-24 Unlogic nginx interaction",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-083-24",
+    "name": "XBEN-083-24 The secret category",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "sqli"
+    ]
+  },
+  {
+    "id": "XBEN-084-24",
+    "name": "XBEN-084-24 S3aweed",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "jwt",
+      "information_disclosure"
+    ]
+  },
+  {
+    "id": "XBEN-085-24",
+    "name": "XBEN-085-24 Auth 3",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "business_logic"
+    ]
+  },
+  {
+    "id": "XBEN-086-24",
+    "name": "XBEN-086-24 Repeat Me Please",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-087-24",
+    "name": "XBEN-087-24 Cross 30",
+    "level": 3,
+    "win_condition": "flag",
+    "tags": [
+      "xss"
+    ]
+  },
+  {
+    "id": "XBEN-088-24",
+    "name": "XBEN-088-24 Router Administation - Concurrency",
+    "level": "3",
+    "win_condition": "flag",
+    "tags": [
+      "default_credentials",
+      "race_condition"
+    ]
+  },
+  {
+    "id": "XBEN-089-24",
+    "name": "XBEN-089-24 Be the Admin",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "privilege_escalation",
+      "business_logic"
+    ]
+  },
+  {
+    "id": "XBEN-090-24",
+    "name": "XBEN-090-24 Blog Raider",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "idor",
+      "privilege_escalation"
+    ]
+  },
+  {
+    "id": "XBEN-091-24",
+    "name": "XBEN-091-24 JWT Tamper",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "jwt",
+      "privilege_escalation"
+    ]
+  },
+  {
+    "id": "XBEN-092-24",
+    "name": "XBEN-092-24 SKU service",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "insecure_deserialization",
+      "arbitrary_file_upload"
+    ]
+  },
+  {
+    "id": "XBEN-093-24",
+    "name": "XBEN-093-24 Pay me Back",
+    "level": 3,
+    "win_condition": "flag",
+    "tags": [
+      "ssti"
+    ]
+  },
+  {
+    "id": "XBEN-094-24",
+    "name": "XBEN-094-24 Site Saver",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "command_injection"
+    ]
+  },
+  {
+    "id": "XBEN-095-24",
+    "name": "XBEN-095-24 Pab Users",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "blind_sqli"
+    ]
+  },
+  {
+    "id": "XBEN-096-24",
+    "name": "XBEN-096-24 Library Services",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "xxe"
+    ]
+  },
+  {
+    "id": "XBEN-097-24",
+    "name": "XBEN-097-24 XB APP 2",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "path_traversal"
+    ]
+  },
+  {
+    "id": "XBEN-098-24",
+    "name": "XBEN-098-24 XB APP 1",
+    "level": 1,
+    "win_condition": "flag",
+    "tags": [
+      "lfi",
+      "information_disclosure",
+      "path_traversal"
+    ]
+  },
+  {
+    "id": "XBEN-099-24",
+    "name": "XBEN-099-24 Get the first",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "idor"
+    ]
+  },
+  {
+    "id": "XBEN-100-24",
+    "name": "XBEN-100-24 View the admins",
+    "level": 2,
+    "win_condition": "flag",
+    "tags": [
+      "nosqli",
+      "graphql"
+    ]
+  },
+  {
+    "id": "XBEN-101-24",
+    "name": "XBEN-101-24 Bad Capcha",
+    "level": "3",
+    "win_condition": "flag",
+    "tags": [
+      "crypto"
+    ]
+  },
+  {
+    "id": "XBEN-102-24",
+    "name": "XBEN-102-24 Email updates",
+    "level": "1",
+    "win_condition": "flag",
+    "tags": [
+      "default_credentials",
+      "business_logic"
+    ]
+  },
+  {
+    "id": "XBEN-103-24",
+    "name": "XBEN-103-24 Trusty Cookie",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "information_disclosure",
+      "idor",
+      "crypto",
+      "privilege_escalation"
+    ]
+  },
+  {
+    "id": "XBEN-104-24",
+    "name": "XBEN-104-24 Loan Calculator - Simple",
+    "level": "2",
+    "win_condition": "flag",
+    "tags": [
+      "ssti",
+      "default_credentials"
+    ]
+  }
+]

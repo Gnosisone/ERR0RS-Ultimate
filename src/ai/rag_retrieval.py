@@ -61,12 +61,15 @@ log = logging.getLogger(__name__)
 # both have to change together.
 _DB_PATH        = Path(__file__).resolve().parent.parent.parent / "errors_knowledge_db"
 _COLLECTION     = "err0rs_teach_v1_chunked"
+_REFS_COLLECTION = "err0rs_refs"   # optional external reference corpora (OWASP/PaTT/...)
 
 # Singleton state — populated on first query. Wrapped in a lock because
 # the conversation engine is multi-threaded.
 _lock = threading.Lock()
 _collection = None       # type: ignore  — chromadb.Collection or None
 _init_attempted = False  # so we don't keep re-trying a failed init
+_refs_collection = None
+_refs_attempted = False
 
 
 def _ensure_collection():
@@ -113,6 +116,28 @@ def _ensure_collection():
             return _collection
         except Exception as e:
             log.warning(f"RAG init failed ({type(e).__name__}: {e}) — disabled")
+            return None
+
+
+def _ensure_refs_collection():
+    """Open the optional external-reference collection (OWASP / WSTG /
+    PayloadsAllTheThings, etc.). Returns the collection or None — refs are
+    a supplement, so absence is fine and must never disable the teach path."""
+    global _refs_collection, _refs_attempted
+    with _lock:
+        if _refs_collection is not None:
+            return _refs_collection
+        if _refs_attempted:
+            return None
+        _refs_attempted = True
+        try:
+            import chromadb
+            client = chromadb.PersistentClient(path=str(_DB_PATH))
+            _refs_collection = client.get_collection(_REFS_COLLECTION)
+            log.info(f"RAG refs enabled: {_REFS_COLLECTION} ({_refs_collection.count()} chunks)")
+            return _refs_collection
+        except Exception as e:
+            log.info(f"RAG refs not available ({type(e).__name__}) — teach-only")
             return None
 
 
@@ -188,18 +213,28 @@ def retrieve_for_query(query: str, n: int = 2) -> Optional[str]:
     if coll is None:
         return None
 
+    merged = []  # (distance, doc) across teach + refs (same embedder => comparable)
     try:
         result = coll.query(query_texts=[query], n_results=n)
         docs = (result.get("documents") or [[]])[0]
-        if not docs:
-            return None
-        return _format_chunks(
-            [{"text": d} for d in docs],
-            header_label="ERR0RS RAG context",
-        )
+        dists = (result.get("distances") or [[]])[0] or [0.0] * len(docs)
+        merged += list(zip(dists, docs))
     except Exception as e:
-        log.warning(f"retrieve_for_query({query!r}) failed: {e}")
+        log.warning(f"retrieve_for_query teach failed: {e}")
+    refs = _ensure_refs_collection()
+    if refs is not None:
+        try:
+            rr = refs.query(query_texts=[query], n_results=n)
+            rdocs = (rr.get("documents") or [[]])[0]
+            rdists = (rr.get("distances") or [[]])[0] or [0.0] * len(rdocs)
+            merged += list(zip(rdists, rdocs))
+        except Exception as e:
+            log.warning(f"retrieve_for_query refs failed: {e}")
+    if not merged:
         return None
+    merged.sort(key=lambda x: x[0])
+    top = [d for _, d in merged[: n + 2]]
+    return _format_chunks([{"text": d} for d in top], header_label="ERR0RS RAG context")
 
 
 def is_available() -> bool:

@@ -98,3 +98,43 @@ reviewed): XBOW, NodeZero (Horizon3.ai), Pentera, RidgeBot, Mindgard.
 *Closed products (XBOW, NodeZero, Pentera, RidgeBot, Mindgard) were not
 code-reviewed — no public source. Capability comparison from public material
 can be added separately and should be labelled as such.*
+
+---
+
+## Addendum — PentAGI deep read (Go source + prompt templates)
+
+The prompt-template roster (`backend/pkg/templates/prompts/`) reveals a much
+finer-grained multi-agent system than the first pass suggested. It runs a
+**primary orchestrator** over a roster of **specialist agents**, each with its
+own prompt:
+
+- Operators: **pentester**, **coder**, **searcher**, **installer**, **adviser**, **reporter**
+- Planning: **subtasks_generator**, **subtasks_refiner**, **task_planner**, **task_descriptor**
+- Oversight: **reflector** (self-critique), **execution_monitor**
+- Context mgmt: **summarizer**, **enricher**, **memorist**, short/full execution-context builders
+- Robustness: **toolcall_fixer** / **input_toolcall_fixer** — agents that repair
+  malformed tool calls before they fail
+- Routing: a parallel set of **`question_*`** prompts (question_pentester,
+  question_coder, …) that cheaply decide *whether/which* specialist should act
+
+The flow engine (`controller/flow.go`) is a DB-persisted `flowWorker` with
+concurrency control (mutexes/waitgroups/cancellation), Langfuse tracing, and
+multiple concurrent "assistant workers."
+
+### New high-value patterns for ERR0RS (beyond the first list)
+
+10. **toolcall_fixer / format-repair pass.** Small models (gemma3:1b) routinely
+    emit malformed JSON / tool calls. A dedicated repair pass that salvages a bad
+    call instead of failing the step is the natural sibling of our reasoning/parsing
+    split — cheap, and a big reliability win on the Pi.
+11. **`question_*` gating before invoking a specialist.** A one-token "should the
+    pentester act now?" check avoids running every agent each turn — efficient
+    routing on limited compute.
+12. **Dedicated context-management agents** (summarizer / enricher / memorist).
+    Formalizes the cross-phase compression we already flagged, as first-class roles.
+13. **Reflector / execution_monitor loops.** Explicit self-critique and execution
+    oversight, separate from the acting agent.
+
+These reinforce the direction: on a small local model, ERR0RS wins by *decomposing*
+into cheap specialized passes (parse, fix, gate, summarize) around a thin reasoning
+core — not by asking one prompt to do everything.

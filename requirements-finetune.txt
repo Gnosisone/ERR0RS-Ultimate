@@ -1,0 +1,8 @@
+# Off-Pi QLoRA training deps (CUDA GPU required). Install torch for your CUDA first.
+unsloth
+trl>=0.9
+transformers>=4.44
+peft>=0.12
+datasets
+accelerate
+bitsandbytes

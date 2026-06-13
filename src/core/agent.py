@@ -609,6 +609,74 @@ RULES:
 - When you have open_ports but haven't run service-specific tools, do that next"""
 
 
+def _llm_parse_findings(tool: str, stdout: str, target: str,
+                        model: str = "gemma3:1b",
+                        ollama_host: str = "http://localhost:11434") -> List[AgentFinding]:
+    """PARSER half of the reasoning/parsing split (PentestGPT pattern).
+
+    Runs ONLY as a fallback when the regex parser found nothing, so the common
+    nmap/nikto/gobuster paths pay no extra cost. gemma3:1b acts purely as a cheap
+    extractor here — it distils raw tool output into structured findings; the
+    reasoning model never sees the raw output, keeping the small context window
+    clean. Bounded input + low num_predict keep it fast on the Pi. Fails safe:
+    returns [] on any error so the agent loop never stalls."""
+    text = (stdout or "").strip()
+    if len(text) < 200:
+        return []
+    if len(text) > 6000:
+        text = text[:3500] + "\n...[trimmed]...\n" + text[-2000:]
+    system = (
+        "You are a security tool-output PARSER, not an assistant. Read the tool output "
+        "and list concrete findings, ONE per line, each EXACTLY as: severity|kind|value|detail "
+        "(four pipe-separated fields). severity must be one of: info, low, medium, high, critical. "
+        "Do NOT output a header row and do NOT output the words SEVERITY or KIND. "
+        "Example: medium|tech|Apache 2.4.41|server banner exposes version. "
+        "If there are no concrete findings, reply with exactly: NONE"
+    )
+    user = f"TOOL: {tool}\nTARGET: {target}\n\nOUTPUT:\n{text}"
+    try:
+        resp = requests.post(
+            f"{ollama_host}/api/chat",
+            json={
+                "model":      model,
+                "messages":   [
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user},
+                ],
+                "stream":     False,
+                "keep_alive": -1,
+                "options":    {"temperature": 0.0, "num_predict": 300},
+            },
+            timeout=60,
+        )
+        raw = resp.json().get("message", {}).get("content", "")
+    except Exception as e:
+        log.warning(f"LLM parser pass failed for {tool}: {e}")
+        return []
+
+    findings: List[AgentFinding] = []
+    for line in raw.splitlines():
+        line = line.strip().strip("`").strip()
+        if not line or line.upper() == "NONE":
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 3:
+            continue
+        sev = parts[0].lower()
+        if sev in ("severity", "none", "kind", ""):
+            continue   # reject header echoes / non-finding rows from small models
+        if sev not in ("info", "low", "medium", "high", "critical"):
+            sev = "info"
+        kind = (parts[1] or "finding")[:40]
+        value = parts[2][:120]
+        detail = (parts[3] if len(parts) > 3 else "")[:200]
+        findings.append(AgentFinding(
+            tool=tool, kind=kind, value=value, severity=sev,
+            detail=(detail + " [parsed by gemma3:1b]").strip(),
+        ))
+    return findings[:15]
+
+
 def _build_llm_prompt(state: AgentState, flags: Dict) -> str:
     goal_info = GOALS.get(state.goal, GOALS["full_chain"])
     tool_list = "\n".join(
@@ -978,6 +1046,10 @@ class PentestAgent:
 
             # ── ANALYZE: extract findings ─────────────────────────────────────
             findings = _parse_findings(tool_key, stdout, state.target)
+            if not findings and len((stdout or "").strip()) > 200:
+                self._emit_system("[AGENT] 🧪 Parser pass (gemma3:1b) distilling tool output...")
+                findings = _llm_parse_findings(tool_key, stdout, state.target,
+                                               ollama_host=self.ollama_host)
             _update_state_from_findings(state, findings)
             state.completed_tools.append(tool_key)
 

@@ -172,13 +172,41 @@ class AgentState:
             lines.append(f"Shells: {', '.join(self.shells)}")
         return "\n".join(lines)
 
-    def findings_for_prompt(self) -> str:
-        """Compact findings summary for LLM context."""
+    def findings_for_prompt(self, max_items: int = 12, budget: int = 1500) -> str:
+        """PLANNING-context view: a severity-prioritized, budget-bounded summary.
+
+        Plan-vs-exec separation: the planner sees only this compact, prioritized
+        digest; the full self.findings record is retained for the report (exec
+        context) and is NEVER sent to the model. This keeps gemma3:1b's small
+        context clean (it degrades past ~7K prompt chars) and ensures the planner
+        always sees the highest-severity findings, not just the most recent ones."""
         if not self.findings:
             return "No findings yet."
-        lines = []
-        for f in self.findings[-20:]:  # last 20 findings
-            lines.append(f"[{f.severity.upper()}] {f.kind}: {f.value} ({f.tool})")
+        rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        counts = {}
+        for f in self.findings:
+            sv = f.severity.lower()
+            counts[sv] = counts.get(sv, 0) + 1
+        summary = ", ".join(f"{counts[s]} {s}" for s in
+                            ["critical", "high", "medium", "low", "info"] if counts.get(s))
+        # dedupe by (kind, value), keeping the highest-severity instance
+        seen = {}
+        for f in self.findings:
+            key = (f.kind, f.value)
+            if key not in seen or rank.get(f.severity.lower(), 9) < rank.get(seen[key].severity.lower(), 9):
+                seen[key] = f
+        ranked = sorted(seen.values(), key=lambda f: rank.get(f.severity.lower(), 9))
+        lines = [f"({len(self.findings)} findings — {summary})"]
+        used = len(lines[0])
+        for i, f in enumerate(ranked[:max_items]):
+            line = f"[{f.severity.upper()}] {f.kind}: {f.value} ({f.tool})"
+            if used + len(line) > budget:
+                lines.append(f"... +{len(ranked) - i} more (full detail in report)")
+                break
+            lines.append(line); used += len(line) + 1
+        else:
+            if len(ranked) > max_items:
+                lines.append(f"... +{len(ranked) - max_items} more (full detail in report)")
         return "\n".join(lines)
 
     def tools_used_str(self) -> str:

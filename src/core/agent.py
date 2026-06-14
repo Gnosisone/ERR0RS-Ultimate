@@ -705,12 +705,53 @@ def _llm_parse_findings(tool: str, stdout: str, target: str,
     return findings[:15]
 
 
+def _tool_precondition_met(spec: Dict, state: "AgentState", flags: Dict) -> bool:
+    """question_* gate: are this tool's preconditions satisfied right now?
+    A requirement is either an environment flag (web_port/smb_port/ssh_port/
+    ftp_port/open_ports/credentials) or the name of a prerequisite tool that
+    must have completed first (e.g. gobuster_ext needs gobuster_dir)."""
+    reqs = spec.get("requires")
+    if not reqs:                      # no precondition → recon / always-on
+        return True
+    flag_state = {
+        "open_ports":  bool(state.open_ports),
+        "web_port":    bool(flags.get("web_port")),
+        "smb_port":    bool(flags.get("smb_port")),
+        "ssh_port":    bool(flags.get("ssh_port")),
+        "ftp_port":    bool(flags.get("ftp_port")),
+        "credentials": bool(state.credentials),
+    }
+    for req in reqs:
+        if req in flag_state:
+            if not flag_state[req]:
+                return False
+        elif req not in state.completed_tools:   # prerequisite tool not run yet
+            return False
+    return True
+
+
+def _relevant_tools(state: "AgentState", flags: Dict) -> Dict:
+    """Filter AGENT_TOOLS to those not yet run AND whose preconditions are met.
+
+    The question_* gating pattern: instead of asking gemma3:1b to reason over
+    every tool (offering SMB/SSH/web options when those services aren't even
+    present), present only tools that can actually run given current findings.
+    Smaller, sharper context; the model never picks a tool the executor would
+    just skip. generate_report stays selectable as the control/exit action."""
+    relevant = {}
+    for name, spec in AGENT_TOOLS.items():
+        if name in state.completed_tools:
+            continue
+        if name == "generate_report" or _tool_precondition_met(spec, state, flags):
+            relevant[name] = spec
+    return relevant
+
+
 def _build_llm_prompt(state: AgentState, flags: Dict) -> str:
     goal_info = GOALS.get(state.goal, GOALS["full_chain"])
     tool_list = "\n".join(
         f'  "{k}": {v["description"]}'
-        for k, v in AGENT_TOOLS.items()
-        if k not in state.completed_tools
+        for k, v in _relevant_tools(state, flags).items()
     )
     return f"""GOAL: {state.goal} — {goal_info['description']}
 PHASES: {' → '.join(goal_info['phases'])}
@@ -815,8 +856,7 @@ def _llm_decide(state: AgentState, flags: Dict, model: str = "gemma3:1b",
 
     tool_list = "\n".join(
         f'  "{k}": {v["description"]}'
-        for k, v in AGENT_TOOLS.items()
-        if k not in state.completed_tools
+        for k, v in _relevant_tools(state, flags).items()
     )
     system = AGENT_SYSTEM_PROMPT.replace("{tool_list}", tool_list)
     prompt = _build_llm_prompt(state, flags)

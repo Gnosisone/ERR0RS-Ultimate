@@ -1181,6 +1181,16 @@ class PentestAgent:
                 pass
             self._emit_system(f"\n[AGENT] ⚡ Running: {tool_key}")
 
+            # Mirror into the desktop OperatorTerminal so the xterm follows along
+            # with the agent (display-only via execute=False — the real run is
+            # _run_tool below; re-running scans/brute-force in the xterm against
+            # a live target would double the traffic and is unsafe).
+            try:
+                from .live_terminal import get_operator_terminal
+                get_operator_terminal().send_command(cmd, tool=tool_key, execute=False)
+            except Exception:
+                pass
+
             start_time = time.time()
             stdout = _run_tool(cmd, tool_def.get("timeout", 120), self.broadcast)
             duration = time.time() - start_time

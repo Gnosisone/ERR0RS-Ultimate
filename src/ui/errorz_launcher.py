@@ -2739,6 +2739,18 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                             ws_broadcast("intel",   f"[{phase.upper()}] Running {tool}...", {"phase": phase, "tool": tool})
                             narrate_phase(phase, target)
                             narrate_tool(tool, target)
+                            # Mirror the command into the desktop OperatorTerminal
+                            # so the xterm "follows along" with the kill chain
+                            # (display-only — the real run is phoenix_run_tool
+                            # below and its output streams to the web Live Term).
+                            try:
+                                from src.core.live_terminal import get_operator_terminal
+                                get_operator_terminal().send_command(
+                                    (f"{tool} " + " ".join(args)).strip(),
+                                    tool=tool, execute=False,
+                                )
+                            except Exception:
+                                pass
                             try:
                                 r = phoenix_run_tool(tool, args, timeout=timeout)
                                 d = r.to_dict()

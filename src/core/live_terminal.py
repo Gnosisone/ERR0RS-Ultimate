@@ -501,7 +501,7 @@ class OperatorTerminal:
             self.spawn()
 
     # ── Type a command into the terminal ──────────────────────────────────────
-    def send_command(self, command: str, tool: str = "", announce: bool = True):
+    def send_command(self, command: str, tool: str = "", announce: bool = True, execute: bool = True):
         """
         Focus the operator terminal and type `command` into it using xdotool.
         ERR0RS types a short announcement line first so it's obvious this is
@@ -592,10 +592,19 @@ class OperatorTerminal:
             # --delay 50ms is the goldilocks: slow enough that xterm latches
             # every key-down → key-up cycle, fast enough to type a typical
             # command in ~1.5s (still feels responsive).
+            # execute=False (display-only mirror): type the real command as a
+            # bash COMMENT so the operator watches it scroll into the xterm but
+            # it does NOT run. Used by the kill chain / agent so the terminal
+            # "follows along" without double-executing the tool (the real run +
+            # captured output happens inside the engine, streamed to Live Term).
+            _real_idx = 1 if announce else 0
             for i, text in enumerate(([announce_line] if announce else []) + [command]):
-                # Only prefix the real command, not the announce line.
-                if i == (1 if announce else 0) and not text.startswith(" "):
-                    text = " " + text
+                if i == _real_idx:
+                    if execute:
+                        if not text.startswith(" "):
+                            text = " " + text
+                    else:
+                        text = "# " + text
                 # 15s timeout: a long command at 50ms/char is ~2.5s; 15s is
                 # generous headroom but prevents a hung xdotool from blocking
                 # the whole launcher forever.

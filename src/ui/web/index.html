@@ -4034,6 +4034,8 @@ function toggleAgentPanel() {
 // We validate inputs client-side first so the user gets immediate feedback
 // before the round-trip to the backend.
 function launchAgent() {
+  console.log('[ERR0RS] launchAgent() invoked');                       // diag 2026-06-14
+  try { _agentSetStatus('LAUNCHING — preparing...', 'running'); } catch (e) {}
   const target = (document.getElementById('ag-target').value || '').trim();
   const goal   = (document.getElementById('ag-goal').value || 'full_chain').trim();
 

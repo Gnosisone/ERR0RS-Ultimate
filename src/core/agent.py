@@ -710,6 +710,76 @@ What tool should run next? Choose from the available tools list.
 Respond with JSON only."""
 
 
+def _first_json_object(text):
+    """Return the first balanced {...} substring (string-aware brace matching).
+    Returns None if no balanced object (e.g. the model's JSON was truncated)."""
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0; in_str = False; esc = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if esc:
+            esc = False; continue
+        if c == "\\":
+            esc = True; continue
+        if c == '"':
+            in_str = not in_str
+        elif not in_str:
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+    return None
+
+
+def _json_fixups(s):
+    """Repair common small-model JSON sins: trailing commas, single quotes, bare keys."""
+    if not s:
+        return s
+    out = re.sub(r",\s*([}\]])", r"\1", s)                            # trailing commas
+    out = re.sub(r"'([^']*)'", r'"\1"', out)                          # single -> double quotes
+    out = re.sub(r'([{,]\s*)([A-Za-z_]\w*)(\s*:)', r'\1"\2"\3', out)  # quote bare keys
+    return out
+
+
+def _repair_decision_json(text):
+    """toolcall_fixer (PentAGI pattern): salvage a usable decision dict from a
+    small model's malformed JSON. Direct parse -> balanced-brace extraction +
+    fixups -> regex field-scrape (survives truncation). No extra LLM call."""
+    if not text:
+        return None
+    try:
+        d = json.loads(text)
+        if isinstance(d, dict):
+            return d
+    except Exception:
+        pass
+    block = _first_json_object(text)
+    for cand in (block, _json_fixups(block)):
+        if not cand:
+            continue
+        try:
+            d = json.loads(cand)
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            continue
+    m = re.search(r'["\']?tool["\']?\s*:\s*["\']([\w\-]+)["\']', text)
+    if not m:
+        return None
+    d = {"tool": m.group(1), "_repaired": True, "confidence": 0.5}
+    for key in ("target", "reason", "phase"):
+        mm = re.search(r'["\']?' + key + r'["\']?\s*:\s*["\']([^"\']+)["\']', text)
+        if mm:
+            d[key] = mm.group(1)
+    dm = re.search(r'["\']?done["\']?\s*:\s*(true|false)', text, re.I)
+    d["done"] = bool(dm and dm.group(1).lower() == "true")
+    return d
+
+
 def _llm_decide(state: AgentState, flags: Dict, model: str = "gemma3:1b",
                 ollama_host: str = "http://localhost:11434") -> Dict:
     """Ask the LLM to decide the next tool. Falls back to deterministic rules."""
@@ -739,11 +809,14 @@ def _llm_decide(state: AgentState, flags: Dict, model: str = "gemma3:1b",
             timeout=90,
         )
         raw = resp.json().get("message", {}).get("content", "")
-        # Strip markdown fences
         clean = re.sub(r"```(?:json)?|```", "", raw).strip()
-        decision = json.loads(clean)
-        assert "tool" in decision
-        return decision
+        decision = _repair_decision_json(clean)   # toolcall_fixer: salvage small-model JSON
+        if decision is not None and "tool" in decision:
+            if decision.get("_repaired"):
+                log.info("LLM decision JSON was malformed — repaired by toolcall_fixer")
+            return decision
+        log.warning("LLM decision unparseable even after repair — falling back to rules")
+        return _rule_based_decision(state, flags)
     except Exception as e:
         log.warning(f"LLM decision failed: {e} — falling back to rules")
         return _rule_based_decision(state, flags)

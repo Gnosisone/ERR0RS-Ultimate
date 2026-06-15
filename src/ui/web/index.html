@@ -2416,9 +2416,26 @@ async function launchKillChain() {
       return;
     }
     const data = await resp.json();
+
+    // Async model: the chain runs in a BACKGROUND thread server-side and streams
+    // live output + the completion summary over the WebSocket. The fetch just
+    // acknowledges the launch — don't print a summary (or a false 0/0) here.
+    if (data.status === 'started') {
+      ltpWrite('  ▶ Kill chain launched — streaming live below...', 'system');
+      statusEl.textContent = '▶ running...';
+      statusEl.style.color = 'var(--amber, #f59e0b)';
+      return;
+    }
+    if (data.status === 'already_running') {
+      ltpWrite('  ⚠️ A kill chain is already running — watch the live output above.', 'system');
+      statusEl.textContent = '⚠️ already running';
+      statusEl.style.color = 'var(--amber, #f59e0b)';
+      return;
+    }
+
+    // Legacy synchronous response (fallback for older backends)
     const results = data.results || [];
     const ok = results.filter(r => r.success).length;
-
     ltpWrite('', 'system');
     ltpWrite(`  ✅ Kill chain complete — ${ok}/${results.length} tools succeeded`, 'system');
     ltpWrite('  Type: report juice-shop   to generate full HTML report', 'system');

@@ -301,6 +301,7 @@ except Exception as _td:
     THREAT_DETECTION_AVAILABLE = False
     print(f"[ERR0RS] Threat Detection unavailable: {_td}")
 _threat_detector = None
+_killchain_running = False   # guard: only one Juice Shop kill chain runs at a time
 
 # ── Zero-Day Training ─────────────────────────────────────────────────────────
 try:
@@ -2714,81 +2715,90 @@ class ERR0RSHandler(SimpleHTTPRequestHandler):
                     self._json({"error": "Phoenix Bridge not loaded"})
 
             elif self.path == "/api/killchain/run":
-                # Run the full Juice Shop kill chain — broadcasts live to WS + returns summary
+                # Launch the Juice Shop kill chain in a BACKGROUND thread so the
+                # ~3-minute run doesn't block the single-threaded HTTP server
+                # (which timed out the browser fetch -> NetworkError). Live output
+                # and the completion summary already stream over the WebSocket.
+                global _killchain_running
                 if not PHOENIX_BRIDGE:
                     self._json({"error": "Phoenix Bridge not loaded"})
+                elif _killchain_running:
+                    self._json({"status": "already_running",
+                                "message": "A kill chain is already in progress."})
                 else:
-                    try:
-                        target  = payload.get("target", "localhost:3000")
+                    target = payload.get("target", "localhost:3000")
+                    _killchain_running = True
+
+                    def _run_killchain_bg(target=target):
+                        global _killchain_running
                         results = []
-                        steps   = get_juice_shop_killchain()
-                        log.info(f"Kill chain started — {len(steps)} steps against {target}")
-                        ws_broadcast("system", f"[ERR0RS] 🔥 Kill chain started — {len(steps)} phases against {target}")
-                        ws_broadcast("intel", f"TARGET: {target}", {"phase": "init", "tool": "killchain"})
-                        for step in steps:
-                            tool     = step["tool"]
-                            raw_args = step.get("args", [])
-                            args     = [str(a).replace("localhost:3000", target)
-                                              .replace("http://localhost:3000", f"http://{target}")
-                                        for a in raw_args]
-                            timeout  = step.get("timeout", 180)
-                            phase    = step["phase"]
-                            desc     = step.get("description","")
-                            log.info(f"  [{phase}] Running {tool}...")
-                            ws_broadcast("system",  f"[{phase.upper()}] ▶ {tool.upper()} — {desc[:60]}")
-                            ws_broadcast("intel",   f"[{phase.upper()}] Running {tool}...", {"phase": phase, "tool": tool})
-                            narrate_phase(phase, target)
-                            narrate_tool(tool, target)
-                            # Mirror the command into the desktop OperatorTerminal
-                            # so the xterm "follows along" with the kill chain
-                            # (display-only — the real run is phoenix_run_tool
-                            # below and its output streams to the web Live Term).
-                            try:
-                                from src.core.live_terminal import get_operator_terminal
-                                get_operator_terminal().send_command(
-                                    (f"{tool} " + " ".join(args)).strip(),
-                                    tool=tool, execute=False,
-                                )
-                            except Exception:
-                                pass
-                            try:
-                                r = phoenix_run_tool(tool, args, timeout=timeout)
-                                d = r.to_dict()
-                                d["phase"]       = phase
-                                d["description"] = desc
-                                results.append(d)
-                                icon = "✅" if r.success else "⚠️"
-                                summary = f"{icon} {tool.upper()} rc={r.returncode} in {r.duration:.1f}s"
-                                log.info(f"  {summary}")
-                                # Broadcast stdout line by line to live terminal
-                                ws_broadcast("output", f"\n{'─'*54}")
-                                ws_broadcast("output", summary)
-                                ws_broadcast("output", f"{'─'*54}")
-                                for line in r.stdout.splitlines()[:80]:
-                                    if line.strip():
-                                        ws_broadcast("output", line)
-                                if r.stderr and not r.success:
-                                    ws_broadcast("output", f"STDERR: {r.stderr[:300]}")
-                                ws_broadcast("intel", summary, {"phase": phase, "tool": tool, "success": r.success})
-                            except Exception as _ke:
-                                log.error(f"  ❌ {tool} error: {_ke}")
-                                ws_broadcast("error", f"{tool.upper()} failed: {_ke}")
-                                results.append({
-                                    "tool": tool, "phase": phase, "description": desc,
-                                    "success": False, "error": str(_ke),
-                                    "stdout": "", "stderr": str(_ke),
-                                    "returncode": -1, "duration": 0,
-                                })
-                        log.info(f"Kill chain complete — {len(results)} steps finished")
-                        ok_count = sum(1 for r in results if r.get("success"))
-                        ws_broadcast("done",   f"[ERR0RS] ✅ Kill chain complete — {ok_count}/{len(results)} tools succeeded")
-                        ws_broadcast("intel",  f"Kill chain done — {ok_count}/{len(results)} succeeded",
-                                     {"phase": "complete", "tool": "killchain"})
-                        self._json({"target": target, "steps_run": len(results), "results": results})
-                    except Exception as _kc_err:
-                        log.error(f"Kill chain fatal: {_kc_err}", exc_info=True)
-                        ws_broadcast("error", f"Kill chain fatal: {_kc_err}")
-                        self._json({"error": str(_kc_err), "success": False})
+                        try:
+                            steps = get_juice_shop_killchain()
+                            log.info(f"Kill chain started — {len(steps)} steps against {target}")
+                            ws_broadcast("system", f"[ERR0RS] 🔥 Kill chain started — {len(steps)} phases against {target}")
+                            ws_broadcast("intel", f"TARGET: {target}", {"phase": "init", "tool": "killchain"})
+                            for step in steps:
+                                tool     = step["tool"]
+                                raw_args = step.get("args", [])
+                                args     = [str(a).replace("localhost:3000", target)
+                                                  .replace("http://localhost:3000", f"http://{target}")
+                                            for a in raw_args]
+                                timeout  = step.get("timeout", 180)
+                                phase    = step["phase"]
+                                desc     = step.get("description","")
+                                log.info(f"  [{phase}] Running {tool}...")
+                                ws_broadcast("system",  f"[{phase.upper()}] ▶ {tool.upper()} — {desc[:60]}")
+                                ws_broadcast("intel",   f"[{phase.upper()}] Running {tool}...", {"phase": phase, "tool": tool})
+                                narrate_phase(phase, target)
+                                narrate_tool(tool, target)
+                                try:
+                                    from src.core.live_terminal import get_operator_terminal
+                                    get_operator_terminal().send_command(
+                                        (f"{tool} " + " ".join(args)).strip(),
+                                        tool=tool, execute=False,
+                                    )
+                                except Exception:
+                                    pass
+                                try:
+                                    r = phoenix_run_tool(tool, args, timeout=timeout)
+                                    d = r.to_dict()
+                                    d["phase"]       = phase
+                                    d["description"] = desc
+                                    results.append(d)
+                                    icon = "✅" if r.success else "⚠️"
+                                    summary = f"{icon} {tool.upper()} rc={r.returncode} in {r.duration:.1f}s"
+                                    log.info(f"  {summary}")
+                                    ws_broadcast("output", f"\n{'─'*54}")
+                                    ws_broadcast("output", summary)
+                                    ws_broadcast("output", f"{'─'*54}")
+                                    for line in r.stdout.splitlines()[:80]:
+                                        if line.strip():
+                                            ws_broadcast("output", line)
+                                    if r.stderr and not r.success:
+                                        ws_broadcast("output", f"STDERR: {r.stderr[:300]}")
+                                    ws_broadcast("intel", summary, {"phase": phase, "tool": tool, "success": r.success})
+                                except Exception as _ke:
+                                    log.error(f"  ❌ {tool} error: {_ke}")
+                                    ws_broadcast("error", f"{tool.upper()} failed: {_ke}")
+                                    results.append({
+                                        "tool": tool, "phase": phase, "description": desc,
+                                        "success": False, "error": str(_ke),
+                                        "stdout": "", "stderr": str(_ke),
+                                        "returncode": -1, "duration": 0,
+                                    })
+                            log.info(f"Kill chain complete — {len(results)} steps finished")
+                            ok_count = sum(1 for r in results if r.get("success"))
+                            ws_broadcast("done",   f"[ERR0RS] ✅ Kill chain complete — {ok_count}/{len(results)} tools succeeded")
+                            ws_broadcast("intel",  f"Kill chain done — {ok_count}/{len(results)} succeeded",
+                                         {"phase": "complete", "tool": "killchain"})
+                        except Exception as _kc_err:
+                            log.error(f"Kill chain fatal: {_kc_err}", exc_info=True)
+                            ws_broadcast("error", f"Kill chain fatal: {_kc_err}")
+                        finally:
+                            _killchain_running = False
+
+                    threading.Thread(target=_run_killchain_bg, daemon=True, name="killchain").start()
+                    self._json({"status": "started", "target": target})
 
             elif self.path == "/api/operator/receive":
                 # ── Natural language operator endpoint ─────────────────────────

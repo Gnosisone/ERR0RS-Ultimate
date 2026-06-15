@@ -257,27 +257,48 @@ def run_tool(tool_name: str, args: list, timeout: int = 300,
         "nuclei": next((p for p in [
             "/root/go/bin/nuclei",
             "/home/kali/go/bin/nuclei",
+            "/usr/bin/nuclei",
         ] if _os.path.isfile(p)), None),
     }
 
-    catalog = get_all_tools()
-    info    = catalog.get(tool_name)
+    # gobuster on SPAs (e.g. Juice Shop) returns 200 for EVERY unknown path, so
+    # a stale --exclude-length makes it abort with rc=1. Probe the real wildcard
+    # body length at runtime and substitute a small range around it.
+    if tool_name == "gobuster" and "--exclude-length" in args and "-u" in args:
+        try:
+            import urllib.request, uuid as _uuid
+            _base = str(args[args.index("-u") + 1]).rstrip("/")
+            with urllib.request.urlopen(f"{_base}/{_uuid.uuid4().hex}", timeout=8) as _r:
+                _wl = len(_r.read())
+            args = list(args)
+            args[args.index("--exclude-length") + 1] = f"{max(0, _wl - 20)}-{_wl + 20}"
+        except Exception:
+            pass
 
-    if info:
-        invoke = info.get("invoke", tool_name)
-        # If it's a Python/Ruby/etc script, split cleanly
-        cmd_parts = invoke.split() + [str(a) for a in args]
+    # Binary override takes precedence over catalog/PATH — fixes shadowed names
+    # like a bogus /usr/local/bin/nuclei winning the PATH lookup (this dict was
+    # previously built but never consulted, so the wrong nuclei kept running).
+    override = TOOL_BINARY_OVERRIDES.get(tool_name)
+    if override:
+        cmd_parts = [override] + [str(a) for a in args]
     else:
-        # Try raw binary fallback
-        binary = shutil.which(tool_name)
-        if binary:
-            cmd_parts = [binary] + [str(a) for a in args]
+        catalog = get_all_tools()
+        info    = catalog.get(tool_name)
+        if info:
+            invoke = info.get("invoke", tool_name)
+            # If it's a Python/Ruby/etc script, split cleanly
+            cmd_parts = invoke.split() + [str(a) for a in args]
         else:
-            return PhoenixToolResult(
-                tool=tool_name, command=tool_name,
-                stdout="", stderr=f"Tool '{tool_name}' not found in PATH or /opt/blackarch",
-                returncode=-1, duration=0.0, success=False
-            )
+            # Try raw binary fallback
+            binary = shutil.which(tool_name)
+            if binary:
+                cmd_parts = [binary] + [str(a) for a in args]
+            else:
+                return PhoenixToolResult(
+                    tool=tool_name, command=tool_name,
+                    stdout="", stderr=f"Tool '{tool_name}' not found in PATH or /opt/blackarch",
+                    returncode=-1, duration=0.0, success=False
+                )
 
     cmd_str = " ".join(cmd_parts)
     t_start = time.time()

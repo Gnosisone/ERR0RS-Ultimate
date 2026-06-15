@@ -2247,7 +2247,10 @@ function connectWS() {
     wsConnected = false;
     ltpBadge.textContent = '⬤ DISCONNECTED';
     ltpBadge.className   = 'ltp-badge idle';
-    setTimeout(() => { if (ltpPanel.classList.contains('active')) connectWS(); }, 3000);
+    // Reconnect unconditionally — ws is global (agent/kill chain/terminal all
+    // need it), and this self-heals the startup race where the page loads
+    // before the WS server has finished binding.
+    setTimeout(connectWS, 3000);
   };
 
   ws.onerror = (e) => {
@@ -2604,6 +2607,11 @@ async function sendToOperator(msg) {
 
 // Wire Enter key on the operator chat input
 window.addEventListener('DOMContentLoaded', () => {
+  // Connect the live WebSocket on page load. It's a GLOBAL resource the agent,
+  // kill chain, and terminal all depend on — previously it only connected when
+  // the Live Terminal panel was opened, so going straight to the Agent panel
+  // left ws=null and Launch Agent reported "WebSocket not connected".
+  discoverWS().then(() => connectWS());
   const opInput = document.getElementById('op-chat-input');
   if (opInput) {
     opInput.addEventListener('keydown', (e) => {
@@ -4062,7 +4070,11 @@ function launchAgent() {
     return;
   }
   if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) {
-    _agentSetStatus('OFFLINE — WebSocket not connected', 'error');
+    // Not connected yet — kick a connection and ask the user to click again in
+    // a moment (connect-on-load should normally make this branch unreachable).
+    if (typeof discoverWS === 'function') discoverWS().then(() => connectWS());
+    else connectWS();
+    _agentSetStatus('Connecting to ERR0RS… click Launch again in a moment', 'error');
     return;
   }
 

@@ -403,6 +403,8 @@ class OperatorTerminal:
         self._proc   = None   # Popen for the xterm process
         self._wid    = None   # X window ID (found via xdotool)
         self._ready  = False
+        self._send_lock = threading.Lock()   # serialize typing so concurrent
+        # callers (kill chain + agent) can't interleave keystrokes in the xterm
 
     # ── Singleton accessor ────────────────────────────────────────────────────
     @classmethod
@@ -502,6 +504,13 @@ class OperatorTerminal:
 
     # ── Type a command into the terminal ──────────────────────────────────────
     def send_command(self, command: str, tool: str = "", announce: bool = True, execute: bool = True):
+        # Serialize all typing through one lock: the kill-chain thread and a
+        # WS-driven agent can both call this, and interleaved xdotool keystrokes
+        # garble the xterm. The lock makes each command type atomically.
+        with self._send_lock:
+            return self._send_command_impl(command, tool=tool, announce=announce, execute=execute)
+
+    def _send_command_impl(self, command: str, tool: str = "", announce: bool = True, execute: bool = True):
         """
         Focus the operator terminal and type `command` into it using xdotool.
         ERR0RS types a short announcement line first so it's obvious this is

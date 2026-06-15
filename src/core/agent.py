@@ -999,8 +999,27 @@ def _build_command(tool_key: str, decision: Dict, state: AgentState) -> str:
     return cmd
 
 
+def _resolve_binary(cmd: str) -> str:
+    """Rewrite a command's leading binary to a known-good absolute path when the
+    inherited PATH would resolve the WRONG binary (e.g. a bogus
+    /usr/local/bin/nuclei that shadows real ProjectDiscovery nuclei). Portable:
+    checks the usual real-tool locations and falls back to PATH untouched."""
+    import os as _os
+    _OVERRIDES = {
+        "nuclei": [_os.path.expanduser("~/go/bin/nuclei"),
+                   "/usr/bin/nuclei", "/root/go/bin/nuclei"],
+    }
+    parts = cmd.split(None, 1)
+    if parts and parts[0] in _OVERRIDES:
+        real = next((p for p in _OVERRIDES[parts[0]] if _os.path.isfile(p)), None)
+        if real:
+            return real + (" " + parts[1] if len(parts) > 1 else "")
+    return cmd
+
+
 def _run_tool(cmd: str, timeout: int, broadcast: Callable) -> str:
     """Execute a shell command, streaming output via broadcast callback."""
+    cmd = _resolve_binary(cmd)   # fix shadowed binaries (e.g. bogus nuclei in PATH)
     broadcast({"type": "output", "data": f"$ {cmd}"})
     stdout_lines = []
     try:

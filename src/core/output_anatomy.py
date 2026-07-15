@@ -30,6 +30,9 @@ from typing import Dict, List, Optional
 _ALIASES = {
     "netexec": "nxc", "crackmapexec": "nxc", "cme": "nxc",
     "john": "hashcat",  # cracking output reads similarly enough to redirect
+    "impacket-secretsdump": "secretsdump", "secretsdump.py": "secretsdump",
+    "enum4linux-ng": "enum4linux", "enum4linux.pl": "enum4linux",
+    "feroxbuster": "ffuf", "wfuzz": "ffuf",  # column-based fuzzers read alike
 }
 
 
@@ -402,3 +405,296 @@ def format_output_lesson(tool: str, compact: bool = False) -> str:
             out.append(f"    • {m}")
     out += [bar, "  Next: run the tool, then `interpret <output>` to act on YOUR results."]
     return "\n".join(out)
+
+
+# ── Batch 2: AD credential + directory + SMB enumeration outputs ────────────
+OUTPUT_LESSONS.update({
+
+    "secretsdump": {
+        "tool": "impacket-secretsdump",
+        "headline": "A hash dump is a wall of colons. The trick is knowing which fields are real hashes, which are empty placeholders, and which are cleartext gifts.",
+        "sample": (
+            "[*] Dumping local SAM hashes (uid:rid:lmhash:nthash)\n"
+            "Administrator:500:aad3b435b51404eeaad3b435b51404ee:9f4e1b7c0a2d3e4f5061728394a5b6c7:::\n"
+            "Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::\n"
+            "[*] Dumping LSA Secrets\n"
+            "CORP\\svc_sql:Summer2024!\n"
+            "[*] Dumping cached domain logon information"
+        ),
+        "reading": [
+            {"field": "uid:rid:lmhash:nthash header",
+             "means": "The format of every line below: username : RID : LM hash : NT hash.",
+             "do": "Read each line against this template — the 4th field (NT hash) is the one you crack or pass."},
+            {"field": "Administrator:500:...",
+             "means": "RID 500 is ALWAYS the true built-in Administrator, regardless of rename.",
+             "do": "This is the crown jewel local account. RID 501 = Guest; 1000+ = created accounts."},
+            {"field": "aad3b435b51404eeaad3b435b51404ee (the LM field)",
+             "means": "This exact value is the EMPTY/disabled LM hash — it appears on every modern line.",
+             "do": "Ignore it. It's a placeholder, not a hash to crack. Only the NT field matters."},
+            {"field": "31d6cfe0d16ae931b73c59d7e0c089c0 (an NT field)",
+             "means": "This exact NT hash is the hash of an EMPTY password.",
+             "do": "That account has NO password — you don't even need to crack it. (Common on Guest/disabled accounts.)"},
+            {"field": "[*] Dumping LSA Secrets → CORP\\svc_sql:Summer2024!",
+             "means": "LSA secrets are frequently CLEARTEXT — service-account passwords in the open.",
+             "do": "Read these FIRST. A cleartext password beats any hash — no cracking, instantly reusable."},
+        ],
+        "reference": {
+            "title": "Fields and magic values",
+            "rows": [
+                ("user:RID:LM:NT:::", "the line format — NT (4th field) is the credential"),
+                ("RID 500", "built-in Administrator (even if renamed)"),
+                ("aad3b435b51404eeaad3b435b51404ee", "the EMPTY LM hash — a placeholder, never crack it"),
+                ("31d6cfe0d16ae931b73c59d7e0c089c0", "NT hash of a BLANK password — no password set"),
+                ("LSA Secrets / cleartext", "often plaintext service creds — check before cracking"),
+                ("$MACHINE.ACC / host$", "machine account hash — usually not worth cracking"),
+            ],
+        },
+        "work_with_it": (
+            "Triage before you crack: scan LSA secrets for cleartext first, flag any NT hash "
+            "equal to the empty-password value (already 'cracked'), then feed the remaining NT "
+            "hashes to hashcat -m 1000 — OR skip cracking entirely and pass-the-hash. From a DC "
+            "dump, the krbtgt NT hash is your golden-ticket key."
+        ),
+        "misreads": [
+            "aad3b435b51404eeaad3b435b51404ee is the empty LM placeholder — cracking it wastes hours.",
+            "31d6cfe0d16ae931b73c59d7e0c089c0 means the password is BLANK — that account is already open.",
+            "You often don't need to crack anything — LSA cleartext and pass-the-hash skip the whole step.",
+        ],
+    },
+
+    "ldapsearch": {
+        "tool": "ldapsearch",
+        "headline": "LDAP output is LDIF: each object is a 'dn' followed by attributes. The gold is in memberOf, description, and userAccountControl.",
+        "sample": (
+            "# jdoe, Users, corp.local\n"
+            "dn: CN=jdoe,CN=Users,DC=corp,DC=local\n"
+            "sAMAccountName: jdoe\n"
+            "memberOf: CN=Domain Admins,CN=Users,DC=corp,DC=local\n"
+            "description: temp account - pw Welcome1!\n"
+            "userAccountControl: 4260352\n"
+            "servicePrincipalName: MSSQL/db01.corp.local"
+        ),
+        "reading": [
+            {"field": "dn: CN=jdoe,CN=Users,DC=corp,DC=local",
+             "means": "Distinguished Name — the object's full, unique path in the directory tree.",
+             "do": "Read it right-to-left as a path: domain → container → object. It anchors every other attribute."},
+            {"field": "sAMAccountName: jdoe",
+             "means": "The actual login name (what you authenticate WITH).",
+             "do": "Collect these into your user list for spraying / roasting."},
+            {"field": "memberOf: ...Domain Admins",
+             "means": "Group membership — and this user is in Domain Admins.",
+             "do": "Flag high-value groups immediately. This account is a priority target."},
+            {"field": "description: temp account - pw Welcome1!",
+             "means": "Free-text field admins abuse to store passwords/notes.",
+             "do": "ALWAYS read description and info fields — cleartext creds hide here constantly, silently."},
+            {"field": "userAccountControl: 4260352",
+             "means": "A BITMASK of account flags. 4260352 includes 0x400000 = DONT_REQ_PREAUTH.",
+             "do": "Decode it: 0x400000 set = AS-REP roastable; 0x20 = no password required; 0x2 = disabled."},
+            {"field": "servicePrincipalName: MSSQL/db01...",
+             "means": "The account has an SPN — it runs a service.",
+             "do": "Any account with an SPN is Kerberoastable. Add it to your roast list."},
+        ],
+        "reference": {
+            "title": "userAccountControl flags worth decoding",
+            "rows": [
+                ("0x2 (2)", "ACCOUNTDISABLE — account is disabled"),
+                ("0x20 (32)", "PASSWD_NOTREQD — no password required"),
+                ("0x10000 (65536)", "DONT_EXPIRE_PASSWORD"),
+                ("0x400000 (4194304)", "DONT_REQ_PREAUTH — AS-REP roastable"),
+                ("0x80000 (524288)", "TRUSTED_FOR_DELEGATION — delegation abuse"),
+            ],
+        },
+        "work_with_it": (
+            "Grep the LDIF for the three money attributes: memberOf (find the admins), description/info "
+            "(find hidden passwords), and servicePrincipalName (find roast targets). Decode every "
+            "userAccountControl — a single DONT_REQ_PREAUTH bit hands you an offline crack with no login."
+        ),
+        "misreads": [
+            "description and info fields routinely contain plaintext passwords — never skip them.",
+            "userAccountControl is a bitmask, not a category — you must decode the bits, not read the number.",
+            "An SPN on a user account = Kerberoastable; don't overlook servicePrincipalName lines.",
+        ],
+    },
+
+    "enum4linux": {
+        "tool": "enum4linux(-ng)",
+        "headline": "enum4linux dumps what a null session leaks. The three lines that matter: does null work, what's the lockout policy, and which shares are readable.",
+        "sample": (
+            "[+] Server allows sessions using username '', password ''\n"
+            " =========== Users on 10.0.0.15 ===========\n"
+            "index: 0x1 RID: 0x1f4 acb: 0x00000210 Account: Administrator\n"
+            "index: 0x2 RID: 0x1f5 acb: 0x00000214 Account: Guest\n"
+            " =========== Share Enumeration ===========\n"
+            "\tSYSVOL          Disk      Logon server share\n"
+            "\tUsers           Disk\n"
+            "[+] Password Info: Minimum password length: 7  Lockout threshold: None"
+        ),
+        "reading": [
+            {"field": "Server allows sessions using '' ''",
+             "means": "A NULL SESSION is permitted — you enumerated without any credentials.",
+             "do": "Big win. Everything below came for free. If this line is absent, the rest is empty."},
+            {"field": "RID: 0x1f4 Account: Administrator",
+             "means": "RID cycling recovered domain users. 0x1f4 = 500 = Administrator.",
+             "do": "Harvest every Account: line into your user list for spraying/roasting."},
+            {"field": "Share Enumeration → SYSVOL, Users",
+             "means": "Readable shares. SYSVOL/NETLOGON are readable by any domain context.",
+             "do": "Mount SYSVOL — it often holds Groups.xml with GPP cpassword (a decryptable domain cred)."},
+            {"field": "Lockout threshold: None",
+             "means": "There is NO account-lockout policy on this domain.",
+             "do": "You can password-spray freely without locking anyone out. If it's a number, stay under it."},
+        ],
+        "reference": {
+            "title": "The signals that shape your next move",
+            "rows": [
+                ("null session allowed", "free enumeration — users, shares, policy"),
+                ("RID 500 / 501 / 1000+", "Administrator / Guest / created accounts"),
+                ("SYSVOL, NETLOGON", "domain shares — hunt GPP cpassword in Groups.xml"),
+                ("Lockout threshold: None", "spray with no lockout risk"),
+                ("acb flags", "account control bits — 0x210 normal, 0x211 disabled"),
+            ],
+        },
+        "work_with_it": (
+            "Turn the dump into three artifacts: a users.txt (from RID cycling) for spraying, a shares "
+            "list to mount (SYSVOL first, for GPP passwords), and the lockout number to bound your spray. "
+            "No null session? Note it and pivot to LDAP or authenticated enum."
+        ),
+        "misreads": [
+            "'Lockout threshold: None' is a green light to spray — no accounts will lock.",
+            "SYSVOL is readable by design and frequently leaks GPP cpassword — always check it.",
+            "No null-session line means the enumeration below is empty, not that the host is hardened everywhere.",
+        ],
+    },
+})
+
+
+# ── Batch 2b: web fuzzing + kerberos enum + credential capture outputs ──────
+OUTPUT_LESSONS.update({
+
+    "ffuf": {
+        "tool": "ffuf",
+        "headline": "ffuf gives you four numbers per hit — Status, Size, Words, Lines. You read the status like gobuster, but you FILTER on the other three.",
+        "sample": (
+            "[Status: 200, Size: 1256, Words: 210, Lines: 45] :: FUZZ: admin\n"
+            "[Status: 301, Size: 178, Words: 6, Lines: 8]     :: FUZZ: uploads\n"
+            "[Status: 403, Size: 278, Words: 20, Lines: 10]   :: FUZZ: backup\n"
+            "[Status: 200, Size: 4096, Words: 900, Lines: 120] :: FUZZ: .git\n"
+            ":: Progress: [4614/4614] :: 1200 req/sec"
+        ),
+        "reading": [
+            {"field": "Status: 200 / 301 / 403",
+             "means": "Same HTTP triage as any content scan: 200 exists, 301 redirects, 403 forbidden-but-present.",
+             "do": "403 is a find (try bypasses); 301 is usually a directory (recurse); 200 is live (go look)."},
+            {"field": "Size / Words / Lines",
+             "means": "Three measurements of the response body. A CLUSTER sharing all three = a soft-404 catch-all.",
+             "do": "Find the common (Size,Words,Lines) of the noise and filter it: -fs / -fw / -fl. This is the whole skill."},
+            {"field": "FUZZ: .git",
+             "means": "The wordlist entry that produced the hit — where FUZZ was substituted.",
+             "do": "Recognise dangerous hits (.git, .env, backup, /api) and prioritise them."},
+            {"field": ":: 1200 req/sec",
+             "means": "Throughput. Very high rates can trip WAFs/rate-limits and produce false 403/429s.",
+             "do": "If 403s suddenly flood, you may be blocked — slow down (-rate) and re-baseline."},
+        ],
+        "reference": {
+            "title": "Filtering is the skill — match/filter flags",
+            "rows": [
+                ("-fc 404,403", "filter OUT these status codes"),
+                ("-fs 278", "filter OUT this response size (the soft-404)"),
+                ("-fw 20", "filter OUT this word count"),
+                ("-mc 200,301", "MATCH only these codes"),
+                ("-ac", "auto-calibrate the soft-404 filter for you"),
+            ],
+        },
+        "work_with_it": (
+            "Run once unfiltered to learn the noise signature (the size/words/lines everything shares), "
+            "then re-run filtering it out so only anomalies remain. ffuf shows EVERYTHING by default — "
+            "unfiltered output is unreadable; the operator's job is to subtract the baseline."
+        ),
+        "misreads": [
+            "ffuf floods by default — a wall of 200s is a soft-404, not hundreds of real pages. Filter it.",
+            "A sudden burst of 403/429 usually means you tripped a rate-limit, not that you found 400 secrets.",
+            "Size, Words, AND Lines together identify the noise — one alone can miss a variable-length catch-all.",
+        ],
+    },
+
+    "kerbrute": {
+        "tool": "kerbrute",
+        "headline": "kerbrute's useful output is a short list of '[+] VALID USERNAME' lines — usernames confirmed against the KDC without a single password guess.",
+        "sample": (
+            "2024/06/01 12:00:00 >  [+] VALID USERNAME:  jdoe@corp.local\n"
+            "2024/06/01 12:00:00 >  [+] VALID USERNAME:  svc_sql@corp.local\n"
+            "2024/06/01 12:00:01 >  [+] admin@corp.local:Spring2024! \n"
+            "2024/06/01 12:00:02 >  Done! Tested 5000 usernames"
+        ),
+        "reading": [
+            {"field": "[+] VALID USERNAME: jdoe@corp.local",
+             "means": "This account EXISTS — confirmed by how the KDC replied, with no password attempted.",
+             "do": "Collect every valid name. This is your vetted spray/roast list — no wasted lockout budget on bad names."},
+            {"field": "[+] admin@corp.local:Spring2024!",
+             "means": "In passwordspray/bruteuser mode, a username:password hit — valid CREDENTIALS.",
+             "do": "That's a live login. Stop and use it."},
+            {"field": "Done! Tested 5000 usernames",
+             "means": "Run summary — how much of the list was checked.",
+             "do": "No valid lines = your username list didn't match this domain's naming (try firstname.lastname, etc.)."},
+        ],
+        "reference": {
+            "title": "kerbrute modes",
+            "rows": [
+                ("userenum", "which usernames exist (no passwords) — build the list"),
+                ("passwordspray", "one password vs many valid users"),
+                ("bruteuser", "many passwords vs one user"),
+                ("[+] VALID USERNAME", "confirmed account — feed to spray/roast"),
+            ],
+        },
+        "work_with_it": (
+            "Use userenum FIRST to trim a huge name list down to real accounts, THEN spray only those — "
+            "you never spend a lockout attempt on a username that doesn't exist. Valid names also feed "
+            "AS-REP roasting (GetNPUsers) directly."
+        ),
+        "misreads": [
+            "userenum still touches the KDC — bad guesses generate 4768 failures; it's quiet-ish, not invisible.",
+            "Zero valid usernames usually means wrong naming convention, not an empty domain — change the format.",
+            "Valid username ≠ valid login — it's a confirmed account to spray, not access yet.",
+        ],
+    },
+
+    "responder": {
+        "tool": "responder",
+        "headline": "When Responder catches something, it prints a NetNTLMv2 hash. Know what that hash IS — because it is NOT an NT hash and you cannot pass it.",
+        "sample": (
+            "[SMB] NTLMv2-SSP Client   : 10.0.0.50\n"
+            "[SMB] NTLMv2-SSP Username : CORP\\jdoe\n"
+            "[SMB] NTLMv2-SSP Hash     : jdoe::CORP:1122334455667788:AABB...:0101000000...\n"
+            "[*] Skipping previously captured hash for CORP\\jdoe"
+        ),
+        "reading": [
+            {"field": "NTLMv2-SSP Username : CORP\\jdoe",
+             "means": "WHOSE authentication you captured (a user or a machine account ending in $).",
+             "do": "Machine accounts ($) rarely crack — prioritise USER hashes for cracking."},
+            {"field": "NTLMv2-SSP Hash : jdoe::CORP:...",
+             "means": "A NetNTLMv2 (challenge/response) hash — NOT the account's NT hash.",
+             "do": "You can CRACK it offline (hashcat -m 5600) or RELAY it live — but you CANNOT pass-the-hash with it."},
+            {"field": "[*] Skipping previously captured hash",
+             "means": "Responder already grabbed this identity; it won't spam duplicates.",
+             "do": "Check the logs (/usr/share/responder/logs) for the full captured hashes."},
+        ],
+        "reference": {
+            "title": "NetNTLMv2 — what you can and can't do",
+            "rows": [
+                ("crack offline", "hashcat -m 5600 — works if the password is weak"),
+                ("relay live", "ntlmrelayx to an unsigned target — works even if uncrackable"),
+                ("pass-the-hash", "NO — NetNTLMv2 is not the NT hash; PtH is impossible"),
+                ("machine account ($)", "almost never cracks — relay instead"),
+            ],
+        },
+        "work_with_it": (
+            "Decide immediately: is the password likely weak? Crack it (-m 5600). Uncrackable or a machine "
+            "account? Turn off Responder's SMB/HTTP servers and RELAY instead (ntlmrelayx) to a signing-"
+            "disabled host. The one thing you can never do with this hash is pass it."
+        ),
+        "misreads": [
+            "NetNTLMv2 is NOT an NT hash — pass-the-hash will not work; crack or relay only.",
+            "Machine-account ($) hashes almost never crack — don't waste GPU time; relay them.",
+            "Responder is LOUD (it poisons broadcasts) — every capture is also a detection event.",
+        ],
+    },
+})

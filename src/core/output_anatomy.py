@@ -33,6 +33,9 @@ _ALIASES = {
     "impacket-secretsdump": "secretsdump", "secretsdump.py": "secretsdump",
     "enum4linux-ng": "enum4linux", "enum4linux.pl": "enum4linux",
     "feroxbuster": "ffuf", "wfuzz": "ffuf",  # column-based fuzzers read alike
+    "impacket-getuserspns": "getuserspns", "getuserspns.py": "getuserspns",
+    "netstat": "ss", "ss": "ss",             # network-state reading
+    "ps": "tasklist", "ps aux": "tasklist",  # process-list reading (Win/Linux)
 }
 
 
@@ -695,6 +698,294 @@ OUTPUT_LESSONS.update({
             "NetNTLMv2 is NOT an NT hash — pass-the-hash will not work; crack or relay only.",
             "Machine-account ($) hashes almost never crack — don't waste GPU time; relay them.",
             "Responder is LOUD (it poisons broadcasts) — every capture is also a detection event.",
+        ],
+    },
+})
+
+
+# ── Batch 3: share perms + vuln-scan triage + kerberoast hash format ────────
+OUTPUT_LESSONS.update({
+
+    "smbmap": {
+        "tool": "smbmap",
+        "headline": "smbmap is a permission map of shares. The Permissions column is the whole game: NO ACCESS, READ ONLY, or the jackpot — READ, WRITE.",
+        "sample": (
+            "[+] IP: 10.0.0.15:445    Name: DC01\n"
+            "        Disk                Permissions     Comment\n"
+            "        ----                -----------     -------\n"
+            "        ADMIN$              NO ACCESS       Remote Admin\n"
+            "        C$                  READ, WRITE     Default share\n"
+            "        SYSVOL              READ ONLY       Logon server share\n"
+            "        Users               READ ONLY"
+        ),
+        "reading": [
+            {"field": "Permissions column",
+             "means": "Your access level PER share — the only column that decides what you can do.",
+             "do": "Scan it first: NO ACCESS = skip, READ ONLY = exfil, READ+WRITE = drop files."},
+            {"field": "C$  READ, WRITE",
+             "means": "Write access to the C$ admin share — that is effectively admin on the machine.",
+             "do": "You can write anywhere on C:. This is a foothold; drop a payload or read SAM."},
+            {"field": "SYSVOL  READ ONLY",
+             "means": "The domain policy share, readable by any authenticated context.",
+             "do": "Mount it and hunt Groups.xml for GPP cpassword (a decryptable domain credential)."},
+            {"field": "ADMIN$  NO ACCESS",
+             "means": "You lack rights to the remote-admin share on this account.",
+             "do": "Not admin here (with this identity). Try other creds/hosts, or use a READ+WRITE share instead."},
+        ],
+        "reference": {
+            "title": "Permission levels → what they buy you",
+            "rows": [
+                ("NO ACCESS", "nothing — move on"),
+                ("READ ONLY", "download/exfil everything in the share"),
+                ("READ, WRITE", "upload files — payloads, SCF/.lnk hash-capture, overwrite"),
+                ("C$ / ADMIN$ writable", "effectively local admin on the host"),
+            ],
+        },
+        "work_with_it": (
+            "Sort shares by permission: writable shares first (drop a payload, or an SCF/.url file to "
+            "capture hashes from anyone browsing), then readable shares for exfil (configs, backups, "
+            "creds). Writable C$/ADMIN$ means you're already admin — pivot to secretsdump."
+        ),
+        "misreads": [
+            "READ, WRITE on C$ or ADMIN$ is effectively admin on the box — not just 'a writable folder'.",
+            "READ ONLY isn't a dead end — you can still exfil every file in the share.",
+            "Writable non-admin shares enable SCF/.url hash-capture attacks — don't overlook them.",
+        ],
+    },
+
+    "nuclei": {
+        "tool": "nuclei",
+        "headline": "Nuclei prints one line per match: [template-id] [protocol] [severity] [url]. Triage by SEVERITY, top-down — and know that [info] is noise, not findings.",
+        "sample": (
+            "[tech-detect:nginx] [http] [info] http://target.com\n"
+            "[CVE-2021-44228] [http] [critical] http://target.com/api\n"
+            "[ssl-issuer] [ssl] [info] target.com:443\n"
+            "[exposed-panels/grafana] [http] [medium] http://target.com/grafana\n"
+            "[git-config] [http] [high] http://target.com/.git/config"
+        ),
+        "reading": [
+            {"field": "[severity] tag ([info]…[critical])",
+             "means": "The triage key. Ordered: info < low < medium < high < critical.",
+             "do": "Read the [critical]/[high] lines FIRST. They're your entry points; everything else waits."},
+            {"field": "[info] tech-detect / ssl-issuer",
+             "means": "Informational — fingerprinting and metadata, NOT vulnerabilities.",
+             "do": "Don't report these as findings. They're context (what stack it is), not weaknesses."},
+            {"field": "[CVE-2021-44228] … [critical]",
+             "means": "A specific named check (here, Log4Shell) that MATCHED against a live URL.",
+             "do": "This is a real, exploitable entry. Look up the template-id, confirm, and exploit."},
+            {"field": "the trailing URL",
+             "means": "Exactly WHERE the match fired.",
+             "do": "Go straight to that endpoint — nuclei already told you the vulnerable path."},
+        ],
+        "reference": {
+            "title": "Severity triage + noise control",
+            "rows": [
+                ("critical / high", "exploitable — start here"),
+                ("medium", "worth investigating (exposed panels, misconfigs)"),
+                ("low", "minor — note it"),
+                ("info", "fingerprinting/metadata — NOT a vulnerability"),
+                ("-severity critical,high", "run this to skip the noise entirely"),
+            ],
+        },
+        "work_with_it": (
+            "Read the output as a ranked target list: hit [critical] → [high] → [medium], and ignore "
+            "[info] for reporting. Re-run with -severity critical,high,medium on noisy targets. Each "
+            "high/critical line hands you a template-id (look up the CVE) and the exact URL to attack."
+        ),
+        "misreads": [
+            "[info] lines are fingerprinting, not vulnerabilities — don't pad a report with them.",
+            "Triage top-down by severity; drowning in 50 [info] lines while missing the [critical] is the classic mistake.",
+            "A match means the check's condition was met — still confirm exploitability before claiming it.",
+        ],
+    },
+
+    "getuserspns": {
+        "tool": "impacket-GetUserSPNs (Kerberoast)",
+        "headline": "GetUserSPNs gives you a table (WHO is roastable and whether they matter) and a hash. The digit right after '$krb5tgs$' tells you if it'll crack fast.",
+        "sample": (
+            "ServicePrincipalName   Name      MemberOf         PasswordLastSet\n"
+            "--------------------   ----      --------         --------------\n"
+            "MSSQL/db01.corp.local  svc_sql   Domain Admins    2019-01-01\n"
+            "\n"
+            "$krb5tgs$23$*svc_sql$CORP.LOCAL$MSSQL/db01*$a1b2c3...long...hash"
+        ),
+        "reading": [
+            {"field": "MemberOf: Domain Admins",
+             "means": "This service account is a Domain Admin. Cracking it = full domain compromise.",
+             "do": "Prioritise roastable accounts in privileged groups — those are the ones that matter."},
+            {"field": "PasswordLastSet: 2019-01-01",
+             "means": "The password is years old — likely set before modern complexity policy.",
+             "do": "Old service-account passwords crack far more often. Move it up your list."},
+            {"field": "$krb5tgs$23$",
+             "means": "The '23' is the Kerberos encryption type: 23 = RC4. RC4 tickets crack fast.",
+             "do": "Crack with hashcat -m 13100. If it read $krb5tgs$18$ that's AES (etype 18) → -m 19700, much slower."},
+            {"field": "*svc_sql$CORP.LOCAL$MSSQL/db01*",
+             "means": "Embedded metadata — the account, realm, and SPN the ticket is for.",
+             "do": "Confirms which account this hash belongs to when you crack a batch."},
+        ],
+        "reference": {
+            "title": "Encryption type = crack difficulty",
+            "rows": [
+                ("$krb5tgs$23$", "RC4 (etype 23) — fast crack, hashcat -m 13100"),
+                ("$krb5tgs$18$", "AES256 (etype 18) — slow, hashcat -m 19700"),
+                ("$krb5tgs$17$", "AES128 (etype 17) — slow, hashcat -m 19600"),
+                ("MemberOf privileged", "prioritise — these accounts are worth the crack"),
+                ("old PasswordLastSet", "weaker password likely — crack these first"),
+            ],
+        },
+        "work_with_it": (
+            "Rank roast targets by two signals before spending GPU time: privileged MemberOf (does it "
+            "matter?) and old PasswordLastSet (will it crack?). Feed RC4 ($23) hashes to hashcat -m 13100 "
+            "first — a cracked Domain-Admin service account ends the engagement."
+        ),
+        "misreads": [
+            "The number after $krb5tgs$ is the ENCRYPTION type, not a version — 23=RC4 (easy), 18=AES (hard).",
+            "A roastable account only matters if it has privilege — check MemberOf before you burn hours cracking.",
+            "Getting the hash needs valid domain creds (unlike AS-REP roasting, which doesn't).",
+        ],
+    },
+})
+
+
+# ── Batch 3b: attack-path edges + post-exploitation host reading ────────────
+OUTPUT_LESSONS.update({
+
+    "bloodhound": {
+        "tool": "BloodHound (attack paths)",
+        "headline": "A BloodHound path is nodes joined by EDGES. Each edge is not a line — it's an abusable privilege. Read the path as a to-do list from you to Domain Admin.",
+        "sample": (
+            "jdoe@corp.local\n"
+            "  -[MemberOf]->      IT Support\n"
+            "    -[GenericAll]->  svc_backup\n"
+            "      -[MemberOf]->  Backup Operators\n"
+            "        -[DCSync]->  corp.local"
+        ),
+        "reading": [
+            {"field": "jdoe@corp.local (a node)",
+             "means": "Your starting principal — the account you control right now.",
+             "do": "This is the top of the path; every edge below is a step you can take from here."},
+            {"field": "-[MemberOf]-> IT Support",
+             "means": "Group membership, and it's TRANSITIVE — you inherit everything the group can do.",
+             "do": "Free step. You already have the group's rights; keep following the chain."},
+            {"field": "-[GenericAll]-> svc_backup",
+             "means": "FULL control over the svc_backup object — the single most powerful edge.",
+             "do": "Abuse it: reset svc_backup's password (or set an SPN and Kerberoast it) to take the account."},
+            {"field": "-[DCSync]-> corp.local",
+             "means": "Replication rights on the domain — you can pull EVERY hash, including krbtgt.",
+             "do": "secretsdump -just-dc → domain compromise / golden ticket. This is the finish line."},
+        ],
+        "reference": {
+            "title": "Common edges = the abuse they authorise",
+            "rows": [
+                ("MemberOf", "inherit the group's rights (transitive)"),
+                ("AdminTo", "local admin on that computer"),
+                ("GenericAll / GenericWrite", "full/most control — reset pw, set SPN, etc."),
+                ("WriteDacl / WriteOwner", "grant YOURSELF rights over the object"),
+                ("ForceChangePassword", "reset the target's password"),
+                ("DCSync", "replicate all domain hashes (krbtgt) — game over"),
+            ],
+        },
+        "work_with_it": (
+            "Convert the path into an ordered playbook: perform each edge's specific abuse in sequence "
+            "(MemberOf is free; GenericAll → reset password; DCSync → dump hashes). The shortest path "
+            "isn't always the quietest — some edges (AddMember, ForceChangePassword) are noisier than "
+            "others, so weigh detection against speed."
+        ),
+        "misreads": [
+            "Each edge is an abusable PRIVILEGE, not a relationship label — GenericAll means 'reset their password'.",
+            "MemberOf is transitive: you inherit rights several groups deep, not just direct memberships.",
+            "The shortest path can be the loudest — pick edges for stealth, not only hop count.",
+        ],
+    },
+
+    "ss": {
+        "tool": "ss / netstat",
+        "headline": "Post-compromise, ss shows the box's network reality. Two things matter: what's LISTENING (and on which interface) and what's ESTABLISHED (where this host talks).",
+        "sample": (
+            "State   Recv-Q Send-Q  Local Address:Port    Peer Address:Port   Process\n"
+            "LISTEN  0      128     0.0.0.0:22            0.0.0.0:*           sshd\n"
+            "LISTEN  0      80      127.0.0.1:3306        0.0.0.0:*           mysqld\n"
+            "ESTAB   0      0       10.0.0.5:49152        10.0.0.10:445       "
+        ),
+        "reading": [
+            {"field": "LISTEN  0.0.0.0:22",
+             "means": "A service listening on ALL interfaces — reachable from the network.",
+             "do": "Already exposed; you'd have seen it in an external scan. Note the Process (sshd)."},
+            {"field": "LISTEN  127.0.0.1:3306",
+             "means": "Bound to LOCALHOST only — invisible from outside, reachable only ON this box.",
+             "do": "PIVOT GOLD. An external scan missed this. Port-forward/tunnel to reach the internal MySQL."},
+            {"field": "ESTAB  10.0.0.5 → 10.0.0.10:445",
+             "means": "An established SMB connection to another host — a live trust/relationship.",
+             "do": "Maps where this box talks. 10.0.0.10:445 is your next lateral-movement candidate."},
+            {"field": "Process column",
+             "means": "Which program owns the socket (needs sufficient privilege to see).",
+             "do": "Ties a port to a service so you know what you're pivoting into."},
+        ],
+        "reference": {
+            "title": "What to look for post-exploitation",
+            "rows": [
+                ("0.0.0.0 / :: LISTEN", "reachable service (all interfaces / IPv6)"),
+                ("127.0.0.1 LISTEN", "localhost-only — a hidden pivot target; tunnel to it"),
+                ("ESTABLISHED", "active connection — reveals internal trust & next hops"),
+                ("ss -tulpn / netstat -ano", "the commands (TCP/UDP, listening, PID)"),
+            ],
+        },
+        "work_with_it": (
+            "Build two lists from the output: localhost-only LISTEN ports (tunnel to these — they were "
+            "invisible externally and are often unauthenticated internal services) and ESTABLISHED peers "
+            "(the box's trust map — where to move laterally). This is how a foothold becomes a pivot."
+        ),
+        "misreads": [
+            "127.0.0.1-bound services are the prize, not the boring ones — they're hidden internal pivot targets.",
+            "ESTABLISHED connections reveal the internal trust map — read them for your next hop.",
+            "0.0.0.0 = all interfaces (reachable); 127.0.0.1 = localhost only (needs a tunnel).",
+        ],
+    },
+
+    "tasklist": {
+        "tool": "tasklist / ps",
+        "headline": "A process list is a threat-and-target map. Before you act, read it for the defenders watching (EDR/AV) and the process holding the creds (LSASS).",
+        "sample": (
+            "Image Name          PID     Session   Mem Usage\n"
+            "=========           ===     =======   =========\n"
+            "lsass.exe           648     0         12,400 K\n"
+            "MsMpEng.exe         2100    0         181,000 K\n"
+            "Sysmon64.exe        1520    0         9,200 K\n"
+            "cmd.exe             4400    1         3,100 K"
+        ),
+        "reading": [
+            {"field": "MsMpEng.exe / Sysmon64.exe",
+             "means": "Defenders. MsMpEng = Windows Defender (AV); Sysmon = detailed event logging.",
+             "do": "READ THIS FIRST. Their presence dictates OpSec — Defender scans payloads, Sysmon logs your every move."},
+            {"field": "lsass.exe  PID 648",
+             "means": "The Local Security Authority — where credentials/hashes live in memory.",
+             "do": "This is your credential-dump target. Note the PID; dumping it triggers Sysmon EID 10."},
+            {"field": "Session column (0 vs 1)",
+             "means": "Session 0 = services/system; Session 1+ = an interactive user desktop.",
+             "do": "Session 1+ processes mean a user is logged in — potential live tokens to steal."},
+            {"field": "an unexpected / unsigned process",
+             "means": "Could be another operator's implant, a monitoring agent, or a target service.",
+             "do": "Investigate odd names/high memory — it's either competition, a defender, or an opportunity."},
+        ],
+        "reference": {
+            "title": "Names to recognise instantly",
+            "rows": [
+                ("MsMpEng.exe", "Windows Defender (AV)"),
+                ("Sysmon / Sysmon64", "Sysmon — deep event logging"),
+                ("CSFalconService / cb*", "CrowdStrike / Carbon Black EDR"),
+                ("lsass.exe", "credential store — your dump target"),
+                ("Session 1+", "interactive user — live tokens available"),
+            ],
+        },
+        "work_with_it": (
+            "Read defensively before offensively: catalogue every AV/EDR process and adjust your TTPs "
+            "(no on-disk payloads if Defender's up; memory-only + no LSASS touch if an EDR is watching). "
+            "THEN note lsass's PID and any interactive sessions as your credential/token targets."
+        ),
+        "misreads": [
+            "Scan for EDR/AV FIRST — acting before you spot CrowdStrike or Sysmon is how engagements get burned.",
+            "lsass isn't just a process — it's the credential vault; its PID is your dump target.",
+            "Session 1+ means a live user with stealable tokens; Session 0 is services only.",
         ],
     },
 })

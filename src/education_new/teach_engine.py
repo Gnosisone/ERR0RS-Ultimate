@@ -2239,6 +2239,75 @@ def handle_teach_request(query: str) -> dict:
     Main handler for teach/explain/learn requests.
     Returns: {status, stdout, source}
     """
+    # ── Command anatomy: "explain <full command>" or a raw command w/ args ──
+    # A bare tool name ("nmap") stays a normal lesson; a tool WITH flags/args
+    # ("nmap -sV 10.0.0.5") is broken down part-by-part instead.
+    _q = query.strip()
+    for _pfx in ("explain ", "break down ", "breakdown ", "anatomy ",
+                 "what does ", "walk me through ", "dissect "):
+        if _q.lower().startswith(_pfx):
+            _q = _q[len(_pfx):].strip()
+            break
+    try:
+        from src.core.command_anatomy import is_command, format_anatomy
+        if is_command(_q):
+            return {
+                "status": "success",
+                "source": "errz_anatomy",
+                "stdout": format_anatomy(_q),
+            }
+    except Exception:
+        pass  # anatomy is additive — never let it block a normal lesson
+
+    # ── Learning roadmap: "roadmap", "roadmap 5", "roadmap active directory" ─
+    _ql = query.lower().strip()
+    if any(k in _ql for k in ("roadmap", "learning path", "study plan",
+                              "curriculum", "what should i learn",
+                              "where do i start", "where should i start")):
+        try:
+            from src.education_new import roadmap as _rm
+            _rest = _ql
+            for _k in ("roadmap", "learning path", "study plan", "curriculum",
+                       "what should i learn", "where do i start",
+                       "where should i start", "show me the", "the", "next"):
+                _rest = _rest.replace(_k, "")
+            _rest = _rest.strip()
+            _stage = _rm.get_stage(_rest) if _rest else None
+            return {"status": "success", "source": "errz_roadmap",
+                    "stdout": _rm.format_stage(_stage) if _stage else _rm.format_roadmap()}
+        except Exception:
+            pass
+
+    # ── Cheat sheets: "cheatsheet", "cheat sheet kerberos", "nmap cheatsheet" ─
+    if "cheat" in _ql or "quick reference" in _ql:
+        try:
+            from src.education_new import cheatsheets as _cs
+            _topic = _ql
+            for _k in ("cheat sheet", "cheatsheet", "cheat-sheet",
+                       "quick reference", "cheat", "show me", "for", " on "):
+                _topic = _topic.replace(_k, " ")
+            _topic = _topic.strip()
+            if _topic:
+                _items = _cs.get_cheats(_topic) or _cs.search_cheats(_topic)
+            else:
+                _items = _cs.get_cheats()
+            return {"status": "success", "source": "errz_cheats",
+                    "stdout": _cs.format_cheats(_items)}
+        except Exception:
+            pass
+
+    # ── Results literacy: "how to read nmap output", "understand nxc results" ─
+    if any(k in _ql for k in ("read", "reading", "output", "results",
+                              "understand", "interpret", "make sense of")):
+        try:
+            from src.core import output_anatomy as _oa
+            for tok in _ql.replace("'", " ").replace("?", " ").split():
+                if _oa.has_output_lesson(tok):
+                    return {"status": "success", "source": "errz_output",
+                            "stdout": _oa.format_output_lesson(tok)}
+        except Exception:
+            pass
+
     # Special: ATT&CK tactic overview
     if any(q in query.lower() for q in ["mitre overview", "list tactics", "att&ck overview", "all tactics"]):
         engine = TeachEngine()
@@ -2250,10 +2319,22 @@ def handle_teach_request(query: str) -> dict:
 
     lesson = find_lesson(query)
     if lesson:
+        body = format_lesson(lesson)
+        # Follow-up: teach how to READ this tool's output (the results-literacy
+        # layer). A lesson that shows how to RUN a tool is only half the lesson.
+        try:
+            from src.core import output_anatomy as _oa
+            tool_key = next((k for k, v in LESSONS.items() if v is lesson), "")
+            for cand in (tool_key, *query.lower().split()):
+                if cand and _oa.has_output_lesson(cand):
+                    body += "\n\n" + _oa.format_output_lesson(cand, compact=True)
+                    break
+        except Exception:
+            pass
         return {
             "status": "success",
             "source": "errz_builtin",
-            "stdout": format_lesson(lesson),
+            "stdout": body,
         }
 
     # Try TeachEngine (handles ATTCK_KEYWORD_MAP + ChromaDB if available)

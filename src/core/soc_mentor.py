@@ -1012,6 +1012,174 @@ MENTOR = {
             "Heavy tool — run it when you want breadth without manual chaining.",
         ],
     },
+
+    # ── AD foothold decision chain (walkable flowchart) ─────────────────────
+    # These link into the existing nodes (enum4linux, crackmapexec, bloodhound,
+    # responder, hashcat) so get_next_steps_json() traverses the full internal
+    # foothold path: SMB → LDAP → Kerberos → spray/roast → relay → pass-the-hash.
+    "smb": {
+        "tldr": (
+            "SMB (445) is the richest low-effort surface in AD. Before any creds, "
+            "test for a null session — it often leaks users, shares, and policy."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "Read-only SMB enumeration and a null-session probe are unauthenticated "
+            "and quiet — no failed logons, no lockout risk. RID cycling is a burst "
+            "of lookups (noticeable) but still not authentication failures."
+        ),
+        "prerequisites": ["smb_port_open_445"],
+        "logical_next": [
+            {"tool": "enum4linux", "noise": "medium",
+             "why": "Standard SMB/Samba enumeration once the port is confirmed open."},
+            {"tool": "ldap", "noise": "quiet",
+             "why": "If SMB is locked down, pivot to LDAP — the directory itself."},
+            {"tool": "password-spraying", "noise": "loud",
+             "why": "Once you hold a user list, spray a seasonal password (policy-aware)."},
+        ],
+        "opsec_tips": [
+            "Always read the password policy (--pass-pol) BEFORE spraying — it stops domain-wide lockouts.",
+            "Null-session enumeration is quiet; prefer it before any authenticated action.",
+            "RID-brute to pull usernames when null shares are blocked but the session is allowed.",
+            "Target one host for deep enumeration rather than sweeping the whole subnet.",
+        ],
+    },
+    "ldap": {
+        "tldr": (
+            "LDAP (389/636) is the directory itself. An anonymous bind — still open "
+            "on many domains — dumps users, groups, and SPNs directly."
+        ),
+        "noise_level": "quiet",
+        "noise_explanation": (
+            "Anonymous/authenticated LDAP reads look like normal directory traffic "
+            "and are rarely alerted. The gold is in description/info fields — admins "
+            "hide passwords there constantly, and reading them is silent."
+        ),
+        "prerequisites": ["ldap_port_open_389"],
+        "logical_next": [
+            {"tool": "kerberos", "noise": "medium",
+             "why": "Validate the harvested usernames against the KDC without passwords."},
+            {"tool": "bloodhound", "noise": "medium",
+             "why": "Feed users/groups into BloodHound to map paths to Domain Admin."},
+            {"tool": "kerberoasting", "noise": "medium",
+             "why": "LDAP surfaced accounts with SPNs — those are Kerberoast candidates."},
+        ],
+        "opsec_tips": [
+            "Check description and info attributes first — silent, high-value credential finds.",
+            "Anonymous bind reads cost nothing and alert nothing; try them before authenticating.",
+            "Query for servicePrincipalName=* to enumerate roastable accounts passively.",
+            "Prefer LDAPS (636) where available so the query content isn't on the wire in clear.",
+        ],
+    },
+    "kerberos": {
+        "tldr": (
+            "Kerberos (88) means you're looking at a DC. It lets you validate "
+            "usernames WITHOUT a password and hunt AS-REP-roastable accounts."
+        ),
+        "noise_level": "medium",
+        "noise_explanation": (
+            "kerbrute userenum is louder than it looks — invalid usernames still "
+            "touch the KDC and log 4768 failures. AS-REP cracking itself is fully "
+            "offline and invisible; only the ticket request touches the target."
+        ),
+        "prerequisites": ["kerberos_port_open_88", "username_list"],
+        "logical_next": [
+            {"tool": "asrep-roasting", "noise": "quiet",
+             "why": "Request AS-REPs for preauth-disabled accounts — crack offline, no logons."},
+            {"tool": "kerberoasting", "noise": "medium",
+             "why": "With any valid creds, request TGS tickets for SPN accounts and crack them."},
+            {"tool": "password-spraying", "noise": "loud",
+             "why": "No roastable accounts? Spray the validated user list carefully."},
+        ],
+        "opsec_tips": [
+            "Throttle kerbrute — every invalid user is a 4768 failure a SOC can baseline on.",
+            "AS-REP and Kerberoast cracking are offline and silent; do the loud part (the request) once.",
+            "Prefer AES-aware requests where possible; a flood of RC4 (0x17) tickets is a detection signature.",
+            "Validate usernames before spraying so you never waste a lockout-budget attempt on a bad name.",
+        ],
+    },
+    "password-spraying": {
+        "tldr": (
+            "One likely password against every user, staying under the lockout "
+            "threshold. Seasonal and company-name passwords still work far too often."
+        ),
+        "noise_level": "loud",
+        "noise_explanation": (
+            "Every attempt is a logged authentication event. Done wrong it locks out "
+            "the domain and burns the engagement. Done right — one attempt per user "
+            "per window, below threshold — it hides in normal failed-login noise."
+        ),
+        "prerequisites": ["user_list", "password_policy_known"],
+        "logical_next": [
+            {"tool": "crackmapexec", "noise": "medium",
+             "why": "Got a valid credential? Spray it across the AD environment to find where it's admin."},
+            {"tool": "bloodhound", "noise": "medium",
+             "why": "Any valid creds → authenticated collection and shortest-path-to-DA analysis."},
+            {"tool": "ntlm-relay", "noise": "loud",
+             "why": "Spray came up empty? Coercion + relay can get auth without cracking anything."},
+        ],
+        "opsec_tips": [
+            "One attempt per user per lockout window — track your count or you WILL lock accounts.",
+            "Leave headroom: threshold minus two, then wait the reset window before the next password.",
+            "Spray, don't brute: many users / one password, never many passwords / one user.",
+            "Time it to business hours so attempts blend with genuine user typos.",
+        ],
+    },
+    "ntlm-relay": {
+        "tldr": (
+            "Coerce a host to authenticate to you, then relay that auth to a target "
+            "where SMB signing is NOT required — auth without cracking anything."
+        ),
+        "noise_level": "loud",
+        "noise_explanation": (
+            "The loudest path in the tree. Responder/ntlmrelayx poison broadcast "
+            "traffic and can disrupt the network. Every poisoned response is logged; "
+            "get explicit written sign-off and prefer targeted coercion over blanket poisoning."
+        ),
+        "prerequisites": ["lan_access_layer2", "unsigned_smb_targets"],
+        "logical_next": [
+            {"tool": "responder", "noise": "loud",
+             "why": "Poison LLMNR/NBT-NS/mDNS (or -A to listen first) to harvest and trigger auth."},
+            {"tool": "crackmapexec", "noise": "medium",
+             "why": "Relayed into a host — now enumerate and spread with the captured session."},
+            {"tool": "pass-the-hash", "noise": "medium",
+             "why": "Dumped a hash off the relayed target? Reuse it laterally without the password."},
+        ],
+        "opsec_tips": [
+            "Generate the relay list first (signing:False hosts) — only unsigned targets are valid.",
+            "Use responder -A (analyze) to see what's exploitable BEFORE you light up and poison.",
+            "Targeted coercion (PetitPotam/PrinterBug) limits blast radius vs blanket poisoning.",
+            "This can break production name resolution — schedule a window and warn the client.",
+        ],
+    },
+    "pass-the-hash": {
+        "tldr": (
+            "Authenticate with the NT hash, never the plaintext. Steal it once and "
+            "reuse it anywhere it's valid — the hash IS the credential."
+        ),
+        "noise_level": "medium",
+        "noise_explanation": (
+            "The hash reuse leaves a specific fingerprint: an NTLM network logon "
+            "(4624) with no matching Kerberos ticket, and — for Mimikatz pth — a "
+            "Logon Type 9 with seclogo/Negotiate. See the Purple Team module for the "
+            "full detection artifacts (Sigma/Splunk/Sentinel)."
+        ),
+        "prerequisites": ["nt_hash_obtained"],
+        "logical_next": [
+            {"tool": "crackmapexec", "noise": "medium",
+             "why": "Spray the hash across the subnet to find every host where it's admin."},
+            {"tool": "bloodhound", "noise": "medium",
+             "why": "Mapped a path that needs a hash you now hold? Execute the next hop."},
+            {"tool": "hashcat", "noise": "quiet",
+             "why": "Prefer cracking the hash offline first when a plaintext would be more portable."},
+        ],
+        "opsec_tips": [
+            "Target a single host over subnet sweeps — one 'Pwn3d!' is quieter than a hundred attempts.",
+            "--local-auth hits the local SAM (loud on that host); domain PtH lights up the DC.",
+            "Credential Guard / LSA Protection on the target will deny the hash source entirely.",
+            "Cross-check the Purple Team module so you know exactly what the SOC will see.",
+        ],
+    },
 }
 
 

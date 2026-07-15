@@ -450,6 +450,11 @@ def start_api(ai, host="0.0.0.0", port=8000, ctx=None, pm=None,
     def search(q: str, n: int = 4):
         return {"query": q, "results": ai.search_knowledge(q, n)}
 
+    # Knowledge endpoints (purple / anatomy / interpret / roadmap / cheat /
+    # tool registry / results literacy / RAG) live in ONE testable router.
+    from src.ui.knowledge_api import knowledge_router
+    app.include_router(knowledge_router)
+
     if pm and ctx:
         @app.get("/plugins")
         def list_plugins():

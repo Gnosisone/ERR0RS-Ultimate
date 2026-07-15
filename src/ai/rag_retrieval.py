@@ -154,20 +154,29 @@ def _format_chunks(chunks: list[dict], header_label: str = "Reference Material")
     return f"### {header_label} (from ERR0RS RAG)\n\n{body}"
 
 
+def _registry_fallback(tool_name: str) -> Optional[str]:
+    """Deterministic grounding straight from the unified tool registry, used
+    when the chunked collection has no chunks for this tool (or RAG is off).
+    Guarantees the model gets ground truth for any registry-known tool."""
+    try:
+        from src.ai.registry_rag import ground_for_tool
+        return ground_for_tool(tool_name)
+    except Exception:
+        return None
+
+
 def retrieve_for_tool(tool_name: str, n: int = 2) -> Optional[str]:
     """Retrieve teach content for a specific tool that just ran.
 
-    Uses metadata filter for exact tool match — we want chunks for THIS
-    tool, not whatever semantically matched. Prefers the intro chunk
-    (most contextually grounding) plus one content chunk by default.
-
-    Returns a formatted prompt block, or None if nothing relevant was
-    found or RAG isn't available."""
+    Prefers the chunked RAG collection (exact tool-name metadata match); if
+    that has nothing — or RAG isn't available — falls back to the deterministic
+    tool_registry ground truth so every known tool still grounds the model.
+    Returns a formatted prompt block, or None."""
     if not tool_name:
         return None
     coll = _ensure_collection()
     if coll is None:
-        return None
+        return _registry_fallback(tool_name)
 
     try:
         # Pull all chunks for this tool. The metadata filter is exact;
@@ -182,7 +191,7 @@ def retrieve_for_tool(tool_name: str, n: int = 2) -> Optional[str]:
         docs = result.get("documents") or []
         metas = result.get("metadatas") or []
         if not docs:
-            return None
+            return _registry_fallback(tool_name)
 
         # Order: intro chunk first, then the rest. The intro is small
         # and ALWAYS gives the model "what is this tool" context.
@@ -195,7 +204,7 @@ def retrieve_for_tool(tool_name: str, n: int = 2) -> Optional[str]:
         )
     except Exception as e:
         log.warning(f"retrieve_for_tool({tool_name}) failed: {e}")
-        return None
+        return _registry_fallback(tool_name)
 
 
 def retrieve_for_query(query: str, n: int = 2) -> Optional[str]:

@@ -120,6 +120,13 @@ HELP_TEXT = """
     cmds: scan portscan stealth udp vuln full
           subghz badusb nfc ir status
   autopilot <target>        Autonomous kill chain mode
+  purple <technique> [surf] Attack → blue-team detections (Sigma/Splunk/…)
+  anatomy <command>         Break a command down part-by-part (what/why)
+  interpret <file|text>     Read tool output → findings + taught next steps
+  roadmap [n|topic]         Learning roadmap (ordered curriculum + why)
+  cheat [tool|search]       Quick command cheat sheets
+  tool <name>               Unified tool dossier (all knowledge in one view)
+  results <tool>            How to READ a tool's output (results literacy)
   plugins                   List loaded plugins
   findings [plugin]         Show session findings
   summary                   Session summary
@@ -253,6 +260,80 @@ def start_cli(router, ctx=None, pm=None, agent: str = "red_team"):
                 target = user_input.split(None, 1)[1].strip()
                 ap = AutoPilot(router=router, ctx=ctx, delay=1.0)
                 ap.run(target, max_steps=5)
+                continue
+
+            # ── Purple team: red technique → blue detections ──────
+            if low == "purple" or low.startswith("purple "):
+                from src.security import purple_team as _pt
+                parts     = user_input.split(None, 2)
+                technique = parts[1] if len(parts) > 1 else ""
+                surfaces  = [parts[2]] if len(parts) > 2 else None
+                if not technique:
+                    cat = ", ".join(t["key"] for t in _pt.list_techniques())
+                    print(f"\n  Usage: purple <technique> [surface]")
+                    print(f"  Techniques: {cat}")
+                    print(f"  Surfaces:   {', '.join(_pt.DETECTION_SURFACES)}\n")
+                else:
+                    print(_pt.format_purple_block(technique, surfaces=surfaces))
+                continue
+
+            # ── Command anatomy: explain a command part-by-part ───
+            if low.startswith("anatomy ") or low.startswith("explain "):
+                cmdstr = user_input.split(None, 1)[1].strip()
+                from src.core.command_anatomy import is_command, format_anatomy
+                if is_command(cmdstr):
+                    print(format_anatomy(cmdstr))
+                    continue
+                # not a runnable command → fall through to normal teach/router
+
+            # ── Output interpreter: read tool output, taught next steps ───
+            if low.startswith("interpret "):
+                import os as _os
+                arg = user_input.split(None, 1)[1].strip()
+                if _os.path.isfile(arg):
+                    try:
+                        with open(arg, "r", errors="replace") as _fh:
+                            text = _fh.read()
+                    except OSError as e:
+                        print(f"  Could not read {arg}: {e}")
+                        continue
+                else:
+                    text = arg  # treat the remainder as inline output
+                from src.core.output_interpreter import format_interpretation
+                print(format_interpretation(text))
+                continue
+
+            # ── Learning roadmap ──────────────────────────────────
+            if low == "roadmap" or low.startswith("roadmap "):
+                from src.education_new import roadmap as _rm
+                arg = user_input.split(None, 1)[1].strip() if " " in user_input else ""
+                stage = _rm.get_stage(arg) if arg else None
+                print(_rm.format_stage(stage) if stage else _rm.format_roadmap())
+                continue
+
+            # ── Cheat sheets ──────────────────────────────────────
+            if low == "cheat" or low.startswith("cheat "):
+                from src.education_new import cheatsheets as _cs
+                arg = user_input.split(None, 1)[1].strip() if " " in user_input else ""
+                if arg:
+                    items = _cs.get_cheats(arg) or _cs.search_cheats(arg)
+                else:
+                    items = _cs.get_cheats()
+                print(_cs.format_cheats(items))
+                continue
+
+            # ── Unified tool dossier ──────────────────────────────
+            if low.startswith("tool "):
+                from src.core import tool_registry as _tr
+                name = user_input.split(None, 1)[1].strip()
+                print(_tr.format_tool(name))
+                continue
+
+            # ── Results literacy: how to read a tool's output ─────
+            if low.startswith("results "):
+                from src.core.output_anatomy import format_output_lesson
+                name = user_input.split(None, 1)[1].strip()
+                print(format_output_lesson(name))
                 continue
 
 

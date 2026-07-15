@@ -79,9 +79,15 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.0",
+  # Floor matches the pytest actually runnable in the shipped venv (7.4.x);
+  # see [tool.pytest.ini_options].minversion. A fresh install may pull newer.
+  "pytest>=7.4",
   "pytest-asyncio>=0.23",
   "pytest-cov>=4.1",
+  # httpx is used directly by the API tests (via ASGITransport, the modern
+  # replacement for starlette's TestClient — TestClient(app=...) breaks under
+  # httpx>=0.28 with older starlette, so we don't depend on it).
+  "httpx>=0.24",
   "black>=24.0",
   "ruff>=0.4",
   "mypy>=1.8",
@@ -119,7 +125,11 @@ packages = ["src"]
 "src" = ["ai/*.md", "tools/*.json", "tools/*.schema.json"]
 
 [tool.pytest.ini_options]
-minversion = "8.0"
+# Honest floor: matches the pytest actually runnable in-env (7.4.x) and the
+# minimum the suite requires. The `dev` extra still targets >=8.0 for fresh
+# installs; >=8.0 trivially satisfies this floor, so no drift is introduced.
+# (Previously "8.0", which hard-aborted collection on the 7.4.3 shipped here.)
+minversion = "7.4"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra --strict-markers"

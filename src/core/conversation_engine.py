@@ -18,6 +18,7 @@
 """
 
 import json
+import os
 import threading
 import subprocess
 import requests
@@ -233,13 +234,29 @@ class ConversationEngine:
     ]
 
     def __init__(self,
-                 model:       str = "gemma3:1b",
-                 ollama_host: str = "http://localhost:11434"):
-        self.ollama_host = ollama_host
+                 model:       str = None,
+                 ollama_host: str = None):
+        # Endpoint + model are env-configurable so ERR0RS can point at either
+        # stock Ollama (CPU, :11434) or hailo-ollama (Hailo-10H HAT, :8000)
+        # with NO code change:
+        #   ERR0RS_LLM_HOST=http://localhost:8000
+        #   ERR0RS_LLM_MODEL=qwen2.5-coder:1.5b
+        self.ollama_host = ollama_host or os.environ.get(
+            "ERR0RS_LLM_HOST", "http://localhost:11434")
         self._sessions: Dict[str, ConversationHistory] = {}
         self._lock       = threading.Lock()
-        # Auto-select fastest available model
-        self.model = self._pick_best_model(model)
+        # Model resolution: explicit arg > env override > auto-select. An
+        # explicit/env model is used verbatim, so a HAT model such as
+        # qwen2.5-coder:1.5b is not overridden by the CPU preference list.
+        env_model = os.environ.get("ERR0RS_LLM_MODEL")
+        if model:
+            self.model = model
+        elif env_model:
+            self.model = env_model
+            print(f"[ERR0RS ConvEngine] Model from ERR0RS_LLM_MODEL: {env_model}")
+        else:
+            self.model = self._pick_best_model("gemma3:1b")
+        print(f"[ERR0RS ConvEngine] LLM endpoint: {self.ollama_host} | model: {self.model}")
         # Warm up the selected model in a background thread
         threading.Thread(target=self._warmup, daemon=True).start()
 

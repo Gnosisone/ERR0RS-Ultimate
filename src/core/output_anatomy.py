@@ -36,6 +36,8 @@ _ALIASES = {
     "impacket-getuserspns": "getuserspns", "getuserspns.py": "getuserspns",
     "netstat": "ss", "ss": "ss",             # network-state reading
     "ps": "tasklist", "ps aux": "tasklist",  # process-list reading (Win/Linux)
+    "impacket-getnpusers": "getnpusers", "getnpusers.py": "getnpusers",
+    "certipy-ad": "certipy", "certipy.py": "certipy",
 }
 
 
@@ -986,6 +988,313 @@ OUTPUT_LESSONS.update({
             "Scan for EDR/AV FIRST — acting before you spot CrowdStrike or Sysmon is how engagements get burned.",
             "lsass isn't just a process — it's the credential vault; its PID is your dump target.",
             "Session 1+ means a live user with stealable tokens; Session 0 is services only.",
+        ],
+    },
+})
+
+
+# ── Batch 4: AS-REP roast + web-stack fingerprint + WordPress enum ──────────
+OUTPUT_LESSONS.update({
+
+    "getnpusers": {
+        "tool": "impacket-GetNPUsers (AS-REP roasting)",
+        "headline": "GetNPUsers is Kerberoasting's no-password cousin. It lists accounts with pre-auth disabled and hands you a $krb5asrep$ hash — the '23' means RC4, and RC4 cracks fast.",
+        "sample": (
+            "Name        MemberOf  PasswordLastSet      LastLogon\n"
+            "----------  --------  -------------------  -------------------\n"
+            "svc_backup            2020-05-01 10:00:00  2024-01-01 08:00:00\n"
+            "mjones                2019-03-15 14:00:00  <never>\n"
+            "\n"
+            "$krb5asrep$23$svc_backup@CORP.LOCAL:a1b2c3...$d4e5f6...long...hash"
+        ),
+        "reading": [
+            {"field": "the account list itself",
+             "means": "Every name here has Kerberos pre-authentication DISABLED (DONT_REQ_PREAUTH) — a misconfiguration.",
+             "do": "You got these WITHOUT any password. That's the whole point: AS-REP roasting needs only a username list."},
+            {"field": "$krb5asrep$23$svc_backup@CORP.LOCAL",
+             "means": "The roastable hash. '23' is the Kerberos etype = RC4. The account+realm are embedded.",
+             "do": "Crack with hashcat -m 18200 (NOT -m 13100 — that's Kerberoast/TGS). RC4 cracks quickly."},
+            {"field": "LastLogon: <never>  (mjones)",
+             "means": "A stale/never-used account — often a forgotten service or test account.",
+             "do": "Stale accounts frequently have weak, ancient passwords. Prioritise them in the crack."},
+            {"field": "PasswordLastSet: 2019/2020",
+             "means": "Old passwords, likely pre-complexity-policy.",
+             "do": "Feed the oldest first — best odds of a fast crack."},
+        ],
+        "reference": {
+            "title": "AS-REP vs Kerberoast — don't mix them up",
+            "rows": [
+                ("$krb5asrep$23$", "AS-REP (RC4) — crack with hashcat -m 18200"),
+                ("$krb5tgs$23$", "Kerberoast (RC4) — that's GetUserSPNs, -m 13100"),
+                ("needs NO creds", "AS-REP only needs a username list (pre-auth off)"),
+                ("needs valid creds", "Kerberoast needs a domain account to request tickets"),
+                ("root cause", "an admin set 'do not require pre-auth' on the account"),
+            ],
+        },
+        "work_with_it": (
+            "This is your FIRST Kerberos move on a domain — it needs no credentials, just names (feed it "
+            "a list, or -usersfile from kerbrute/enum4linux output). Rank hits by stale LastLogon and old "
+            "PasswordLastSet, crack RC4 ($23) with -m 18200, and you may get a foothold before you've "
+            "authenticated to anything."
+        ),
+        "misreads": [
+            "AS-REP roasting needs NO password — that's what separates it from Kerberoasting.",
+            "The mode is -m 18200 (AS-REP), not -m 13100 (that's the TGS/Kerberoast hash).",
+            "No results doesn't mean the domain is safe — it means no accounts have pre-auth disabled (good hygiene).",
+        ],
+    },
+
+    "whatweb": {
+        "tool": "whatweb",
+        "headline": "whatweb is a routing tool: it fingerprints the web stack so you know WHAT to attack next. Every version in brackets is a CVE lookup waiting to happen.",
+        "sample": (
+            "http://target.com [200 OK] Apache[2.4.29], HTTPServer[Apache/2.4.29 (Ubuntu)], "
+            "PHP[7.2.24], WordPress[5.7], JQuery[1.12.4], X-Powered-By[PHP/7.2.24], "
+            "Country[US], IP[10.0.0.50]"
+        ),
+        "reading": [
+            {"field": "[200 OK]",
+             "means": "The HTTP status — the site responded normally.",
+             "do": "Live target; proceed. A 301/302 here means fingerprint the redirect destination instead."},
+            {"field": "Apache[2.4.29], PHP[7.2.24]",
+             "means": "The server + language, WITH exact versions.",
+             "do": "searchsploit these strings — old Apache/PHP versions carry known CVEs. This is your fastest win check."},
+            {"field": "WordPress[5.7]",
+             "means": "A CMS was detected — the app is WordPress.",
+             "do": "Pivot immediately to wpscan; WordPress has its own rich attack surface (plugins/themes/users)."},
+            {"field": "JQuery[1.12.4]",
+             "means": "An old client-side JS library.",
+             "do": "Outdated jQuery → known XSS/prototype-pollution CVEs; note it for client-side testing."},
+            {"field": "HTTPServer[... Ubuntu], X-Powered-By",
+             "means": "Leaked OS + framework details the server didn't need to reveal.",
+             "do": "Ubuntu → tailor payloads; X-Powered-By confirms the backend. Also: these headers are a finding (info leak)."},
+        ],
+        "reference": {
+            "title": "What each fingerprint routes you toward",
+            "rows": [
+                ("Server/language + version", "searchsploit for version-specific CVEs"),
+                ("WordPress / Drupal / Joomla", "run the CMS-specific scanner (wpscan, droopescan)"),
+                ("old JS libs (jQuery, Angular)", "client-side CVEs / XSS"),
+                ("X-Powered-By, Server headers", "info leak — note it, and it confirms the stack"),
+                ("WAF/CDN (Cloudflare)", "expect filtering; plan evasion"),
+            ],
+        },
+        "work_with_it": (
+            "Don't attack from whatweb output — ROUTE from it. Each finding points to the next tool: a CMS "
+            "→ its scanner, a versioned server/language → a CVE search, an old JS lib → client-side testing. "
+            "It turns 'a website' into a prioritised list of specific, version-pinned things to try."
+        ),
+        "misreads": [
+            "whatweb finds direction, not vulnerabilities — the versions are leads to chase, not confirmed bugs.",
+            "A detected CMS (WordPress) means switch to its dedicated scanner — don't hand-test it generically.",
+            "Server/X-Powered-By headers are themselves a reportable info-leak, not just recon for you.",
+        ],
+    },
+
+    "wpscan": {
+        "tool": "wpscan",
+        "headline": "wpscan output is a triage list for a WordPress site. The [!] markers are the findings — and a vulnerable PLUGIN is usually the way in, not the core.",
+        "sample": (
+            "[+] WordPress version 5.7 identified (Insecure, released 2021-03-09)\n"
+            "[+] WordPress theme in use: twentytwenty\n"
+            "[i] Plugin(s) Identified:\n"
+            "[+] contact-form-7\n"
+            " | Version: 5.3.1 (Latest is 5.7.5)\n"
+            " | [!] Title: Contact Form 7 < 5.3.2 - Unrestricted File Upload\n"
+            "[+] Enumerating Users\n"
+            " | admin\n"
+            " | editor"
+        ),
+        "reading": [
+            {"field": "WordPress version 5.7 (Insecure)",
+             "means": "The core version, flagged 'Insecure' = known CVEs exist for it.",
+             "do": "Note it, but core is usually hardened/patched fast — the plugins below are the softer target."},
+            {"field": "[!] Title: Contact Form 7 < 5.3.2 - Unrestricted File Upload",
+             "means": "THE finding. A [!] line is a confirmed vulnerable plugin with a named exploit class.",
+             "do": "This is your entry point. 'Unrestricted File Upload' → drop a webshell. Look up the exploit/PoC."},
+            {"field": "Version: 5.3.1 (Latest is 5.7.5)",
+             "means": "The plugin is far behind — the gap is where the vulns live.",
+             "do": "The bigger the version gap, the more accumulated CVEs. Confirm the vuln applies to 5.3.1."},
+            {"field": "Enumerating Users → admin, editor",
+             "means": "Valid WordPress usernames were enumerated.",
+             "do": "Feed these to a wp-login brute: wpscan --passwords rockyou.txt --usernames admin."},
+        ],
+        "reference": {
+            "title": "Reading the markers",
+            "rows": [
+                ("[+]", "identified item (version, plugin, theme, user)"),
+                ("[!]", "a VULNERABILITY — this is what you act on"),
+                ("[i]", "informational context"),
+                ("'Insecure' tag", "known CVEs exist for that version"),
+                ("Enumerated users", "feed a wp-login password attack"),
+            ],
+        },
+        "work_with_it": (
+            "Scan the [!] lines first — vulnerable plugins/themes are the classic WordPress foothold "
+            "(especially file-upload and RCE classes → webshell). Bank enumerated usernames for a targeted "
+            "login brute. Treat the core version as context, not usually the way in. Run authenticated "
+            "(--api-token) for complete vuln data."
+        ),
+        "misreads": [
+            "The core version is rarely the way in — [!] vulnerable PLUGINS are; read those first.",
+            "A big plugin version gap = accumulated CVEs, but still confirm the specific bug applies.",
+            "Enumerated users aren't access — they're the username half of a login brute you still have to run.",
+        ],
+    },
+})
+
+
+# ── Batch 4b: credential extraction + DNS zone transfer + ADCS ESC ──────────
+OUTPUT_LESSONS.update({
+
+    "mimikatz": {
+        "tool": "mimikatz (sekurlsa::logonpasswords)",
+        "headline": "Mimikatz dumps a block per logon session. Read the packages: msv gives you the NTLM hash (pass it), wdigest sometimes gives cleartext (a gift on older Windows).",
+        "sample": (
+            "Authentication Id : 0 ; 515762\n"
+            "User Name         : jdoe\n"
+            "Domain            : CORP\n"
+            "        msv :\n"
+            "         * NTLM     : 9f4e1b7c0a2d3e4f5061728394a5b6c7\n"
+            "         * SHA1     : aabbccddeeff...\n"
+            "        wdigest :\n"
+            "         * Password : Summer2024!\n"
+            "        kerberos :\n"
+            "         * Password : (null)"
+        ),
+        "reading": [
+            {"field": "User Name / Domain",
+             "means": "Whose logon session this block belongs to (a user, or a machine account if it ends in $).",
+             "do": "Prioritise interactive USER sessions — they hold the credentials worth stealing."},
+            {"field": "msv → NTLM : 9f4e...",
+             "means": "The account's NT hash, straight from LSASS memory.",
+             "do": "Pass-the-Hash with this immediately (nxc -H, psexec -hashes) — no cracking needed. Or crack it (-m 1000)."},
+            {"field": "wdigest → Password : Summer2024!",
+             "means": "CLEARTEXT password. Present on Win7/2008R2, or when UseLogonCredential=1 is set on newer Windows.",
+             "do": "The jackpot — a plaintext credential. Reuse it everywhere; no hash, no cracking."},
+            {"field": "kerberos → Password : (null)",
+             "means": "This package held no cleartext (normal on patched/modern Windows).",
+             "do": "(null) means empty package, NOT an empty account password — fall back to the msv NTLM hash."},
+        ],
+        "reference": {
+            "title": "The credential packages",
+            "rows": [
+                ("msv → NTLM", "the NT hash — pass it or crack it (always present)"),
+                ("wdigest → Password", "cleartext on old Win / when UseLogonCredential=1"),
+                ("kerberos → Password", "cleartext on some configs; often (null)"),
+                ("tspkg / credman", "extra cleartext sources worth scanning"),
+                ("machine account ($)", "usually not useful for reuse"),
+            ],
+        },
+        "work_with_it": (
+            "Scan every block for a wdigest/kerberos CLEARTEXT first (instant win). Absent that, take the "
+            "msv NTLM hash and pass it — you rarely need to crack. Map which sessions belong to privileged "
+            "users (a Domain Admin's cached session on a workstation is how domains fall). Dumping LSASS is "
+            "loud: Sysmon EID 10 fires — see the Purple Team module."
+        ),
+        "misreads": [
+            "(null) means that package was empty, NOT that the account password is blank.",
+            "You usually don't need to crack — the msv NTLM hash is directly passable, and wdigest may be cleartext.",
+            "wdigest cleartext isn't guaranteed — it appears on legacy Windows or when explicitly re-enabled.",
+        ],
+    },
+
+    "dig": {
+        "tool": "dig (AXFR zone transfer)",
+        "headline": "A successful AXFR is a jackpot misconfiguration: the DNS server hands you its ENTIRE zone — every internal hostname and IP. SRV records even point you at the domain controllers.",
+        "sample": (
+            "; <<>> DiG <<>> axfr corp.local @10.0.0.10\n"
+            "corp.local.            3600 IN SOA   dc01.corp.local. admin.corp.local. ...\n"
+            "corp.local.            3600 IN NS    dc01.corp.local.\n"
+            "dc01.corp.local.       3600 IN A     10.0.0.10\n"
+            "_ldap._tcp.corp.local. 600  IN SRV   0 100 389 dc01.corp.local.\n"
+            "internal-vpn.corp.local. 3600 IN A   10.0.0.200\n"
+            "dev-jenkins.corp.local.  3600 IN A   10.0.0.55"
+        ),
+        "reading": [
+            {"field": "the transfer succeeding at all",
+             "means": "The server allowed AXFR (zone transfer) — almost always a misconfiguration.",
+             "do": "You just got the whole internal namespace for free. If it says 'Transfer failed'/'connection refused', AXFR is (correctly) disabled."},
+            {"field": "A records (dc01, internal-vpn, dev-jenkins)",
+             "means": "Hostname → IP for every host in the zone — a full internal inventory.",
+             "do": "This IS your target list. Names leak purpose: dev-jenkins, internal-vpn, backup-* are juicy pivots."},
+            {"field": "_ldap._tcp ... SRV ... dc01",
+             "means": "SRV records advertise WHERE domain services live — _ldap._tcp/_kerberos._tcp = the Domain Controllers.",
+             "do": "You just found the DCs without scanning. Point your AD tooling (nxc, bloodhound) straight at them."},
+            {"field": "SOA / NS records",
+             "means": "The authoritative + name servers for the zone.",
+             "do": "Confirms the primary DNS/DC; the NS host is high-value."},
+        ],
+        "reference": {
+            "title": "Record types worth reading",
+            "rows": [
+                ("A / AAAA", "hostname → IP — your inventory"),
+                ("SRV (_ldap/_kerberos._tcp)", "locates Domain Controllers & services"),
+                ("MX", "mail servers — phishing/relay targets"),
+                ("TXT", "SPF/DKIM, sometimes leaked config/secrets"),
+                ("CNAME", "aliases — reveal internal naming & third parties"),
+            ],
+        },
+        "work_with_it": (
+            "Turn the dump into a map: every A record is a host to enumerate, naming conventions reveal "
+            "purpose (target dev/backup/vpn hosts), and SRV records hand you the DCs to aim AD attacks at. "
+            "If AXFR is refused (the norm), fall back to brute-forcing subdomains (gobuster dns / dnsrecon)."
+        ),
+        "misreads": [
+            "A successful AXFR is a serious misconfiguration handing you the whole namespace — not routine DNS.",
+            "SRV records (_ldap._tcp, _kerberos._tcp) locate the Domain Controllers — don't skip them for the A records.",
+            "'Transfer failed' means AXFR is correctly disabled — pivot to subdomain brute-forcing, don't assume no hosts.",
+        ],
+    },
+
+    "certipy": {
+        "tool": "certipy (AD CS enumeration)",
+        "headline": "Certipy does the hard part for you: it flags vulnerable certificate templates with an ESC number. That [!] ESC1 isn't a config note — it's a direct path to impersonating any user.",
+        "sample": (
+            "Certificate Templates\n"
+            "  0\n"
+            "    Template Name          : UserCert\n"
+            "    Enabled                : True\n"
+            "    Client Authentication  : True\n"
+            "    Enrollee Supplies Subject : True\n"
+            "    Requires Manager Approval : False\n"
+            "    [!] Vulnerabilities\n"
+            "      ESC1 : Enrollee can supply arbitrary SAN and use for authentication"
+        ),
+        "reading": [
+            {"field": "[!] Vulnerabilities → ESC1",
+             "means": "Certipy already CLASSIFIED the misconfiguration. ESC1 = you can request a cert as ANY user (incl. Domain Admin).",
+             "do": "This is a direct domain-compromise path. Request a cert for a DA, then authenticate as them (certipy req → auth)."},
+            {"field": "Enrollee Supplies Subject : True",
+             "means": "The dangerous setting BEHIND ESC1 — you choose the certificate's subject/SAN.",
+             "do": "Combined with Client Authentication, this is what lets you impersonate. Confirm both are True."},
+            {"field": "Client Authentication : True",
+             "means": "The cert can be used to authenticate (not just encrypt/sign).",
+             "do": "Required for the impersonation to work — a cert you can't auth with is harmless."},
+            {"field": "Requires Manager Approval : False",
+             "means": "No human approves the request — enrollment is automatic.",
+             "do": "Nothing stands between you and the cert. (If True, the path is gated and much harder.)"},
+        ],
+        "reference": {
+            "title": "The ESC classes certipy flags",
+            "rows": [
+                ("ESC1", "enrollee-supplied SAN + client auth → impersonate anyone"),
+                ("ESC2", "any-purpose EKU → broad misuse"),
+                ("ESC3", "enrollment agent → request on behalf of others"),
+                ("ESC4", "template ACL is writable → make it vulnerable"),
+                ("ESC6/8", "CA flag / NTLM relay to web enrollment (certipy relay)"),
+            ],
+        },
+        "work_with_it": (
+            "Trust certipy's classification — the ESC number tells you the exact abuse and the certipy "
+            "subcommand to run it (ESC1 → req with an alt SAN → auth as that user → you're them). ADCS paths "
+            "are often the quietest route to Domain Admin, bypassing password/hash attacks entirely. Prioritise "
+            "ESC1/ESC8 when 'Requires Manager Approval' is False."
+        ),
+        "misreads": [
+            "[!] ESC1 is a direct path to impersonate any user (incl. DA) — it's an exploit, not a hardening note.",
+            "'Enrollee Supplies Subject: True' + 'Client Authentication: True' is the ESC1 combo — one alone isn't it.",
+            "'Requires Manager Approval: True' gates the attack — the easy wins are the ones that say False.",
         ],
     },
 })

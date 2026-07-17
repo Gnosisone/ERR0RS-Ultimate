@@ -44,6 +44,10 @@ _ALIASES = {
     "impacket-smbexec": "psexec", "wmiexec": "psexec", "smbexec": "psexec",
     "psexec.py": "psexec", "wmiexec.py": "psexec",
     "airodump": "airodump-ng", "aircrack": "aircrack-ng",
+    "winpeas": "linpeas", "linpeas.sh": "linpeas", "winpeas.exe": "linpeas",
+    "peass": "linpeas", "pspy64": "pspy", "pspy32": "pspy",
+    "evilwinrm": "evil-winrm", "evil-winrm.rb": "evil-winrm",
+    "rustscan": "masscan", "snmp-check": "snmpwalk",
 }
 
 
@@ -1608,6 +1612,300 @@ OUTPUT_LESSONS.update({
             "rpcclient with '-U \"\" -N' enumerates the domain with NO credentials when null sessions are allowed.",
             "querydispinfo Desc fields routinely hold cleartext passwords — read them like LDAP descriptions.",
             "password_properties 0x0 means complexity is OFF (spray-friendly); 0x1 means it's enforced.",
+        ],
+    },
+})
+
+
+# ── Batch 6: privilege-escalation enumeration + fast recon ─────────────────
+OUTPUT_LESSONS.update({
+
+    "linpeas": {
+        "tool": "linpeas / winpeas",
+        "headline": "linpeas output is a firehose — thousands of lines. The skill is NOT reading it top to bottom; it's hunting the RED/YELLOW highlights, which mean '99% a privesc vector'.",
+        "sample": (
+            "╔══════╣ Sudo version\n"
+            "Sudo version 1.8.21p2          <-- highlighted RED (known CVE)\n"
+            "╔══════╣ CVEs Check\n"
+            "[+] [CVE-2021-4034] PwnKit\n"
+            "   Vulnerable! polkit pkexec found\n"
+            "╔══════╣ Interesting writable files\n"
+            "/etc/passwd                    <-- highlighted YELLOW (writable!)\n"
+            "/usr/bin/find (SUID)           <-- highlighted RED"
+        ),
+        "reading": [
+            {"field": "RED / YELLOW highlighted text",
+             "means": "linpeas's colour code: bright RED+YELLOW = 95-99% a privilege-escalation vector. This is the signal in the noise.",
+             "do": "Jump straight to the highlights. Ignore the plain-white text on the first pass — the colours ARE the findings."},
+            {"field": "[+] [CVE-2021-4034] PwnKit — Vulnerable!",
+             "means": "linpeas actively confirmed a known privesc exploit is present (PwnKit here).",
+             "do": "A near-guaranteed win. Grab the public PoC and run it — these confirmed CVEs are your fastest path to root."},
+            {"field": "/etc/passwd (writable!)",
+             "means": "A sensitive file you can write to.",
+             "do": "Writable /etc/passwd → add a root user (openssl passwd). Writable cron/service → hijack it. Direct privesc."},
+            {"field": "/usr/bin/find (SUID) — RED",
+             "means": "A SUID binary that runs as its owner (often root).",
+             "do": "Check GTFOBins for that binary — SUID find/vim/nmap etc. are instant root."},
+        ],
+        "reference": {
+            "title": "The colour code (learn this, skip the rest)",
+            "rows": [
+                ("RED + YELLOW", "95-99% a privesc vector — start here"),
+                ("RED", "special interest — worth checking"),
+                ("[+] CVE ... Vulnerable!", "confirmed exploit present — near-guaranteed"),
+                ("(writable!) on system files", "direct privesc (passwd/cron/service)"),
+                ("SUID/sudo highlights", "GTFOBins path to root"),
+            ],
+        },
+        "work_with_it": (
+            "Never read linpeas linearly — you'll drown. Scroll for colour: RED+YELLOW first, then RED. Cross-"
+            "reference every confirmed CVE and SUID against public PoCs and GTFOBins. Run linpeas with -a for the "
+            "full sweep, but triage by highlight — the tool already did the ranking for you in colour."
+        ),
+        "misreads": [
+            "Don't read linpeas top to bottom — hunt the RED/YELLOW highlights; they're the 99%-real vectors.",
+            "A highlighted version (e.g. Sudo 1.8.21) means linpeas suspects a CVE — verify and grab the PoC.",
+            "Plain-white lines are context, not findings — the colour is doing the triage; trust it first-pass.",
+        ],
+    },
+
+    "pspy": {
+        "tool": "pspy",
+        "headline": "pspy watches processes and cron WITHOUT root — its whole purpose is to reveal the root-run scheduled jobs you can't see in your own crontab. A UID=0 command on a timer is a privesc lead.",
+        "sample": (
+            "2024/06/01 12:00:01 CMD: UID=0    PID=1234 | /bin/bash /opt/backup.sh\n"
+            "2024/06/01 12:01:01 CMD: UID=0    PID=1250 | /bin/bash /opt/backup.sh\n"
+            "2024/06/01 12:02:01 CMD: UID=0    PID=1266 | /bin/bash /opt/backup.sh\n"
+            "2024/06/01 12:05:00 CMD: UID=1000 PID=1301 | curl http://internal/api?token=abc123"
+        ),
+        "reading": [
+            {"field": "UID=0 ... /opt/backup.sh (repeating every minute)",
+             "means": "A ROOT-owned script running on a schedule (a cron job). The repeating timestamp reveals the interval.",
+             "do": "Check if you can WRITE to /opt/backup.sh (or anything it calls). If yes → put your payload in it → root on next run."},
+            {"field": "the timestamp interval (00, 01, 02...)",
+             "means": "How often the job fires — here every minute.",
+             "do": "Tells you how long you'll wait for your hijack to trigger. A wildcard/tar cron may also be abusable."},
+            {"field": "UID=1000 ... curl ...?token=abc123",
+             "means": "Command arguments leak secrets — here an API token in a URL.",
+             "do": "Harvest creds/tokens from command lines; they're visible to any user watching with pspy."},
+            {"field": "PID climbing each run",
+             "means": "A fresh process each interval confirms it's scheduled, not a one-off.",
+             "do": "Confirms a recurring job you can target, versus a single manual command."},
+        ],
+        "reference": {
+            "title": "What pspy surfaces",
+            "rows": [
+                ("UID=0 on a timer", "root cron job — check write access to the script"),
+                ("repeating timestamps", "the schedule/interval of the job"),
+                ("tokens/passwords in args", "creds leaked on the command line"),
+                ("tar/rsync with wildcards", "wildcard-injection privesc"),
+                ("no crontab access needed", "pspy shows root's jobs you can't read"),
+            ],
+        },
+        "work_with_it": (
+            "Let pspy run for a few minutes to catch the cron cycle. For every UID=0 job, test write access to the "
+            "script and every path it references — a writable root cron script is game over. Watch command "
+            "arguments for leaked tokens/passwords, and note wildcard tar/rsync jobs (classic wildcard-injection root)."
+        ),
+        "misreads": [
+            "A UID=0 command on a repeating timer is a root cron job — its value is whether you can write to what it runs.",
+            "pspy's whole point is showing root's cron jobs you CAN'T see in your own crontab — that's the win.",
+            "Command arguments leak secrets (tokens, passwords) to anyone watching — harvest them.",
+        ],
+    },
+
+    "snmpwalk": {
+        "tool": "snmpwalk",
+        "headline": "SNMP with a guessed community string ('public') is authentication-free enumeration: it leaks processes, users, network config, even installed software. 'private' often means WRITE.",
+        "sample": (
+            "snmpwalk -v2c -c public 10.0.0.5\n"
+            "SNMPv2-MIB::sysDescr.0 = STRING: Linux fileserver 5.4.0 x86_64\n"
+            "HOST-RESOURCES-MIB::hrSWRunName.42 = STRING: apache2\n"
+            "HOST-RESOURCES-MIB::hrSWRunName.51 = STRING: mysqld\n"
+            "IP-MIB::ipAdEntAddr.10.0.0.5 = IpAddress: 10.0.0.5\n"
+            "SNMPv2-MIB::sysContact.0 = STRING: admin@corp.local"
+        ),
+        "reading": [
+            {"field": "the fact it returned data at all (-c public)",
+             "means": "The 'public' community string worked — SNMP handed you data with no real authentication.",
+             "do": "'public'/'private' are the default guesses. If you get output, the device is leaking. No output = wrong community/version."},
+            {"field": "sysDescr = Linux fileserver 5.4.0",
+             "means": "OS, hostname, kernel version — free fingerprinting.",
+             "do": "Version → CVE search; hostname/role ('fileserver') → prioritise the target."},
+            {"field": "hrSWRunName = apache2 / mysqld",
+             "means": "The list of RUNNING processes — effectively a remote tasklist over SNMP.",
+             "do": "See what services run without touching them; plan attacks on the exposed software."},
+            {"field": "sysContact = admin@corp.local",
+             "means": "Leaked admin contact / usernames — and other OIDs leak full user lists, ARP, routes.",
+             "do": "Harvest usernames/emails for spraying/phishing; walk further for network topology."},
+        ],
+        "reference": {
+            "title": "SNMP essentials",
+            "rows": [
+                ("-c public", "the default READ community to guess first"),
+                ("-c private", "often grants WRITE — reconfigure the device"),
+                ("-v2c / -v1", "version must match; try both if no output"),
+                ("hrSWRunName", "running processes (remote tasklist)"),
+                ("no output", "wrong community or version — try onesixtyone to brute"),
+            ],
+        },
+        "work_with_it": (
+            "Guess community strings first (public/private, or brute with onesixtyone). A working READ community "
+            "leaks a goldmine: OS, processes, users, network layout — enumerate a host without authenticating. If "
+            "'private' works you may reconfigure the device. No output usually means the wrong community or SNMP version."
+        ),
+        "misreads": [
+            "'public' is a default community that leaks huge amounts with NO real auth — always try it.",
+            "'private' frequently grants WRITE access — you can reconfigure the device, not just read it.",
+            "No output usually means wrong community/version, not that SNMP is absent — brute the community.",
+        ],
+    },
+})
+
+
+# ── Batch 6b: WinRM shell + exploit search + fast port discovery ───────────
+OUTPUT_LESSONS.update({
+
+    "evil-winrm": {
+        "tool": "evil-winrm",
+        "headline": "evil-winrm is a POST-auth PowerShell shell over WinRM — you don't get the prompt without valid creds or a hash. Read whoami (you're the user, not SYSTEM) and use the menu for its built-in helpers.",
+        "sample": (
+            "$ evil-winrm -i 10.0.0.15 -u jdoe -H 9f4e1b7c0a2d3e4f5061728394a5b6c7\n"
+            "Evil-WinRM shell v3.5\n"
+            "*Evil-WinRM* PS C:\\Users\\jdoe\\Documents> whoami\n"
+            "corp\\jdoe\n"
+            "*Evil-WinRM* PS C:\\Users\\jdoe\\Documents> menu\n"
+            "  upload  download  services  Bypass-4MSI  Dll-Loader  Invoke-Binary"
+        ),
+        "reading": [
+            {"field": "-u jdoe -H <hash>  (or -p <pass>)",
+             "means": "evil-winrm authenticates with a password (-p) OR an NT hash (-H, pass-the-hash). It is NOT an exploit.",
+             "do": "You need valid creds/hash to connect. If auth fails, the account lacks WinRM rights (Remote Management Users) — try another."},
+            {"field": "*Evil-WinRM* PS C:\\...> prompt",
+             "means": "You have an interactive PowerShell session over WinRM (port 5985/5986).",
+             "do": "You're executing on the target. Enumerate, but check your privilege first — you're not automatically admin."},
+            {"field": "whoami → corp\\jdoe",
+             "means": "You are the AUTHENTICATED user, not SYSTEM.",
+             "do": "A normal user — run winPEAS/privesc checks before assuming you can dump creds. Escalate if needed."},
+            {"field": "menu → Bypass-4MSI, Dll-Loader, Invoke-Binary",
+             "means": "evil-winrm's built-in helpers: AMSI bypass, in-memory DLL/EXE loading, file transfer.",
+             "do": "Run Bypass-4MSI BEFORE loading PowerShell tools so AMSI doesn't flag them; use Invoke-Binary to run .NET in memory."},
+        ],
+        "reference": {
+            "title": "Connecting + the menu",
+            "rows": [
+                ("-u/-p", "auth with username + password"),
+                ("-u/-H", "pass-the-hash with the NT hash"),
+                ("prompt appears", "valid auth — you have a PS session"),
+                ("Bypass-4MSI", "disable AMSI before loading tools"),
+                ("Invoke-Binary / Dll-Loader", "run .NET/DLLs in memory (no disk)"),
+            ],
+        },
+        "work_with_it": (
+            "Reach evil-winrm only AFTER you have creds or a hash (from secretsdump, responder-cracked, etc.). "
+            "Once in, run whoami/whoami /priv to fix your privilege level, Bypass-4MSI before any PowerShell "
+            "tooling, and load tools in memory (Invoke-Binary) to avoid touching disk. It's the clean interactive "
+            "shell for a Windows box you already have valid access to."
+        ),
+        "misreads": [
+            "evil-winrm is post-auth — it needs valid creds or an NT hash (-H); it does not exploit anything.",
+            "You're the authenticated USER, not SYSTEM — check whoami and escalate before dumping creds.",
+            "Run Bypass-4MSI first or AMSI will flag your PowerShell payloads as you load them.",
+        ],
+    },
+
+    "searchsploit": {
+        "tool": "searchsploit",
+        "headline": "searchsploit is a local grep of Exploit-DB. It gives you a Title and a Path — but the version in the title must match your target EXACTLY, and a hit is a lead, not a guarantee.",
+        "sample": (
+            "$ searchsploit vsftpd 2.3.4\n"
+            "--------------------------------------------- -------------------------\n"
+            " Exploit Title                                |  Path\n"
+            "--------------------------------------------- -------------------------\n"
+            " vsftpd 2.3.4 - Backdoor Command Execution    | unix/remote/17491.rb\n"
+            " vsftpd 2.3.4 - Backdoor Command Exec (Meta.) | unix/remote/49757.py\n"
+            "--------------------------------------------- -------------------------\n"
+            " Shellcodes: No Results"
+        ),
+        "reading": [
+            {"field": "the version in the Title (vsftpd 2.3.4)",
+             "means": "The exact software+version the exploit targets.",
+             "do": "Match it to YOUR target's version precisely — a 2.3.4 exploit may not touch 2.3.5. Version drift = wasted time."},
+            {"field": "Path: unix/remote/17491.rb",
+             "means": "The exploit file's location in the local Exploit-DB copy, and its category (unix/remote).",
+             "do": "'remote' = fire it at the target; 'local' = privesc once you're on the box. Copy it out with -m <path>."},
+            {"field": "-m <path> vs -x <path>",
+             "means": "-m mirrors (copies) the exploit to your cwd; -x examines (prints) it.",
+             "do": "Read it with -x FIRST (understand/verify it, check for hardcoded IPs), then -m to use it."},
+            {"field": "No Results (Shellcodes/Papers)",
+             "means": "Nothing matched in that category — NOT proof the target is safe.",
+             "do": "Exploit-DB isn't exhaustive and titles vary; also search the CVE, GitHub, and try broader terms."},
+        ],
+        "reference": {
+            "title": "Using the results",
+            "rows": [
+                ("Title version", "must match your target EXACTLY"),
+                ("unix/linux/windows + remote/local", "how/where the exploit runs"),
+                ("-x <path>", "read/verify the exploit first"),
+                ("-m <path>", "copy it locally to use"),
+                ("No Results", "not 'safe' — search CVE/GitHub too"),
+            ],
+        },
+        "work_with_it": (
+            "Feed it the EXACT version string from your -sV/banner output. Read promising hits with -x (verify they "
+            "apply, and check for hardcoded attacker IPs/ports to change), then -m to copy locally. Remember it only "
+            "knows Exploit-DB — cross-check the CVE and GitHub for PoCs it doesn't carry before concluding 'no exploit'."
+        ),
+        "misreads": [
+            "The title version must match the target EXACTLY — a near-miss version often won't work.",
+            "'No Results' means Exploit-DB has nothing indexed, not that the target is unexploitable — search wider.",
+            "Read the exploit (-x) before running it — many have hardcoded IPs/ports you must edit.",
+        ],
+    },
+
+    "masscan": {
+        "tool": "masscan",
+        "headline": "masscan finds open ports at internet scale in minutes — but gives you NOTHING but the port and IP. No service, no version. It's the fast first pass; nmap does the detail second.",
+        "sample": (
+            "$ masscan 10.0.0.0/24 -p1-65535 --rate 10000\n"
+            "Discovered open port 445/tcp on 10.0.0.5\n"
+            "Discovered open port 22/tcp on 10.0.0.15\n"
+            "Discovered open port 3389/tcp on 10.0.0.20\n"
+            "Discovered open port 8080/tcp on 10.0.0.20"
+        ),
+        "reading": [
+            {"field": "Discovered open port 445/tcp on 10.0.0.5",
+             "means": "A port + host — that's ALL. No service name, no version, no depth.",
+             "do": "Collect these into a target/port list. This is breadth, not detail — don't try to act on it directly."},
+            {"field": "the absence of service/version info",
+             "means": "masscan does NOT do -sV — it only confirms a port answered.",
+             "do": "Follow up: nmap -sV -sC -p445,22,3389 <hosts> on exactly these hits to learn what's actually there."},
+            {"field": "--rate 10000",
+             "means": "Packets per second — masscan's speed dial, and its accuracy trade-off.",
+             "do": "Too high a rate drops packets and MISSES open ports (false negatives). Lower it on unreliable links / big ranges."},
+            {"field": "a whole /24 in seconds",
+             "means": "masscan's strength is breadth — huge ranges, fast.",
+             "do": "Use it to triage a large scope quickly, then hand the discovered ports to nmap for depth."},
+        ],
+        "reference": {
+            "title": "masscan vs nmap (breadth vs depth)",
+            "rows": [
+                ("masscan", "huge ranges, FAST, port+IP only"),
+                ("nmap -sV", "one/few hosts, service+version detail"),
+                ("--rate", "speed vs accuracy — too high drops packets"),
+                ("-p1-65535", "all ports (masscan is fast enough to)"),
+                ("workflow", "masscan to find → nmap -sV on the hits"),
+            ],
+        },
+        "work_with_it": (
+            "Use masscan for the breadth pass on a big scope: all ports, whole ranges, in minutes — then pipe the "
+            "discovered host:port pairs into nmap -sV for the detail that masscan deliberately skips. Tune --rate "
+            "down if you see inconsistent results; a too-fast scan silently misses ports and gives false confidence."
+        ),
+        "misreads": [
+            "masscan gives port+IP only — NO service/version; you must follow up with nmap -sV on the hits.",
+            "A too-high --rate drops packets and misses open ports — speed is traded for accuracy.",
+            "masscan is breadth, nmap is depth — use them together, not one instead of the other.",
         ],
     },
 })

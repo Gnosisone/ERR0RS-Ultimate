@@ -56,6 +56,10 @@ _ALIASES = {
     "rubeus.exe": "rubeus", "nanodump": "lsassy", "pypykatz": "lsassy",
     "bloodhound.py": "bloodhound-python", "sharphound": "bloodhound-python",
     "impacket-getadusers": "getadusers", "getadusers.py": "getadusers",
+    "ssh2john": "keepass2john", "zip2john": "keepass2john", "rar2john": "keepass2john",
+    "office2john": "keepass2john", "pdf2john": "keepass2john", "2john": "keepass2john",
+    "wifite2": "wifite", "hcxpcapngtool": "hcxdumptool", "hcxtools": "hcxdumptool",
+    "trufflehog": "gitleaks", "paramspider": "arjun",
 }
 
 
@@ -2509,6 +2513,307 @@ OUTPUT_LESSONS.update({
             "GetADUsers is authenticated enum — it needs valid domain creds, not anonymous access.",
             "'<never>' LastLogon + old PasswordLastSet flags stale, weak accounts — prime spray/roast targets.",
             "It's an inventory step — pair it with GetUserSPNs/GetNPUsers to actually find the roastable accounts.",
+        ],
+    },
+})
+
+
+# ── Batch 9: hash extraction + wireless PMKID/automation ───────────────────
+OUTPUT_LESSONS.update({
+
+    "keepass2john": {
+        "tool": "*2john (keepass2john, ssh2john, zip2john, office2john...)",
+        "headline": "The *2john tools don't crack anything — they EXTRACT a crackable hash from a protected file. The $prefix in the output tells you the format, which picks the hashcat mode.",
+        "sample": (
+            "$ keepass2john Database.kdbx\n"
+            "Database:$keepass$*2*60000*0*a1b2c3d4...*e5f6...\n"
+            "$ ssh2john id_rsa\n"
+            "id_rsa:$sshng$1$16$a1b2...$c3d4...\n"
+            "$ zip2john secret.zip\n"
+            "secret.zip:$zip2$*0*1*0*b5e2...*$/zip2$"
+        ),
+        "reading": [
+            {"field": "the tool itself (keepass2john/ssh2john/...)",
+             "means": "A converter: it reads a protected file (KeePass DB, SSH key, ZIP, Office doc) and outputs its password hash.",
+             "do": "Pick the right converter for the file type. It does NOT crack — it prepares the hash for the cracker."},
+            {"field": "$keepass$ / $sshng$ / $zip2$ prefix",
+             "means": "The hash format tag — it identifies exactly what kind of secret this is.",
+             "do": "Maps to the hashcat mode: keepass=-m 13400, SSH key=-m 22921, zip=-m 13600, Office=-m 9400+. Wrong mode = zero cracks."},
+            {"field": "the 'filename:' at the start",
+             "means": "john-format prefix naming the source file.",
+             "do": "For hashcat, strip the 'filename:' and keep just the $hash. john reads the whole line as-is."},
+            {"field": "(ssh2john) an ENCRYPTED private key",
+             "means": "The SSH key is passphrase-protected (Proc-Type: 4,ENCRYPTED).",
+             "do": "Crack the passphrase, then use the key to log in — a cracked SSH key is often direct access."},
+        ],
+        "reference": {
+            "title": "File → tool → hashcat mode",
+            "rows": [
+                ("KeePass .kdbx", "keepass2john → -m 13400"),
+                ("SSH private key", "ssh2john → -m 22921"),
+                (".zip", "zip2john → -m 13600"),
+                ("Office doc", "office2john → -m 9400/9500/9600"),
+                ("output goes to", "john (auto) or hashcat (strip 'file:')"),
+            ],
+        },
+        "work_with_it": (
+            "When you loot a protected file (a KeePass database, an encrypted SSH key, a password-protected archive), "
+            "run the matching *2john to pull its hash, then crack it — john auto-detects the format, or feed hashcat "
+            "the right -m from the $prefix. A cracked KeePass DB unlocks every password inside; a cracked SSH key is "
+            "usually a direct login."
+        ),
+        "misreads": [
+            "*2john tools EXTRACT a hash from a file — they don't crack; you feed the output to john/hashcat.",
+            "The $prefix identifies the format and picks the hashcat mode (keepass=-m 13400, ssh=-m 22921, etc.).",
+            "For hashcat, strip the leading 'filename:' — john reads the whole line, hashcat wants just the $hash.",
+        ],
+    },
+
+    "wifite": {
+        "tool": "wifite",
+        "headline": "wifite automates the entire wireless attack — scan, deauth, capture, crack — in one tool. Read the target table like airodump; the CLIENTS count tells you which handshake will be easy.",
+        "sample": (
+            "   NUM  ESSID          CH  ENCR   POWER  WPS  CLIENTS\n"
+            "   1    HomeNet         6  WPA2    45db   no      2\n"
+            "   2    Corp-WiFi      11  WPA2    20db   yes     0\n"
+            "[+] select target(s): 1\n"
+            "[+] (1/1) HomeNet: capturing handshake (45db)...\n"
+            "[+] captured handshake for HomeNet\n"
+            "[+] cracking with wordlist...  KEY FOUND: Summer2024!"
+        ),
+        "reading": [
+            {"field": "the target table (ESSID/CH/ENCR/POWER/CLIENTS)",
+             "means": "The same survey data as airodump-ng, but wifite ranks and numbers targets for you.",
+             "do": "Pick by POWER (strong signal) and CLIENTS (>0). It'll then run the whole attack chain automatically."},
+            {"field": "CLIENTS column (2 vs 0)",
+             "means": "Connected clients — required to force a 4-way handshake via deauth.",
+             "do": "A target with clients = easy handshake. 0 clients means wifite may fall back to PMKID or WPS."},
+            {"field": "WPS: yes",
+             "means": "WPS is enabled — often attackable via Pixie-Dust or PIN brute (no handshake/wordlist needed).",
+             "do": "WPS-enabled can be the fastest path — wifite may crack the WPS PIN and recover the PSK directly."},
+            {"field": "cracking with wordlist... KEY FOUND",
+             "means": "wifite captured the handshake and cracked it against your list.",
+             "do": "Same dependency as aircrack — the PSK is only found if it's in your wordlist. Supply a good one."},
+        ],
+        "reference": {
+            "title": "wifite automates the chain",
+            "rows": [
+                ("scan → number targets", "airodump-style survey, ranked"),
+                ("CLIENTS > 0", "easy handshake (deauth a client)"),
+                ("WPS: yes", "Pixie-Dust/PIN — no wordlist needed"),
+                ("auto deauth+capture+crack", "the whole flow in one tool"),
+                ("still needs a wordlist (WPA2)", "KEY FOUND depends on your list"),
+            ],
+        },
+        "work_with_it": (
+            "Use wifite when you want the whole capture-and-crack flow handled: pick a strong target with clients "
+            "(easy handshake) or WPS enabled (PIN attack, no wordlist), and let it deauth, capture, and crack. It's "
+            "airodump + aireplay + aircrack in one — but WPA2 cracking still lives or dies by your wordlist quality."
+        ),
+        "misreads": [
+            "wifite automates airodump+aireplay+aircrack — the whole capture-and-crack chain in one tool.",
+            "The CLIENTS count decides handshake difficulty — clients present = easy, 0 clients = harder (PMKID/WPS).",
+            "WPA2 cracking still needs a wordlist — 'KEY FOUND' depends on your list, same as aircrack.",
+        ],
+    },
+
+    "hcxdumptool": {
+        "tool": "hcxdumptool / hcxpcapngtool",
+        "headline": "This is the CLIENTLESS wireless attack: hcxdumptool grabs a PMKID straight from the AP — no connected client needed. hcxpcapngtool converts it to hashcat's -m 22000 format.",
+        "sample": (
+            "$ hcxdumptool -i wlan0 -w capture.pcapng\n"
+            "[associating / requesting PMKID from APs...]\n"
+            "$ hcxpcapngtool -o hash.hc22000 capture.pcapng\n"
+            "PMKID (total).........: 3\n"
+            "EAPOL messages........: 12\n"
+            "$ hashcat -m 22000 hash.hc22000 rockyou.txt"
+        ),
+        "reading": [
+            {"field": "hcxdumptool requesting PMKID",
+             "means": "It asks APs for a PMKID directly — the CLIENTLESS attack (no 4-way handshake, no deauth needed).",
+             "do": "Great when a target AP has no connected clients. You attack the AP itself, not a client's handshake."},
+            {"field": "PMKID (total): 3",
+             "means": "Three APs handed over a crackable PMKID.",
+             "do": "You have 3 crack targets. If PMKID=0, those APs aren't PMKID-vulnerable — fall back to capturing a handshake."},
+            {"field": "hcxpcapngtool -o hash.hc22000",
+             "means": "Converts the raw capture into hashcat's modern WPA format (.hc22000).",
+             "do": "It CONVERTS, doesn't crack. The .hc22000 output goes to hashcat -m 22000 (which handles PMKID + handshake)."},
+            {"field": "hashcat -m 22000",
+             "means": "The unified modern WPA/WPA2 cracking mode.",
+             "do": "22000 replaced the old 16800 (PMKID) / 2500 (handshake) split — use it for both. Still wordlist-dependent."},
+        ],
+        "reference": {
+            "title": "PMKID vs handshake",
+            "rows": [
+                ("PMKID", "clientless — from the AP, no client needed"),
+                ("4-way handshake", "needs a connected client to deauth"),
+                ("hcxpcapngtool", "converts capture → .hc22000 (no cracking)"),
+                ("hashcat -m 22000", "unified WPA mode (PMKID + handshake)"),
+                ("PMKID (total): 0", "not vulnerable — capture a handshake instead"),
+            ],
+        },
+        "work_with_it": (
+            "Reach for PMKID first when a target AP has no clients (the handshake route needs one). hcxdumptool pulls "
+            "the PMKID from the AP directly; hcxpcapngtool converts it to .hc22000 for hashcat -m 22000. If PMKID "
+            "returns 0, the AP isn't vulnerable to it — pivot to capturing a 4-way handshake. Either way it's a "
+            "wordlist race at the end."
+        ),
+        "misreads": [
+            "PMKID is CLIENTLESS — you attack the AP directly, no connected client or deauth required (unlike the handshake).",
+            "hcxpcapngtool CONVERTS the capture to .hc22000 (mode 22000) — it does not crack anything.",
+            "PMKID=0 means the AP isn't PMKID-vulnerable — fall back to capturing a 4-way handshake, don't give up.",
+        ],
+    },
+})
+
+
+# ── Batch 9b: secret scanning + hidden params + file metadata ──────────────
+OUTPUT_LESSONS.update({
+
+    "gitleaks": {
+        "tool": "gitleaks / trufflehog",
+        "headline": "These scan git repos — including HISTORY — for secrets. The killer detail is the commit date: a secret deleted from current code is STILL exposed in old commits, and found keys are often live.",
+        "sample": (
+            "Finding:  AWS_SECRET_ACCESS_KEY = AKIAIOSFODNN7EXAMPLE\n"
+            "Secret:   wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+            "File:     config/prod.env\n"
+            "Commit:   a1b2c3d  (deleted in a later commit, 3 months ago)\n"
+            "Author:   jdoe@corp.com\n"
+            "Rule:     aws-access-token"
+        ),
+        "reading": [
+            {"field": "Commit: a1b2c3d (deleted in a later commit)",
+             "means": "The secret lives in git HISTORY — even though it was removed from the current files.",
+             "do": "This is the whole point: don't only read current code. A 'removed' key is still recoverable and often still valid."},
+            {"field": "Secret: wJalr... + Rule: aws-access-token",
+             "means": "The actual credential and what type it is (AWS key, here).",
+             "do": "Test it: aws sts get-caller-identity with the key. Live cloud creds are a direct pivot into the cloud account."},
+            {"field": "File: config/prod.env",
+             "means": "Where the secret sat — a production env file committed by mistake.",
+             "do": ".env / config / .yml files are the usual offenders; grep the repo for more of them."},
+            {"field": "(trufflehog) Verified: true",
+             "means": "trufflehog actively CONFIRMED the credential works (it made a test call).",
+             "do": "Prioritise Verified findings — they're guaranteed-live, not just pattern matches."},
+        ],
+        "reference": {
+            "title": "Reading secret-scan output",
+            "rows": [
+                ("Commit + date", "secret is in HISTORY, even if 'deleted'"),
+                ("Rule / detector", "the secret TYPE (AWS, GitHub PAT, etc.)"),
+                ("Verified: true (trufflehog)", "confirmed live — prioritise"),
+                (".env / config files", "the usual leak locations"),
+                ("test the key", "validate before assuming it's rotated"),
+            ],
+        },
+        "work_with_it": (
+            "Always scan the full history, not just HEAD — the best finds are secrets someone 'removed' but that "
+            "remain in old commits. Sort by detector type and (with trufflehog) Verified status, then VALIDATE the "
+            "live ones: an AWS key → sts get-caller-identity, a DB cred → connect, a GitHub PAT → list private repos. "
+            "One leaked prod key often pivots straight into the cloud or CI/CD."
+        ),
+        "misreads": [
+            "gitleaks/trufflehog scan git HISTORY — a secret deleted from current code is STILL exposed in old commits.",
+            "Found secrets are often LIVE — validate them (sts get-caller-identity, etc.) before assuming they're rotated.",
+            "trufflehog's 'Verified: true' means it confirmed the key works — prioritise those over pattern-only matches.",
+        ],
+    },
+
+    "arjun": {
+        "tool": "arjun / paramspider",
+        "headline": "arjun finds HIDDEN HTTP parameters — ones not in the page's HTML or links. Undocumented params like 'debug', 'admin', or a bare 'id' are exactly the ones that change behavior in interesting ways.",
+        "sample": (
+            "$ arjun -u https://target.com/api/user\n"
+            "[*] Analysing the content of the webpage\n"
+            "[*] Testing 5000 param names...\n"
+            "[+] Parameters found: id, debug, admin, format\n"
+            "[*] Scanning https://target.com/search\n"
+            "[+] Parameters found: q, category, callback"
+        ),
+        "reading": [
+            {"field": "Parameters found: id, debug, admin, format",
+             "means": "Parameters the endpoint ACCEPTS but doesn't advertise — discovered by fuzzing param names and watching responses.",
+             "do": "These are your test surface. Undocumented = often unhardened; the dev forgot they were reachable."},
+            {"field": "'debug' / 'test' / 'verbose'",
+             "means": "A hidden debug-style parameter.",
+             "do": "Try debug=true/1 — frequently unlocks stack traces, SQL errors, config dumps, or dev-only features."},
+            {"field": "'admin' / 'is_admin' / 'role'",
+             "means": "A parameter that may control privilege.",
+             "do": "Test admin=1/true for mass-assignment / privilege escalation via a param the UI never exposed."},
+            {"field": "a bare 'id' / 'user' / 'uid'",
+             "means": "An object-reference parameter.",
+             "do": "Prime IDOR target — change the value to access other users' objects/data."},
+        ],
+        "reference": {
+            "title": "Hidden params worth testing",
+            "rows": [
+                ("debug/test/verbose", "verbose errors, dev features"),
+                ("admin/role/is_admin", "privilege / mass-assignment"),
+                ("id/uid/user", "IDOR — access others' data"),
+                ("callback/jsonp", "XSS / JSONP hijack"),
+                ("format/output/type", "alternate responses (xml/raw) — info leak"),
+            ],
+        },
+        "work_with_it": (
+            "Run arjun on endpoints (especially APIs) to surface the parameters the app accepts but never shows you — "
+            "those are where the untested logic hides. Then probe by intent: debug params for error/info leaks, "
+            "admin/role for privilege bugs, id/uid for IDOR. paramspider does the passive version (mining archived "
+            "URLs); combine both for coverage."
+        ),
+        "misreads": [
+            "arjun finds UNDOCUMENTED parameters — the ones not in the HTML/links, which are often the interesting ones.",
+            "A hidden 'debug'/'test' param frequently unlocks verbose errors or dev features — always try it.",
+            "Bare id/user/uid params are IDOR candidates — change the value to reach other users' data.",
+        ],
+    },
+
+    "exiftool": {
+        "tool": "exiftool",
+        "headline": "exiftool reads the metadata baked into files — and it leaks a surprising amount: usernames (Author), software versions, internal paths, and GPS coordinates from photos.",
+        "sample": (
+            "$ exiftool report.pdf\n"
+            "Author           : John Doe\n"
+            "Creator          : Microsoft Word 2016\n"
+            "Producer         : Acrobat Distiller 9.0.0\n"
+            "Create Date      : 2020:03:15 14:22:01\n"
+            "$ exiftool photo.jpg\n"
+            "GPS Position     : 40 deg 42' N, 74 deg 0' W\n"
+            "Camera Model     : iPhone 12\n"
+            "Software         : Adobe Photoshop 21.0"
+        ),
+        "reading": [
+            {"field": "Author: John Doe / Last Modified By",
+             "means": "The document's author — a real employee's name, often their exact username.",
+             "do": "Harvest these across many public documents to build a username/employee list for spraying and phishing."},
+            {"field": "Creator/Producer: Word 2016, Acrobat 9.0.0",
+             "means": "The software (and version) used to make the file.",
+             "do": "Reveals the org's client software — old versions (Acrobat 9) suggest outdated, exploitable endpoints."},
+            {"field": "GPS Position (on photos)",
+             "means": "Geotag coordinates embedded by the camera/phone.",
+             "do": "Physical-location intel — where a photo was taken (home, office, facility). Also: strip this from YOUR own files."},
+            {"field": "internal paths / templates (in Office metadata)",
+             "means": "Office docs often embed the author's file path, template location, and printer names.",
+             "do": "Leaks usernames (in paths like C:\\Users\\jdoe\\), internal server names, and naming conventions."},
+        ],
+        "reference": {
+            "title": "What metadata leaks",
+            "rows": [
+                ("Author / Last Modified By", "usernames → user list"),
+                ("Creator / Producer / Software", "client software + versions"),
+                ("GPS (photos)", "physical location"),
+                ("internal paths (Office)", "usernames, server names, layout"),
+                ("Create/Modify dates", "timeline / activity"),
+            ],
+        },
+        "work_with_it": (
+            "Pull metadata from every public document and image you can find (site PDFs, brochures, leaked files): "
+            "the Author fields build your employee/username list, software versions reveal exploitable client apps, "
+            "embedded paths leak internal naming, and photo GPS gives physical intel. It's pure passive recon — and "
+            "a reminder to scrub metadata from your own deliverables."
+        ),
+        "misreads": [
+            "Document metadata leaks USERNAMES (Author field) — harvest them across files for your user list.",
+            "Software versions in metadata (e.g. Acrobat 9.0) reveal outdated, potentially vulnerable client software.",
+            "Photos can carry GPS coordinates — real physical-location intel; strip metadata from your own files too.",
         ],
     },
 })
